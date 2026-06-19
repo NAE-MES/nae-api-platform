@@ -125,11 +125,17 @@ Resultado:
 
 ## Estado operativo actual
 
-La API está levantada localmente y la base de datos ya está materializada con el primer circuito completo.
+La API está levantada localmente, la base de datos ya está materializada con el primer circuito completo y la actualización de modelo v1.1 quedó validada de punta a punta.
+
+Estado de publicación:
+
+- cambios subidos a `origin/dev`
+- commit actual en `dev`: `4c82726`
+- validación completa de `raw -> staging -> operational -> analytics`
 
 ## Actualización de modelo de datos 1.1
 
-Se incorporó el ajuste del documento `NAE Platform - Actualización de Modelo de Datos.pdf` en el código y en una migración nueva:
+Se incorporó el ajuste del documento `NAE Platform - Actualización de Modelo de Datos.pdf` en el código y en la migración nueva:
 
 - `sql/005_update_modelo_datos_v11.sql`
 
@@ -144,14 +150,10 @@ Cambios incluidos:
 
 ## Siguiente paso recomendado
 
-Ejecutar como admin la migración `sql/005_update_modelo_datos_v11.sql`, reiniciar la API si hace falta y volver a correr:
+Promover `dev` a `main` con revisión mínima del diff y dejar ese corte como base estable.
 
-- `POST /api/v1/pipelines/staging/raw-to-staging`
-- `POST /api/v1/pipelines/operational/staging-to-operational`
-- `POST /api/v1/pipelines/analytics/operational-to-analytics`
+Después de eso, el siguiente bloque útil es construir capa de consumo:
 
-Luego conviene validar conteos en:
-
-- `staging.respuestas_formulario`
-- `operational.respuestas_encuesta`
-- `analytics.f_respuestas_encuesta`
+- vistas analíticas para BI
+- consultas base de control de calidad
+- validaciones de regresión para futuras versiones del formulario
