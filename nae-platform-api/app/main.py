@@ -24,6 +24,7 @@ class RespuestaFormulario(BaseModel):
     id_respuesta_origen: Optional[str] = None
     formulario_origen: Optional[str] = "Encuesta NAE"
     fecha_respuesta: Optional[datetime] = None
+    version_encuesta: Optional[str] = None
     payload: Dict[str, Any]
 
 
@@ -65,6 +66,7 @@ def recibir_respuesta(
                     id_respuesta_origen,
                     formulario_origen,
                     fecha_respuesta,
+                    version_encuesta,
                     payload,
                     estado
                 )
@@ -72,6 +74,7 @@ def recibir_respuesta(
                     :id_respuesta_origen,
                     :formulario_origen,
                     :fecha_respuesta,
+                    :version_encuesta,
                     CAST(:payload AS JSONB),
                     'recibida'
                 )
@@ -81,6 +84,7 @@ def recibir_respuesta(
                 "id_respuesta_origen": data.id_respuesta_origen,
                 "formulario_origen": data.formulario_origen,
                 "fecha_respuesta": data.fecha_respuesta or datetime.now(),
+                "version_encuesta": data.version_encuesta,
                 "payload": json.dumps(data.payload, ensure_ascii=False)
             }
         )

@@ -1,6 +1,6 @@
 # Estado del proyecto NAE
 
-Fecha: 2026-06-17
+Fecha: 2026-06-19
 
 ## Resumen ejecutivo
 
@@ -127,27 +127,31 @@ Resultado:
 
 La API está levantada localmente y la base de datos ya está materializada con el primer circuito completo.
 
+## Actualización de modelo de datos 1.1
+
+Se incorporó el ajuste del documento `NAE Platform - Actualización de Modelo de Datos.pdf` en el código y en una migración nueva:
+
+- `sql/005_update_modelo_datos_v11.sql`
+
+Cambios incluidos:
+
+- soporte para `version_encuesta`
+- nuevo campo `nivel_instruccion`
+- catálogo de género ampliado con `Persona trans`
+- nueva pregunta `Mayoría de titulares de emprendimientos`
+- preguntas de género y emprendimiento en staging, operational y analytics
+- nuevas dimensiones analíticas `analytics.dim_genero` y `analytics.dim_respuesta_genero`
+
 ## Siguiente paso recomendado
 
-Mañana conviene seguir con una de estas dos rutas:
+Ejecutar como admin la migración `sql/005_update_modelo_datos_v11.sql`, reiniciar la API si hace falta y volver a correr:
 
-1. separar multiselecciones en tablas hijas de `operational`
-2. crear vistas analíticas para Power BI o Metabase
+- `POST /api/v1/pipelines/staging/raw-to-staging`
+- `POST /api/v1/pipelines/operational/staging-to-operational`
+- `POST /api/v1/pipelines/analytics/operational-to-analytics`
 
-La opción más útil después de lo ya hecho es la primera, porque limpia el modelo y evita que el análisis dependa del JSON bruto.
+Luego conviene validar conteos en:
 
-## Trabajo iniciado el 2026-06-18
-
-Se avanzó con la separación de multiselecciones en `operational`:
-
-- `operational.respuestas_temas_formacion`
-- `operational.respuestas_instituciones_participantes`
-- `operational.respuestas_limitaciones`
-
-También se extendió el pipeline `staging -> operational` para extraer esas listas desde `staging.raw_payload` e insertarlas en las tablas hijas de forma idempotente.
-
-Pendiente para completar esta capa:
-
-- ejecutar `sql/004_create_operational_multiselect_tables.sql` como admin
-- correr de nuevo `POST /api/v1/pipelines/operational/staging-to-operational`
-- verificar conteos en las nuevas tablas hijas
+- `staging.respuestas_formulario`
+- `operational.respuestas_encuesta`
+- `analytics.f_respuestas_encuesta`

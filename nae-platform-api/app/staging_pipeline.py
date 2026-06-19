@@ -32,6 +32,7 @@ ALLOWED_PROVINCES = {
 
 
 PIPELINE_NAME = "raw_to_staging"
+SURVEY_VERSION_11 = "1.1"
 
 CONSENT_QUESTION = (
     "¿Acepta participar voluntariamente en esta encuesta y autoriza el uso de la "
@@ -39,6 +40,9 @@ CONSENT_QUESTION = (
 )
 FIELD_MAP = {
     CONSENT_QUESTION: "consentimiento",
+    "0.3 Género de la persona que responde": "genero",
+    "0.4 Nivel de conocimiento sobre la realidad del municipio": "nivel_conocimiento_municipio",
+    "0.4 Nivel de instrucción terminado": "nivel_instruccion",
     "1.1 Provincia": "provincia",
     "1.2 Municipio": "municipio",
     "1.3 Ámbito principal de actuación de la entidad": "ambito_actuacion",
@@ -46,13 +50,18 @@ FIELD_MAP = {
     "1.5 Nombre oficial de la institución": "nombre_institucion",
     "1.6 Nivel de involucramiento en actividades de formación sobre NAE": "nivel_involucramiento",
     "3.1 Nivel de capacitación de formadores locales": "nivel_capacitacion_formadores",
+    "4.2 Mayoría de titulares de emprendimientos": "mayoria_titulares_emprendimientos",
+    "4.3 Porcentaje de mujeres en cargos directivos": "porcentaje_mujeres_directivas",
+    "4.4 Programas dirigidos a mujeres emprendedoras": "programas_mujeres_emprendedoras",
+    "4.4.1 Si respondió “Sí”, describa brevemente el programa": "descripcion_programa_mujeres",
     "3.3 Principal necesidad del municipio": "principal_necesidad",
     "4.1 Nivel de interés de los actores de gobierno en formación sobre NAE": "nivel_interes_gobierno",
     "5.1 Existencia de mecanismos de coordinación institucional": "mecanismos_coordinacion",
 }
 
-REQUIRED_FIELDS = {
+BASE_REQUIRED_FIELDS = {
     "consentimiento",
+    "genero",
     "provincia",
     "municipio",
     "ambito_actuacion",
@@ -63,6 +72,14 @@ REQUIRED_FIELDS = {
     "principal_necesidad",
     "nivel_interes_gobierno",
     "mecanismos_coordinacion",
+}
+
+GENDER_CATALOG = {
+    "Mujer",
+    "Hombre",
+    "Persona trans",
+    "Otro",
+    "Prefiere no responder",
 }
 
 
@@ -100,6 +117,12 @@ def _extract_normalized_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     normalized: Dict[str, Any] = {}
     for question, field_name in FIELD_MAP.items():
         normalized[field_name] = _scalar_value(payload.get(question))
+    normalized["version_encuesta"] = _scalar_value(payload.get("version_encuesta"))
+    if not normalized["version_encuesta"]:
+        if normalized.get("nivel_instruccion"):
+            normalized["version_encuesta"] = SURVEY_VERSION_11
+        elif normalized.get("nivel_conocimiento_municipio"):
+            normalized["version_encuesta"] = "1.0"
     return normalized
 
 
@@ -108,7 +131,7 @@ def validate_payload(payload: Dict[str, Any]) -> ValidationResult:
     errors: List[Dict[str, str]] = []
     observaciones: List[str] = []
 
-    for field_name in REQUIRED_FIELDS:
+    for field_name in BASE_REQUIRED_FIELDS:
         if not normalized.get(field_name):
             errors.append(
                 {
@@ -118,6 +141,15 @@ def validate_payload(payload: Dict[str, Any]) -> ValidationResult:
                 }
             )
 
+    if not normalized.get("nivel_instruccion") and not normalized.get("nivel_conocimiento_municipio"):
+        errors.append(
+            {
+                "campo": "nivel_instruccion",
+                "tipo_error": "obligatorio",
+                "descripcion": "Falta nivel_instruccion o nivel_conocimiento_municipio",
+            }
+        )
+
     provincia = normalized.get("provincia")
     if provincia and provincia not in ALLOWED_PROVINCES:
         errors.append(
@@ -125,6 +157,16 @@ def validate_payload(payload: Dict[str, Any]) -> ValidationResult:
                 "campo": "provincia",
                 "tipo_error": "catalogo",
                 "descripcion": f"Provincia no reconocida: {provincia}",
+            }
+        )
+
+    genero = normalized.get("genero")
+    if genero and genero not in GENDER_CATALOG:
+        errors.append(
+            {
+                "campo": "genero",
+                "tipo_error": "catalogo",
+                "descripcion": f"Género no reconocido: {genero}",
             }
         )
 
@@ -241,12 +283,16 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
 
             db.execute(
                 text("""
-                    INSERT INTO staging.respuestas_formulario (
+                INSERT INTO staging.respuestas_formulario (
                         raw_respuesta_id,
                         id_respuesta_origen,
                         formulario_origen,
                         fecha_respuesta,
                         consentimiento,
+                        version_encuesta,
+                        genero,
+                        nivel_conocimiento_municipio,
+                        nivel_instruccion,
                         provincia,
                         municipio,
                         ambito_actuacion,
@@ -254,6 +300,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                         nombre_institucion,
                         nivel_involucramiento,
                         nivel_capacitacion_formadores,
+                        mayoria_titulares_emprendimientos,
+                        porcentaje_mujeres_directivas,
+                        programas_mujeres_emprendedoras,
+                        descripcion_programa_mujeres,
                         principal_necesidad,
                         nivel_interes_gobierno,
                         mecanismos_coordinacion,
@@ -269,6 +319,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                         :formulario_origen,
                         :fecha_respuesta,
                         :consentimiento,
+                        :version_encuesta,
+                        :genero,
+                        :nivel_conocimiento_municipio,
+                        :nivel_instruccion,
                         :provincia,
                         :municipio,
                         :ambito_actuacion,
@@ -276,6 +330,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                         :nombre_institucion,
                         :nivel_involucramiento,
                         :nivel_capacitacion_formadores,
+                        :mayoria_titulares_emprendimientos,
+                        :porcentaje_mujeres_directivas,
+                        :programas_mujeres_emprendedoras,
+                        :descripcion_programa_mujeres,
                         :principal_necesidad,
                         :nivel_interes_gobierno,
                         :mecanismos_coordinacion,
@@ -291,6 +349,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                         formulario_origen = EXCLUDED.formulario_origen,
                         fecha_respuesta = EXCLUDED.fecha_respuesta,
                         consentimiento = EXCLUDED.consentimiento,
+                        version_encuesta = EXCLUDED.version_encuesta,
+                        genero = EXCLUDED.genero,
+                        nivel_conocimiento_municipio = EXCLUDED.nivel_conocimiento_municipio,
+                        nivel_instruccion = EXCLUDED.nivel_instruccion,
                         provincia = EXCLUDED.provincia,
                         municipio = EXCLUDED.municipio,
                         ambito_actuacion = EXCLUDED.ambito_actuacion,
@@ -298,6 +360,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                         nombre_institucion = EXCLUDED.nombre_institucion,
                         nivel_involucramiento = EXCLUDED.nivel_involucramiento,
                         nivel_capacitacion_formadores = EXCLUDED.nivel_capacitacion_formadores,
+                        mayoria_titulares_emprendimientos = EXCLUDED.mayoria_titulares_emprendimientos,
+                        porcentaje_mujeres_directivas = EXCLUDED.porcentaje_mujeres_directivas,
+                        programas_mujeres_emprendedoras = EXCLUDED.programas_mujeres_emprendedoras,
+                        descripcion_programa_mujeres = EXCLUDED.descripcion_programa_mujeres,
                         principal_necesidad = EXCLUDED.principal_necesidad,
                         nivel_interes_gobierno = EXCLUDED.nivel_interes_gobierno,
                         mecanismos_coordinacion = EXCLUDED.mecanismos_coordinacion,
@@ -312,6 +378,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                     "formulario_origen": raw_row["formulario_origen"],
                     "fecha_respuesta": raw_row["fecha_respuesta"],
                     "consentimiento": result.normalized.get("consentimiento"),
+                    "version_encuesta": result.normalized.get("version_encuesta"),
+                    "genero": result.normalized.get("genero"),
+                    "nivel_conocimiento_municipio": result.normalized.get("nivel_conocimiento_municipio"),
+                    "nivel_instruccion": result.normalized.get("nivel_instruccion"),
                     "provincia": result.normalized.get("provincia"),
                     "municipio": result.normalized.get("municipio"),
                     "ambito_actuacion": result.normalized.get("ambito_actuacion"),
@@ -319,6 +389,10 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                     "nombre_institucion": result.normalized.get("nombre_institucion"),
                     "nivel_involucramiento": result.normalized.get("nivel_involucramiento"),
                     "nivel_capacitacion_formadores": result.normalized.get("nivel_capacitacion_formadores"),
+                    "mayoria_titulares_emprendimientos": result.normalized.get("mayoria_titulares_emprendimientos"),
+                    "porcentaje_mujeres_directivas": result.normalized.get("porcentaje_mujeres_directivas"),
+                    "programas_mujeres_emprendedoras": result.normalized.get("programas_mujeres_emprendedoras"),
+                    "descripcion_programa_mujeres": result.normalized.get("descripcion_programa_mujeres"),
                     "principal_necesidad": result.normalized.get("principal_necesidad"),
                     "nivel_interes_gobierno": result.normalized.get("nivel_interes_gobierno"),
                     "mecanismos_coordinacion": result.normalized.get("mecanismos_coordinacion"),

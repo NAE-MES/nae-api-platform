@@ -26,8 +26,8 @@ function myFunction() {
 
   form.addMultipleChoiceItem().setTitle('0.1 Municipio sobre el que responde esta encuesta').setChoiceValues(['Municipio donde trabajo habitualmente', 'Municipio donde resido']).showOtherOption(true).setRequired(true);
   form.addMultipleChoiceItem().setTitle('0.2 Rol principal en la entidad').setChoiceValues(['Dirección / coordinación', 'Técnico/a', 'Docente / formador/a', 'Investigador/a']).showOtherOption(true).setRequired(true);
-  form.addMultipleChoiceItem().setTitle('0.3 Género de la persona que responde').setChoiceValues(['Mujer', 'Hombre', 'Otro', 'Prefiere no responder']).setRequired(true);
-  form.addMultipleChoiceItem().setTitle('0.4 Nivel de conocimiento sobre la realidad del municipio').setChoiceValues(['Alto', 'Medio', 'Bajo']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('0.3 Género de la persona que responde').setChoiceValues(['Mujer', 'Hombre', 'Persona trans', 'Otro', 'Prefiere no responder']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('0.4 Nivel de instrucción terminado').setChoiceValues(['9no grado', 'Técnico medio', '12 grado', 'Universitario']).setRequired(true);
 
   form.addPageBreakItem().setTitle('Sección 1 – Identificación territorial e institucional');
 
@@ -85,7 +85,8 @@ function myFunction() {
     'Economía circular',
     'Economía social y solidaria',
     'Políticas públicas y desarrollo local',
-    'Regulación técnica sectorial'
+    'Regulación técnica sectorial',
+    'Género y NAE'
   ]).showOtherOption(true).setRequired(true);
 
   form.addMultipleChoiceItem().setTitle('3.3 Principal necesidad del municipio').setChoiceValues(['Infraestructura', 'Formación de formadores', 'Coordinación institucional', 'Recursos financieros']).showOtherOption(true).setRequired(true);
@@ -93,9 +94,10 @@ function myFunction() {
   form.addPageBreakItem().setTitle('Sección 4 – Interés y género');
 
   form.addMultipleChoiceItem().setTitle('4.1 Nivel de interés de los actores de gobierno en formación sobre NAE').setChoiceValues(['Muy alto', 'Medio', 'Bajo', 'Nulo', 'No sabe']).setRequired(true);
-  form.addMultipleChoiceItem().setTitle('4.2 Porcentaje de mujeres en cargos directivos').setChoiceValues(['0–10%', '11–30%', '31–50%', '51–70%', '71–100%', 'No sabe']).setRequired(true);
-  form.addMultipleChoiceItem().setTitle('4.3 Programas dirigidos a mujeres emprendedoras').setChoiceValues(['Sí', 'No', 'No sabe']).setRequired(true);
-  form.addTextItem().setTitle('4.3.1 Si respondió “Sí”, describa brevemente el programa').setRequired(false);
+  form.addMultipleChoiceItem().setTitle('4.2 Mayoría de titulares de emprendimientos').setChoiceValues(['Hombres', 'Mujeres', 'Personas trans']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('4.3 Porcentaje de mujeres en cargos directivos').setChoiceValues(['0–10%', '11–30%', '31–50%', '51–70%', '71–100%', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('4.4 Programas dirigidos a mujeres emprendedoras').setChoiceValues(['Sí', 'No', 'No sabe']).setRequired(true);
+  form.addTextItem().setTitle('4.4.1 Si respondió “Sí”, describa brevemente el programa').setRequired(false);
 
   form.addPageBreakItem().setTitle('Sección 5 – Articulación y limitaciones');
 
