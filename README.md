@@ -41,7 +41,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 La API expone la documentación interactiva en:
 
 - `http://127.0.0.1:8000/docs`
-- `http://127.0.0.1:8000/` para un panel HTML de resumen
+- `http://127.0.0.1:8000/` para un panel HTML de resumen con filtros
 
 ## Endpoints principales
 
@@ -53,6 +53,14 @@ La API expone la documentación interactiva en:
 - `POST /api/v1/pipelines/analytics/operational-to-analytics`
 
 Todos los endpoints protegidos usan `Authorization: Bearer <API_TOKEN>`.
+
+El panel HTML acepta filtros por query string:
+
+- `provincia`
+- `version_encuesta`
+- `genero`
+- `tema`
+- `limit`
 
 ## Scripts SQL
 

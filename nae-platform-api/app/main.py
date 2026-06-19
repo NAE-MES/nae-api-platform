@@ -36,13 +36,38 @@ def salud():
 
 
 @app.get("/api/v1/resumen")
-def resumen():
-    return get_dashboard_data(limit=10)
+def resumen(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+):
+    return get_dashboard_data(
+        limit=limit,
+        provincia=provincia,
+        version_encuesta=version_encuesta,
+        genero=genero,
+        tema=tema,
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
-def panel_principal():
-    data = get_dashboard_data(limit=10)
+def panel_principal(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+):
+    data = get_dashboard_data(
+        limit=limit,
+        provincia=provincia,
+        version_encuesta=version_encuesta,
+        genero=genero,
+        tema=tema,
+    )
+    data["filters"]["limit"] = limit
     return render_dashboard_html(data)
 
 
