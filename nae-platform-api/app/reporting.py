@@ -370,16 +370,65 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         }}
         * {{ box-sizing: border-box; }}
         body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }}
-        header {{ padding: 24px 28px; background: #102a43; color: #fff; }}
-        header h1 {{ margin: 0 0 8px; font-size: 28px; }}
-        header p {{ margin: 0; color: #d9e2ec; }}
+        header {{
+          padding: 18px 24px 12px;
+          background: #fff;
+          color: var(--text);
+          border-bottom: 1px solid var(--line);
+        }}
+        .masthead {{
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 12px;
+        }}
+        .eyebrow {{
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0;
+          color: var(--muted);
+          margin-bottom: 6px;
+        }}
+        .eyebrow::before {{
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: var(--accent);
+          flex: 0 0 auto;
+        }}
+        header h1 {{
+          margin: 0;
+          font-size: 22px;
+          line-height: 1.15;
+        }}
+        header p {{
+          margin: 6px 0 0;
+          color: var(--muted);
+          font-size: 13px;
+          line-height: 1.4;
+        }}
+        .hero-copy {{
+          max-width: 640px;
+        }}
         .banner {{
           width: 100%;
-          max-width: 1600px;
-          height: auto;
+          height: 112px;
+          object-fit: cover;
           display: block;
-          border-radius: 8px;
-          margin: 0 0 18px;
+          border-radius: 12px;
+          border: 1px solid var(--line);
+          margin: 0;
+          background: #07263d;
+        }}
+        .banner-wrap {{
+          overflow: hidden;
+          border-radius: 12px;
+          background: #07263d;
         }}
         main {{ padding: 24px; display: grid; gap: 18px; }}
         .filters {{
@@ -455,9 +504,16 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </head>
     <body>
       <header>
-        {f'<img class="banner" src="data:image/png;base64,{banner_data}" alt="Banner NAE" />' if banner_data else ''}
-        <h1>NAE Platform - Panel operativo</h1>
-        <p>Resumen filtrable de respuestas cargadas en analytics y operational.</p>
+        <div class="masthead">
+          <div class="hero-copy">
+            <div class="eyebrow">NAE Platform</div>
+            <h1>Panel operativo</h1>
+            <p>Resumen filtrable de respuestas cargadas en analytics y operational.</p>
+          </div>
+        </div>
+        <div class="banner-wrap">
+          {f'<img class="banner" src="data:image/png;base64,{banner_data}" alt="Banner NAE" />' if banner_data else ''}
+        </div>
       </header>
       <main>
         {filters_html}
