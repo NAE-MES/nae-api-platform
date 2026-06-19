@@ -41,10 +41,12 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 La API expone la documentación interactiva en:
 
 - `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/` para un panel HTML de resumen
 
 ## Endpoints principales
 
 - `GET /api/v1/salud`
+- `GET /api/v1/resumen`
 - `POST /api/v1/respuestas`
 - `POST /api/v1/pipelines/staging/raw-to-staging`
 - `POST /api/v1/pipelines/operational/staging-to-operational`

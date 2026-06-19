@@ -3,12 +3,14 @@ import json
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
 from app.config import API_TOKEN
 from app.database import SessionLocal
+from app.reporting import get_dashboard_data, render_dashboard_html
 from app.staging_pipeline import process_raw_to_staging
 from app.operational_pipeline import process_staging_to_operational
 from app.analytics_pipeline import process_operational_to_analytics
@@ -31,6 +33,17 @@ class RespuestaFormulario(BaseModel):
 @app.get("/api/v1/salud")
 def salud():
     return {"status": "ok"}
+
+
+@app.get("/api/v1/resumen")
+def resumen():
+    return get_dashboard_data(limit=10)
+
+
+@app.get("/", response_class=HTMLResponse)
+def panel_principal():
+    data = get_dashboard_data(limit=10)
+    return render_dashboard_html(data)
 
 
 @app.post("/api/v1/respuestas")

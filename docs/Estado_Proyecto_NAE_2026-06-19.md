@@ -10,7 +10,12 @@ La plataforma quedó validada con el modelo de datos v1.1:
 - `staging -> operational` funcionando
 - `operational -> analytics` funcionando
 
-La rama `dev` ya fue publicada en `origin/dev` con el commit `4c82726`.
+La rama `dev` ya fue publicada en `origin/dev`.
+
+Se habilitó además una primera capa de consumo:
+
+- `GET /api/v1/resumen`
+- `GET /` con un panel HTML básico de resumen
 
 ## Cambios ya incorporados
 
@@ -30,3 +35,4 @@ Después de ese corte, el siguiente trabajo útil es construir consumo analític
 - vistas para BI
 - consultas base de control
 - validaciones de regresión para nuevas versiones de la encuesta
+- paneles más ricos sobre territorios, temas y género
