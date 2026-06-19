@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import base64
 from html import escape
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
 from app.database import SessionLocal
+
+
+HEADER_BANNER_PATH = Path(__file__).resolve().parents[2] / "images" / "Baner NAE (Google Forms).png"
 
 
 def _build_filters(
@@ -43,6 +48,12 @@ def _build_filters(
         params["tema"] = tema
 
     return " AND ".join(clauses), params
+
+
+def _load_header_banner() -> Optional[str]:
+    if not HEADER_BANNER_PATH.exists():
+        return None
+    return base64.b64encode(HEADER_BANNER_PATH.read_bytes()).decode("ascii")
 
 
 def _fetch_lookup_options() -> Dict[str, List[str]]:
@@ -298,6 +309,7 @@ def _table(headers: List[str], rows: List[Dict[str, Any]]) -> str:
 def render_dashboard_html(data: Dict[str, Any]) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
+    banner_data = _load_header_banner()
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
@@ -361,6 +373,14 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         header {{ padding: 24px 28px; background: #102a43; color: #fff; }}
         header h1 {{ margin: 0 0 8px; font-size: 28px; }}
         header p {{ margin: 0; color: #d9e2ec; }}
+        .banner {{
+          width: 100%;
+          max-width: 1600px;
+          height: auto;
+          display: block;
+          border-radius: 8px;
+          margin: 0 0 18px;
+        }}
         main {{ padding: 24px; display: grid; gap: 18px; }}
         .filters {{
           display: grid;
@@ -435,6 +455,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </head>
     <body>
       <header>
+        {f'<img class="banner" src="data:image/png;base64,{banner_data}" alt="Banner NAE" />' if banner_data else ''}
         <h1>NAE Platform - Panel operativo</h1>
         <p>Resumen filtrable de respuestas cargadas en analytics y operational.</p>
       </header>
