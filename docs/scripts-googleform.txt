@@ -1,0 +1,129 @@
+function myFunction() {
+  const form = FormApp.create('Encuesta sobre capacidades, infraestructura y necesidades formativas para NAE');
+
+  form.setDescription(
+    'En el marco del proyecto “Apoyo a Nuevos Actores Económicos para una diversificación económica, innovativa y sostenible”, se realiza esta encuesta con el objetivo de identificar capacidades institucionales, recursos disponibles, necesidades de formación y mecanismos de articulación relacionados con los Nuevos Actores Económicos (NAE).\n\n' +
+    'La información recopilada será utilizada con fines de diagnóstico y planificación de acciones del proyecto.\n\n' +
+    'Tiempo estimado de llenado: 7–10 minutos.\n\n' +
+    'Agradecemos mucho su tiempo y colaboración.\n\n' +
+    'Notas importantes:\n' +
+    '- Los campos marcados como obligatorios deben ser completados.\n' +
+    '- Al finalizar el formulario podrá enviar sus respuestas.\n' +
+    '- Si tiene alguna duda, puede escribir a: [correo por definir].'
+  );
+
+  form.setCollectEmail(false);
+  form.setAllowResponseEdits(false);
+  form.setShowLinkToRespondAgain(false);
+  form.setConfirmationMessage('Muchas gracias por su tiempo y colaboración.');
+
+  form.addMultipleChoiceItem()
+    .setTitle('¿Acepta participar voluntariamente en esta encuesta y autoriza el uso de la información con fines de diagnóstico y planificación del proyecto?')
+    .setChoiceValues(['Sí, acepto', 'No acepto'])
+    .setRequired(true);
+
+  form.addPageBreakItem().setTitle('Bloque 0 – Contexto del informante');
+
+  form.addMultipleChoiceItem().setTitle('0.1 Municipio sobre el que responde esta encuesta').setChoiceValues(['Municipio donde trabajo habitualmente', 'Municipio donde resido']).showOtherOption(true).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('0.2 Rol principal en la entidad').setChoiceValues(['Dirección / coordinación', 'Técnico/a', 'Docente / formador/a', 'Investigador/a']).showOtherOption(true).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('0.3 Género de la persona que responde').setChoiceValues(['Mujer', 'Hombre', 'Otro', 'Prefiere no responder']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('0.4 Nivel de conocimiento sobre la realidad del municipio').setChoiceValues(['Alto', 'Medio', 'Bajo']).setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 1 – Identificación territorial e institucional');
+
+  form.addListItem().setTitle('1.1 Provincia').setChoiceValues([
+    'Pinar del Río', 'Artemisa', 'La Habana', 'Mayabeque', 'Matanzas',
+    'Cienfuegos', 'Villa Clara', 'Sancti Spíritus', 'Ciego de Ávila',
+    'Camagüey', 'Las Tunas', 'Holguín', 'Granma', 'Santiago de Cuba',
+    'Guantánamo', 'Isla de la Juventud'
+  ]).setRequired(true);
+
+  form.addTextItem().setTitle('1.2 Municipio').setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('1.3 Ámbito principal de actuación de la entidad').setChoiceValues(['Municipal', 'Provincial', 'Nacional']).showOtherOption(true).setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('1.4 Tipo de institución que representa').setChoiceValues([
+    'Gobierno municipal',
+    'Gobierno provincial',
+    'Dirección de Desarrollo Municipal (DDM)',
+    'Dirección de Desarrollo Territorial (DDT)',
+    'Centro Universitario Municipal (CUM)',
+    'Universidad o centro académico',
+    'Centro de estudios o investigación',
+    'Centro de capacitación',
+    'Entidad tecnológica (Joven Club u otras)',
+    'Organización empresarial o asociación económica',
+    'Proyecto de Desarrollo Local (PDL)',
+    'Dirección de Trabajo y Seguridad Social Provincial y Municipal'
+  ]).showOtherOption(true).setRequired(true);
+
+  form.addTextItem().setTitle('1.5 Nombre oficial de la institución').setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('1.6 Nivel de involucramiento en actividades de formación sobre NAE').setChoiceValues(['Muy alto', 'Medio', 'Bajo', 'Nulo']).setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 2 – Infraestructura y recursos');
+
+  form.addMultipleChoiceItem().setTitle('2.1 Espacios con computadoras y conectividad para acceso público').setChoiceValues(['Sí, varios con buena conectividad', 'Sí, algunos con conectividad limitada', 'Solo uno o muy pocos', 'No existen', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.2 Disponibilidad de locales para formación').setChoiceValues(['Varios adecuados', 'Existen pero requieren mejoras', 'Pocos con limitaciones', 'No existen', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.3 Autonomía energética para formación').setChoiceValues(['Sí, con sistemas alternativos', 'Parcial o limitada', 'Sí, no suele haber interrupciones', 'No', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.4 Recursos tecnológicos para formación').setChoiceValues(['Alta', 'Media', 'Baja', 'Nula']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.5 Condiciones para desarrollar formación de forma regular').setChoiceValues(['Sí', 'Con limitaciones', 'No']).setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 3 – Capacidades y necesidades formativas');
+
+  form.addMultipleChoiceItem().setTitle('3.1 Nivel de capacitación de formadores locales').setChoiceValues(['Muy capacitados', 'Medianamente capacitados', 'Poco capacitados', 'No capacitados']).setRequired(true);
+
+  form.addCheckboxItem().setTitle('3.2 Temas prioritarios de formación').setChoiceValues([
+    'Normativa jurídica de los NAE',
+    'Gestión empresarial',
+    'Gestión contable y financiera',
+    'Creación y desarrollo de NAE',
+    'Innovación, marketing y digitalización',
+    'Cooperación y encadenamientos productivos',
+    'Competencias digitales',
+    'Comunicación organizacional',
+    'Economía circular',
+    'Economía social y solidaria',
+    'Políticas públicas y desarrollo local',
+    'Regulación técnica sectorial'
+  ]).showOtherOption(true).setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('3.3 Principal necesidad del municipio').setChoiceValues(['Infraestructura', 'Formación de formadores', 'Coordinación institucional', 'Recursos financieros']).showOtherOption(true).setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 4 – Interés y género');
+
+  form.addMultipleChoiceItem().setTitle('4.1 Nivel de interés de los actores de gobierno en formación sobre NAE').setChoiceValues(['Muy alto', 'Medio', 'Bajo', 'Nulo', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('4.2 Porcentaje de mujeres en cargos directivos').setChoiceValues(['0–10%', '11–30%', '31–50%', '51–70%', '71–100%', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('4.3 Programas dirigidos a mujeres emprendedoras').setChoiceValues(['Sí', 'No', 'No sabe']).setRequired(true);
+  form.addTextItem().setTitle('4.3.1 Si respondió “Sí”, describa brevemente el programa').setRequired(false);
+
+  form.addPageBreakItem().setTitle('Sección 5 – Articulación y limitaciones');
+
+  form.addMultipleChoiceItem().setTitle('5.1 Existencia de mecanismos de coordinación institucional').setChoiceValues(['Sí, funcionan sistemáticamente', 'Existen con poca coordinación', 'Se han intentado crear', 'No existen', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('5.2 Grado de articulación institucional en formación económica').setChoiceValues(['Alto', 'Medio', 'Bajo', 'Nulo', 'No sabe']).setRequired(true);
+
+  form.addCheckboxItem().setTitle('5.3 Instituciones que participan en actividades formativas').setChoiceValues([
+    'Gobierno municipal',
+    'Universidad',
+    'Centros de investigación',
+    'Centros de capacitación',
+    'Entidades tecnológicas',
+    'Organizaciones empresariales',
+    'Organismos provinciales',
+    'ANEC',
+    'FMC'
+  ]).showOtherOption(true).setRequired(true);
+
+  form.addCheckboxItem().setTitle('5.4 Principales limitaciones').setChoiceValues([
+    'Infraestructura insuficiente',
+    'Falta de formadores',
+    'Falta de coordinación',
+    'Limitaciones financieras',
+    'Baja motivación'
+  ]).showOtherOption(true).setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('5.5 Nivel de disposición para participar en formación').setChoiceValues(['Muy dispuesto', 'Medianamente dispuesto', 'Poco dispuesto', 'No dispuesto']).setRequired(true);
+
+  Logger.log('Formulario creado para editar: ' + form.getEditUrl());
+  Logger.log('Formulario para responder: ' + form.getPublishedUrl());
+}
