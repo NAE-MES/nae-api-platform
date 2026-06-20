@@ -298,6 +298,261 @@ def _table(headers: List[str], rows: List[Dict[str, Any]]) -> str:
     return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
 
 
+def _table_with_links(
+    headers: List[str],
+    rows: List[Dict[str, Any]],
+    link_column: str,
+    link_prefix: str,
+) -> str:
+    head = "".join(f"<th>{escape(header)}</th>" for header in headers)
+    body_rows = []
+    for row in rows:
+        cells = []
+        for header in headers:
+            value = "" if row.get(header) is None else str(row.get(header))
+            if header == link_column and value:
+                cells.append(
+                    f"<td><a href='{escape(f'{link_prefix}{value}')}'>{escape(value)}</a></td>"
+                )
+            else:
+                cells.append(f"<td>{escape(value)}</td>")
+        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+    body = "".join(body_rows) or f"<tr><td colspan='{len(headers)}'>Sin datos</td></tr>"
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+
+
+def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
+    db = SessionLocal()
+    try:
+        core = db.execute(
+            text("""
+                SELECT f.id AS respuesta_id,
+                       f.operational_respuesta_id,
+                       op.raw_respuesta_id,
+                       op.staging_respuesta_id,
+                       op.id_respuesta_origen,
+                       op.formulario_origen,
+                       COALESCE(op.version_encuesta, f.version_encuesta, '1.0') AS version_encuesta,
+                       op.fecha_respuesta,
+                       op.consentimiento,
+                       t.provincia_nombre,
+                       t.municipio_nombre,
+                       i.tipo_institucion,
+                       i.nombre_institucion,
+                       e.estado_validacion,
+                       COALESCE(g.genero, 'Sin dato') AS genero,
+                       COALESCE(rg.nivel_instruccion, 'Sin dato') AS nivel_instruccion,
+                       COALESCE(rg.nivel_conocimiento_municipio, 'Sin dato') AS nivel_conocimiento_municipio,
+                       COALESCE(rg.mayoria_titulares_emprendimientos, 'Sin dato') AS mayoria_titulares_emprendimientos,
+                       COALESCE(rg.porcentaje_mujeres_directivas, 'Sin dato') AS porcentaje_mujeres_directivas,
+                       COALESCE(rg.programas_mujeres_emprendedoras, 'Sin dato') AS programas_mujeres_emprendedoras,
+                       COALESCE(rg.descripcion_programa_mujeres, 'Sin dato') AS descripcion_programa_mujeres,
+                       op.ambito_actuacion,
+                       op.nivel_involucramiento,
+                       op.nivel_capacitacion_formadores,
+                       op.principal_necesidad,
+                       op.nivel_interes_gobierno,
+                       op.mecanismos_coordinacion
+                FROM analytics.f_respuestas_encuesta f
+                JOIN operational.respuestas_encuesta op ON op.id = f.operational_respuesta_id
+                JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+                JOIN analytics.dim_institucion i ON i.id = f.institucion_id
+                JOIN analytics.dim_estado_validacion e ON e.id = f.estado_validacion_id
+                LEFT JOIN analytics.dim_genero g ON g.id = f.genero_id
+                LEFT JOIN analytics.dim_respuesta_genero rg ON rg.id = f.respuesta_genero_id
+                WHERE f.id = :respuesta_id
+            """),
+            {"respuesta_id": respuesta_id},
+        ).mappings().one_or_none()
+
+        if core is None:
+            return None
+
+        temas = db.execute(
+            text("""
+                SELECT tema_formacion
+                FROM operational.respuestas_temas_formacion
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY tema_formacion
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).scalars().all()
+
+        instituciones_participantes = db.execute(
+            text("""
+                SELECT institucion_participante
+                FROM operational.respuestas_instituciones_participantes
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY institucion_participante
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).scalars().all()
+
+        limitaciones = db.execute(
+            text("""
+                SELECT limitacion
+                FROM operational.respuestas_limitaciones
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY limitacion
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).scalars().all()
+
+        return {
+            **dict(core),
+            "temas_formacion": list(temas),
+            "instituciones_participantes": list(instituciones_participantes),
+            "limitaciones": list(limitaciones),
+        }
+    finally:
+        db.close()
+
+
+def render_response_detail_html(data: Dict[str, Any]) -> str:
+    def value(name: str) -> str:
+        raw_value = data.get(name)
+        return escape("" if raw_value is None else str(raw_value))
+
+    def pill_list(items: List[str]) -> str:
+        if not items:
+            return "<p class='empty'>Sin datos</p>"
+        pills = "".join(f"<span>{escape(item)}</span>" for item in items)
+        return f"<div class='pills'>{pills}</div>"
+
+    return f"""
+    <!doctype html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>NAE Platform - Respuesta {escape(str(data.get('respuesta_id')))}</title>
+      <style>
+        :root {{
+          --bg: #f5f7fb;
+          --panel: #ffffff;
+          --line: #d9e2ec;
+          --text: #102a43;
+          --muted: #627d98;
+          --accent: #1d4ed8;
+          --accent-deep: #0f3d73;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }}
+        header {{
+          padding: 18px 24px;
+          background: linear-gradient(180deg, var(--accent-deep) 0%, #133f7a 100%);
+          color: #fff;
+          border-bottom: 1px solid #0b2f5e;
+        }}
+        header h1 {{ margin: 0; font-size: 22px; line-height: 1.2; }}
+        header p {{ margin: 6px 0 0; color: #dbeafe; font-size: 13px; }}
+        main {{ padding: 24px; display: grid; gap: 18px; }}
+        .back {{
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40px;
+          width: fit-content;
+          padding: 0 14px;
+          border-radius: 8px;
+          text-decoration: none;
+          color: var(--text);
+          background: #fff;
+          border: 1px solid var(--line);
+        }}
+        .card {{
+          background: var(--panel);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 16px;
+        }}
+        .grid {{
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }}
+        @media(min-width: 900px) {{ .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+        .field {{
+          display: grid;
+          gap: 4px;
+        }}
+        .field span {{
+          font-size: 12px;
+          color: var(--muted);
+          text-transform: uppercase;
+        }}
+        .field strong {{
+          font-size: 14px;
+          font-weight: 600;
+          word-break: break-word;
+        }}
+        .pills {{
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }}
+        .pills span {{
+          display: inline-flex;
+          align-items: center;
+          min-height: 32px;
+          padding: 0 10px;
+          border-radius: 999px;
+          background: #dbeafe;
+          color: #0f3d73;
+          font-size: 13px;
+        }}
+        .empty {{ color: var(--muted); margin: 0; }}
+      </style>
+    </head>
+    <body>
+      <header>
+        <h1>Respuesta {value("respuesta_id")}</h1>
+        <p>{value("provincia_nombre")} - {value("municipio_nombre")} - {value("nombre_institucion")}</p>
+      </header>
+      <main>
+        <a class="back" href="/">Volver al panel</a>
+        <section class="card">
+          <div class="grid">
+            <div class="field"><span>Estado</span><strong>{value("estado_validacion")}</strong></div>
+            <div class="field"><span>Versión</span><strong>{value("version_encuesta")}</strong></div>
+            <div class="field"><span>Provincia</span><strong>{value("provincia_nombre")}</strong></div>
+            <div class="field"><span>Municipio</span><strong>{value("municipio_nombre")}</strong></div>
+            <div class="field"><span>Institución</span><strong>{value("nombre_institucion")}</strong></div>
+            <div class="field"><span>Tipo de institución</span><strong>{value("tipo_institucion")}</strong></div>
+            <div class="field"><span>Género</span><strong>{value("genero")}</strong></div>
+            <div class="field"><span>Nivel de instrucción</span><strong>{value("nivel_instruccion")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="grid">
+            <div class="field"><span>Consentimiento</span><strong>{value("consentimiento")}</strong></div>
+            <div class="field"><span>Ámbito</span><strong>{value("ambito_actuacion")}</strong></div>
+            <div class="field"><span>Nivel involucramiento</span><strong>{value("nivel_involucramiento")}</strong></div>
+            <div class="field"><span>Capacitación formadores</span><strong>{value("nivel_capacitacion_formadores")}</strong></div>
+            <div class="field"><span>Principal necesidad</span><strong>{value("principal_necesidad")}</strong></div>
+            <div class="field"><span>Interés gobierno</span><strong>{value("nivel_interes_gobierno")}</strong></div>
+            <div class="field"><span>Mecanismos coordinación</span><strong>{value("mecanismos_coordinacion")}</strong></div>
+            <div class="field"><span>Conocimiento municipio</span><strong>{value("nivel_conocimiento_municipio")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Temas prioritarios</h2>
+          {pill_list(data.get("temas_formacion", []))}
+        </section>
+        <section class="card">
+          <h2>Instituciones participantes</h2>
+          {pill_list(data.get("instituciones_participantes", []))}
+        </section>
+        <section class="card">
+          <h2>Limitaciones</h2>
+          {pill_list(data.get("limitaciones", []))}
+        </section>
+      </main>
+    </body>
+    </html>
+    """
+
+
 def render_dashboard_html(data: Dict[str, Any]) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
@@ -519,6 +774,19 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .wide {{ grid-column: 1 / -1; }}
         .subgrid {{ display: grid; grid-template-columns: 1fr; gap: 18px; }}
         @media(min-width: 1100px) {{ .subgrid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+        .bar-label, .bar-value, th, td {{ word-break: break-word; }}
+        .card h2, .card .section-lead {{ overflow-wrap: anywhere; }}
+        @media(max-width: 720px) {{
+          header {{ padding: 18px 16px 16px; }}
+          .header-line {{ flex-direction: column; align-items: flex-start; }}
+          .header-kicker {{ white-space: normal; }}
+          main {{ padding: 16px; }}
+          .toolbar {{ justify-content: flex-start; }}
+          .filters {{ grid-template-columns: 1fr; }}
+          .filter-actions {{ flex-wrap: wrap; }}
+          .filter-actions button, .filter-actions a, .toolbar a {{ width: 100%; }}
+          .bar-row {{ grid-template-columns: minmax(0, 1.6fr) minmax(0, 2fr) 42px; }}
+        }}
       </style>
     </head>
     <body>
@@ -582,7 +850,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         <section class="card wide">
           <p class="section-lead">Detalle</p>
           <h2>Últimas respuestas</h2>
-          {_table(["id", "version_encuesta", "fecha_respuesta", "estado_validacion", "provincia_nombre", "municipio_nombre", "nombre_institucion", "genero", "nivel_instruccion"], data["ultimas_respuestas"])}
+          {_table_with_links(["id", "version_encuesta", "fecha_respuesta", "estado_validacion", "provincia_nombre", "municipio_nombre", "nombre_institucion", "genero", "nivel_instruccion"], data["ultimas_respuestas"], "id", "/respuestas/")}
         </section>
       </main>
     </body>

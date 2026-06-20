@@ -10,7 +10,13 @@ from sqlalchemy import text
 
 from app.config import API_TOKEN
 from app.database import SessionLocal
-from app.reporting import build_resumen_csv, get_dashboard_data, render_dashboard_html
+from app.reporting import (
+    build_resumen_csv,
+    get_dashboard_data,
+    get_response_detail,
+    render_dashboard_html,
+    render_response_detail_html,
+)
 from app.staging_pipeline import process_raw_to_staging
 from app.operational_pipeline import process_staging_to_operational
 from app.analytics_pipeline import process_operational_to_analytics
@@ -75,6 +81,14 @@ def resumen_csv(
     )
 
 
+@app.get("/api/v1/respuestas/{respuesta_id}")
+def detalle_respuesta_api(respuesta_id: int):
+    data = get_response_detail(respuesta_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Respuesta no encontrada")
+    return data
+
+
 @app.get("/", response_class=HTMLResponse)
 def panel_principal(
     limit: int = 10,
@@ -92,6 +106,14 @@ def panel_principal(
     )
     data["filters"]["limit"] = limit
     return render_dashboard_html(data)
+
+
+@app.get("/respuestas/{respuesta_id}", response_class=HTMLResponse)
+def detalle_respuesta_html(respuesta_id: int):
+    data = get_response_detail(respuesta_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Respuesta no encontrada")
+    return render_response_detail_html(data)
 
 
 @app.post("/api/v1/respuestas")

@@ -48,6 +48,7 @@ La API expone la documentación interactiva en:
 - `GET /api/v1/salud`
 - `GET /api/v1/resumen`
 - `GET /api/v1/resumen.csv`
+- `GET /api/v1/respuestas/{respuesta_id}`
 - `POST /api/v1/respuestas`
 - `POST /api/v1/pipelines/staging/raw-to-staging`
 - `POST /api/v1/pipelines/operational/staging-to-operational`
@@ -64,6 +65,8 @@ El panel HTML acepta filtros por query string:
 - `limit`
 
 `GET /api/v1/resumen.csv` devuelve el mismo resumen filtrado como CSV descargable con las últimas respuestas visibles en el panel.
+
+`GET /api/v1/respuestas/{respuesta_id}` devuelve el detalle estructurado de una respuesta concreta, y `GET /respuestas/{respuesta_id}` lo muestra en HTML.
 
 ## Scripts SQL
 
