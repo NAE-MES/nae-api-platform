@@ -15,7 +15,7 @@ La rama `dev` ya fue publicada en `origin/dev`.
 Se habilitó además una primera capa de consumo:
 
 - `GET /api/v1/resumen`
-- `GET /` con un panel HTML de resumen, filtros y banner del proyecto
+- `GET /` con un panel HTML de resumen y filtros
 
 ## Cambios ya incorporados
 

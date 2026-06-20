@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import base64
 from html import escape
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
 from app.database import SessionLocal
-
-
-HEADER_BANNER_PATH = Path(__file__).resolve().parents[2] / "images" / "Baner NAE (Google Forms).png"
 
 
 def _build_filters(
@@ -48,12 +43,6 @@ def _build_filters(
         params["tema"] = tema
 
     return " AND ".join(clauses), params
-
-
-def _load_header_banner() -> Optional[str]:
-    if not HEADER_BANNER_PATH.exists():
-        return None
-    return base64.b64encode(HEADER_BANNER_PATH.read_bytes()).decode("ascii")
 
 
 def _fetch_lookup_options() -> Dict[str, List[str]]:
@@ -309,7 +298,6 @@ def _table(headers: List[str], rows: List[Dict[str, Any]]) -> str:
 def render_dashboard_html(data: Dict[str, Any]) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
-    banner_data = _load_header_banner()
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
@@ -376,13 +364,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           color: var(--text);
           border-bottom: 1px solid var(--line);
         }}
-        .masthead {{
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 16px;
-          margin-bottom: 12px;
-        }}
         .eyebrow {{
           display: inline-flex;
           align-items: center;
@@ -403,7 +384,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         }}
         header h1 {{
           margin: 0;
-          font-size: 22px;
+          font-size: 20px;
           line-height: 1.15;
         }}
         header p {{
@@ -411,24 +392,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           color: var(--muted);
           font-size: 13px;
           line-height: 1.4;
-        }}
-        .hero-copy {{
-          max-width: 640px;
-        }}
-        .banner {{
-          width: 100%;
-          height: 112px;
-          object-fit: cover;
-          display: block;
-          border-radius: 12px;
-          border: 1px solid var(--line);
-          margin: 0;
-          background: #07263d;
-        }}
-        .banner-wrap {{
-          overflow: hidden;
-          border-radius: 12px;
-          background: #07263d;
         }}
         main {{ padding: 24px; display: grid; gap: 18px; }}
         .filters {{
@@ -504,16 +467,9 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </head>
     <body>
       <header>
-        <div class="masthead">
-          <div class="hero-copy">
-            <div class="eyebrow">NAE Platform</div>
-            <h1>Panel operativo</h1>
-            <p>Resumen filtrable de respuestas cargadas en analytics y operational.</p>
-          </div>
-        </div>
-        <div class="banner-wrap">
-          {f'<img class="banner" src="data:image/png;base64,{banner_data}" alt="Banner NAE" />' if banner_data else ''}
-        </div>
+        <div class="eyebrow">NAE Platform</div>
+        <h1>Panel operativo</h1>
+        <p>Resumen filtrable de respuestas cargadas en analytics y operational.</p>
       </header>
       <main>
         {filters_html}
