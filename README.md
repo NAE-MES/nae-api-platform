@@ -52,6 +52,17 @@ cd nae-platform-api
 .venv\Scripts\python.exe -m pytest -q
 ```
 
+## Smoke local
+
+Para validar el flujo con un payload de ejemplo sin usar Google Forms:
+
+```bash
+cd nae-platform-api
+.venv\Scripts\python.exe scripts\smoke_local_flow.py --run-pipelines
+```
+
+El payload de ejemplo vive en `nae-platform-api/scripts/sample_payload.json`.
+
 ## Endpoints principales
 
 - `GET /api/v1/salud`

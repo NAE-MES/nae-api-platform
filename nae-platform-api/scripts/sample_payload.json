@@ -1,0 +1,47 @@
+{
+  "id_respuesta_origen": "nae-local-smoke-001",
+  "formulario_origen": "Encuesta NAE v1.1",
+  "fecha_respuesta": "2026-06-20T10:00:00",
+  "version_encuesta": "1.1",
+  "payload": {
+    "¿Acepta participar voluntariamente en esta encuesta y autoriza el uso de la información con fines de diagnóstico y planificación del proyecto?": "Sí, acepto",
+    "0.1 Municipio sobre el que responde esta encuesta": "Municipio donde trabajo habitualmente",
+    "0.2 Rol principal en la entidad": "Dirección / coordinación",
+    "0.3 Género de la persona que responde": "Mujer",
+    "0.4 Nivel de instrucción terminado": "Universitario",
+    "1.1 Provincia": "La Habana",
+    "1.2 Municipio": "Plaza de la Revolución",
+    "1.3 Ámbito principal de actuación de la entidad": "Municipal",
+    "1.4 Tipo de institución que representa": "Gobierno municipal",
+    "1.5 Nombre oficial de la institución": "NAE Smoke Test",
+    "1.6 Nivel de involucramiento en actividades de formación sobre NAE": "Medio",
+    "2.1 Espacios con computadoras y conectividad para acceso público": "Sí, varios con buena conectividad",
+    "2.2 Disponibilidad de locales para formación": "Existen pero requieren mejoras",
+    "2.3 Autonomía energética para formación": "Parcial o limitada",
+    "2.4 Recursos tecnológicos para formación": "Media",
+    "2.5 Condiciones para desarrollar formación de forma regular": "Con limitaciones",
+    "3.1 Nivel de capacitación de formadores locales": "Medianamente capacitados",
+    "3.2 Temas prioritarios de formación": [
+      "Género y NAE",
+      "Gestión empresarial",
+      "Innovación, marketing y digitalización"
+    ],
+    "3.3 Principal necesidad del municipio": "Coordinación institucional",
+    "4.1 Nivel de interés de los actores de gobierno en formación sobre NAE": "Medio",
+    "4.2 Mayoría de titulares de emprendimientos": "Mujeres",
+    "4.3 Porcentaje de mujeres en cargos directivos": "31–50%",
+    "4.4 Programas dirigidos a mujeres emprendedoras": "Sí",
+    "4.4.1 Si respondió “Sí”, describa brevemente el programa": "Programa piloto de acompañamiento",
+    "5.1 Existencia de mecanismos de coordinación institucional": "Existen con poca coordinación",
+    "5.2 Grado de articulación institucional en formación económica": "Medio",
+    "5.3 Instituciones que participan en actividades formativas": [
+      "Gobierno municipal",
+      "Universidad"
+    ],
+    "5.4 Principales limitaciones": [
+      "Falta de coordinación",
+      "Limitaciones financieras"
+    ],
+    "5.5 Nivel de disposición para participar en formación": "Muy dispuesto"
+  }
+}
