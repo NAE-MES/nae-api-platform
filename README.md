@@ -43,6 +43,15 @@ La API expone la documentación interactiva en:
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/` para un panel HTML de resumen con filtros
 
+## Pruebas
+
+La base mínima de pruebas HTTP se ejecuta con:
+
+```bash
+cd nae-platform-api
+.venv\Scripts\python.exe -m pytest -q
+```
+
 ## Endpoints principales
 
 - `GET /api/v1/salud`

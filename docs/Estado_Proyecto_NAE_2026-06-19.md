@@ -26,6 +26,7 @@ El panel ya quedó con:
 - exportación CSV separada en una barra superior para no romper el bloque de filtros
 - detalle navegable desde la tabla de últimas respuestas
 - navegación anterior/siguiente en la vista de detalle
+- pruebas mínimas de endpoints para salud, resumen, CSV y detalle
 
 ## Cambios ya incorporados
 
