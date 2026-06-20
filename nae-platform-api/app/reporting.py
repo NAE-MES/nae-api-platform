@@ -461,6 +461,13 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .grid {{ display: grid; grid-template-columns: 1fr; gap: 18px; }}
         @media(min-width: 1100px) {{ .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
         .card h2 {{ margin: 0 0 12px; font-size: 16px; }}
+        .section-lead {{
+          margin: 0;
+          color: var(--muted);
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0;
+        }}
         .bar-row {{
           display: grid;
           grid-template-columns: minmax(140px, 1.3fr) minmax(160px, 2fr) 48px;
@@ -487,47 +494,47 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             <div class="eyebrow">NAE Platform</div>
             <h1>Panel operativo</h1>
           </div>
-          <div class="header-kicker">Resumen filtrable de analytics y operational</div>
+          <div class="header-kicker">Filtros activos y datos listos para revisar</div>
         </div>
-        <p>Visión rápida de las respuestas ya cargadas, con filtros por provincia, versión, género y tema.</p>
+        <p>Respuestas ya cargadas en analytics y operational, con filtros por provincia, versión, género y tema.</p>
       </header>
       <main>
         {filters_html}
         {metrics}
-        <div class="grid">
+        <section class="card wide">
+          <p class="section-lead">Territorio</p>
+          <h2>Provincias y municipios</h2>
+          {_table(["provincia", "municipio", "total"], data["por_provincia"])}
+        </section>
+        <section class="grid">
           <section class="card">
+            <p class="section-lead">Desglose</p>
             <h2>Estados</h2>
             {_bar_rows(data["por_estado"])}
           </section>
           <section class="card">
+            <p class="section-lead">Desglose</p>
             <h2>Género</h2>
             {_bar_rows(data["por_genero"])}
           </section>
+        </section>
+        <section class="grid">
           <section class="card">
-            <h2>Nivel de instrucción</h2>
-            {_bar_rows(data["por_nivel_instruccion"])}
-          </section>
-          <section class="card">
-            <h2>Provincias y municipios</h2>
-            {_table(["provincia", "municipio", "total"], data["por_provincia"])}
-          </section>
-          <section class="card">
+            <p class="section-lead">Formación</p>
             <h2>Temas prioritarios</h2>
             {_bar_rows(data["temas_formacion"])}
           </section>
           <section class="card">
+            <p class="section-lead">Formación</p>
             <h2>Limitaciones</h2>
             {_bar_rows(data["limitaciones"])}
           </section>
-          <section class="card wide">
-            <h2>Instituciones más presentes</h2>
-            {_bar_rows(data["instituciones"])}
-          </section>
-          <section class="card wide">
-            <h2>Últimas respuestas</h2>
-            {_table(["id", "version_encuesta", "fecha_respuesta", "estado_validacion", "provincia_nombre", "municipio_nombre", "nombre_institucion", "genero", "nivel_instruccion"], data["ultimas_respuestas"])}
-          </section>
-        </div>
+        </section>
+        <section class="card wide">
+          <p class="section-lead">Detalle</p>
+          <h2>Últimas respuestas</h2>
+          {_table(["id", "version_encuesta", "fecha_respuesta", "estado_validacion", "provincia_nombre", "municipio_nombre", "nombre_institucion", "genero", "nivel_instruccion"], data["ultimas_respuestas"])}
+        </section>
       </main>
     </body>
     </html>
