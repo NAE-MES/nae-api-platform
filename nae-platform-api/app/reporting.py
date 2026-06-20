@@ -343,7 +343,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <div class="filter-actions">
             <button type="submit">Aplicar</button>
             <a href="/">Limpiar</a>
-            <a href="{escape(export_url)}">Exportar CSV</a>
           </div>
         </form>
     """
@@ -463,6 +462,23 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           border-color: var(--accent);
         }}
         .filter-actions a {{ color: var(--text); background: #fff; }}
+        .toolbar {{
+          display: flex;
+          justify-content: flex-end;
+        }}
+        .toolbar a {{
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40px;
+          padding: 0 14px;
+          border-radius: 8px;
+          text-decoration: none;
+          font-size: 14px;
+          border: 1px solid var(--line);
+          color: var(--text);
+          background: #fff;
+        }}
         .kpis {{
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -517,6 +533,9 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         <p>Respuestas ya cargadas en analytics y operational, con filtros por provincia, versión, género y tema.</p>
       </header>
       <main>
+        <div class="toolbar">
+          <a href="{escape(export_url)}">Exportar CSV</a>
+        </div>
         {filters_html}
         {metrics}
         <section class="card wide">
