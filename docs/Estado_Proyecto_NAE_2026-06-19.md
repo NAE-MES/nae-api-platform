@@ -18,6 +18,12 @@ Se habilitó además una primera capa de consumo:
 - `GET /` con un panel HTML de resumen y filtros
 - `GET /api/v1/resumen.csv` para exportar el resumen filtrado
 
+El panel ya quedó con:
+
+- encabezado azul compacto
+- bloques visibles de territorio, estados, género, temas, nivel de instrucción e instituciones
+- exportación CSV separada en una barra superior para no romper el bloque de filtros
+
 ## Cambios ya incorporados
 
 - `version_encuesta` en `raw`, `staging`, `operational` y `analytics`
@@ -38,3 +44,7 @@ Después de ese corte, el siguiente trabajo útil es construir consumo analític
 - validaciones de regresión para nuevas versiones de la encuesta
 - paneles más ricos sobre territorios, temas y género
 - exportaciones adicionales para seguimiento operativo
+
+## Corte nocturno
+
+La rama `dev` quedó lista para promoverse a `main` mediante pull request. El siguiente paso operativo es revisar y aprobar ese corte.
