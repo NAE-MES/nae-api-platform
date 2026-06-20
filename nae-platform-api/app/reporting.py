@@ -354,15 +354,16 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           --text: #102a43;
           --muted: #627d98;
           --accent: #1d4ed8;
+          --accent-deep: #0f3d73;
           --accent-soft: #dbeafe;
         }}
         * {{ box-sizing: border-box; }}
         body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }}
         header {{
-          padding: 18px 24px 12px;
-          background: #fff;
-          color: var(--text);
-          border-bottom: 1px solid var(--line);
+          padding: 20px 24px 18px;
+          background: linear-gradient(180deg, var(--accent-deep) 0%, #133f7a 100%);
+          color: #fff;
+          border-bottom: 1px solid #0b2f5e;
         }}
         .eyebrow {{
           display: inline-flex;
@@ -371,7 +372,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0;
-          color: var(--muted);
+          color: #dbeafe;
           margin-bottom: 6px;
         }}
         .eyebrow::before {{
@@ -379,19 +380,33 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           width: 10px;
           height: 10px;
           border-radius: 999px;
-          background: var(--accent);
+          background: #7dd3fc;
           flex: 0 0 auto;
         }}
         header h1 {{
           margin: 0;
-          font-size: 20px;
+          font-size: 24px;
           line-height: 1.15;
         }}
         header p {{
           margin: 6px 0 0;
-          color: var(--muted);
+          color: #dbeafe;
           font-size: 13px;
           line-height: 1.4;
+        }}
+        .header-line {{
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 10px;
+        }}
+        .header-kicker {{
+          font-size: 12px;
+          color: #bfdbfe;
+          text-transform: uppercase;
+          letter-spacing: 0;
+          white-space: nowrap;
         }}
         main {{ padding: 24px; display: grid; gap: 18px; }}
         .filters {{
@@ -442,7 +457,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           padding: 16px;
         }}
         .kpi span {{ display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; }}
-        .kpi strong {{ display: block; font-size: 28px; margin-top: 6px; }}
+        .kpi strong {{ display: block; font-size: 28px; margin-top: 6px; color: var(--accent-deep); }}
         .grid {{ display: grid; grid-template-columns: 1fr; gap: 18px; }}
         @media(min-width: 1100px) {{ .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
         .card h2 {{ margin: 0 0 12px; font-size: 16px; }}
@@ -455,7 +470,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         }}
         .bar-label, .bar-value {{ font-size: 13px; }}
         .bar-track {{ height: 12px; background: #edf2f7; border-radius: 999px; overflow: hidden; }}
-        .bar-fill {{ height: 100%; background: linear-gradient(90deg, var(--accent), #60a5fa); border-radius: 999px; }}
+        .bar-fill {{ height: 100%; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); border-radius: 999px; }}
         table {{ width: 100%; border-collapse: collapse; }}
         th, td {{ padding: 8px 10px; border-bottom: 1px solid #e4e7eb; text-align: left; font-size: 14px; vertical-align: top; }}
         th {{ background: #f8fafc; }}
@@ -467,9 +482,14 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </head>
     <body>
       <header>
-        <div class="eyebrow">NAE Platform</div>
-        <h1>Panel operativo</h1>
-        <p>Resumen filtrable de respuestas cargadas en analytics y operational.</p>
+        <div class="header-line">
+          <div>
+            <div class="eyebrow">NAE Platform</div>
+            <h1>Panel operativo</h1>
+          </div>
+          <div class="header-kicker">Resumen filtrable de analytics y operational</div>
+        </div>
+        <p>Visión rápida de las respuestas ya cargadas, con filtros por provincia, versión, género y tema.</p>
       </header>
       <main>
         {filters_html}
