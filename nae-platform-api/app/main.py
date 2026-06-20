@@ -3,12 +3,14 @@ import json
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
 from app.config import API_TOKEN
 from app.database import SessionLocal
+from app.reporting import build_resumen_csv, get_dashboard_data, render_dashboard_html
 from app.staging_pipeline import process_raw_to_staging
 from app.operational_pipeline import process_staging_to_operational
 from app.analytics_pipeline import process_operational_to_analytics
@@ -31,6 +33,65 @@ class RespuestaFormulario(BaseModel):
 @app.get("/api/v1/salud")
 def salud():
     return {"status": "ok"}
+
+
+@app.get("/api/v1/resumen")
+def resumen(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+):
+    return get_dashboard_data(
+        limit=limit,
+        provincia=provincia,
+        version_encuesta=version_encuesta,
+        genero=genero,
+        tema=tema,
+    )
+
+
+@app.get("/api/v1/resumen.csv")
+def resumen_csv(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+):
+    data = get_dashboard_data(
+        limit=limit,
+        provincia=provincia,
+        version_encuesta=version_encuesta,
+        genero=genero,
+        tema=tema,
+    )
+    csv_content = build_resumen_csv(data)
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="nae_resumen.csv"'},
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
+def panel_principal(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+):
+    data = get_dashboard_data(
+        limit=limit,
+        provincia=provincia,
+        version_encuesta=version_encuesta,
+        genero=genero,
+        tema=tema,
+    )
+    data["filters"]["limit"] = limit
+    return render_dashboard_html(data)
 
 
 @app.post("/api/v1/respuestas")
