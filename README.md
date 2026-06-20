@@ -52,6 +52,13 @@ cd nae-platform-api
 .venv\Scripts\python.exe -m pytest -q
 ```
 
+Ese comando incluye las pruebas de regresión de `nae-platform-api/tests/test_pipeline_regression.py`, que cubren:
+
+- validación del payload de staging
+- persistencia de `raw` a `staging`
+- separación de multiselección en `operational`
+- mapeo de dimensiones en `analytics`
+
 ## Smoke local
 
 Para validar el flujo con un payload de ejemplo sin usar Google Forms:
