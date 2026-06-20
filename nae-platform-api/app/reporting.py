@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+from io import StringIO
+from urllib.parse import urlencode
 from html import escape
 from typing import Any, Dict, List, Optional
 
@@ -298,6 +301,20 @@ def _table(headers: List[str], rows: List[Dict[str, Any]]) -> str:
 def render_dashboard_html(data: Dict[str, Any]) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
+    export_params = {
+        key: value
+        for key, value in {
+            "provincia": selected.get("provincia"),
+            "version_encuesta": selected.get("version_encuesta"),
+            "genero": selected.get("genero"),
+            "tema": selected.get("tema"),
+            "limit": selected.get("limit") or 10,
+        }.items()
+        if value not in (None, "")
+    }
+    export_url = "/api/v1/resumen.csv"
+    if export_params:
+        export_url = f"{export_url}?{urlencode(export_params)}"
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
@@ -326,6 +343,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <div class="filter-actions">
             <button type="submit">Aplicar</button>
             <a href="/">Limpiar</a>
+            <a href="{escape(export_url)}">Exportar CSV</a>
           </div>
         </form>
     """
@@ -552,3 +570,32 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </html>
     """
     return html
+
+
+def build_resumen_csv(data: Dict[str, Any]) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id",
+        "version_encuesta",
+        "fecha_respuesta",
+        "estado_validacion",
+        "provincia_nombre",
+        "municipio_nombre",
+        "nombre_institucion",
+        "genero",
+        "nivel_instruccion",
+    ])
+    for row in data["ultimas_respuestas"]:
+        writer.writerow([
+            row.get("id"),
+            row.get("version_encuesta"),
+            row.get("fecha_respuesta"),
+            row.get("estado_validacion"),
+            row.get("provincia_nombre"),
+            row.get("municipio_nombre"),
+            row.get("nombre_institucion"),
+            row.get("genero"),
+            row.get("nivel_instruccion"),
+        ])
+    return output.getvalue()

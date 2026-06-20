@@ -16,6 +16,7 @@ Se habilitó además una primera capa de consumo:
 
 - `GET /api/v1/resumen`
 - `GET /` con un panel HTML de resumen y filtros
+- `GET /api/v1/resumen.csv` para exportar el resumen filtrado
 
 ## Cambios ya incorporados
 
@@ -36,3 +37,4 @@ Después de ese corte, el siguiente trabajo útil es construir consumo analític
 - consultas base de control
 - validaciones de regresión para nuevas versiones de la encuesta
 - paneles más ricos sobre territorios, temas y género
+- exportaciones adicionales para seguimiento operativo
