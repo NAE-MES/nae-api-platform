@@ -102,4 +102,5 @@ La rama de trabajo activa es `dev`, y los cambios se promueven a `main` mediante
 
 - `docs/Estado_Proyecto_NAE_2026-06-19.md`
 - `docs/scripts-googleform.txt`
+- `docs/google-apps-script-nae.gs`
 - `docs/NAE Platform - Actualización de Modelo de Datos.pdf`
