@@ -398,11 +398,31 @@ def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
             {"operational_respuesta_id": core["operational_respuesta_id"]},
         ).scalars().all()
 
+        previous_id = db.execute(
+            text("""
+                SELECT MAX(id)
+                FROM analytics.f_respuestas_encuesta
+                WHERE id < :respuesta_id
+            """),
+            {"respuesta_id": respuesta_id},
+        ).scalar_one()
+
+        next_id = db.execute(
+            text("""
+                SELECT MIN(id)
+                FROM analytics.f_respuestas_encuesta
+                WHERE id > :respuesta_id
+            """),
+            {"respuesta_id": respuesta_id},
+        ).scalar_one()
+
         return {
             **dict(core),
             "temas_formacion": list(temas),
             "instituciones_participantes": list(instituciones_participantes),
             "limitaciones": list(limitaciones),
+            "previous_id": previous_id,
+            "next_id": next_id,
         }
     finally:
         db.close()
@@ -460,6 +480,28 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
           background: #fff;
           border: 1px solid var(--line);
         }}
+        .nav {{
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }}
+        .nav a {{
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40px;
+          padding: 0 14px;
+          border-radius: 8px;
+          text-decoration: none;
+          border: 1px solid var(--line);
+          color: var(--text);
+          background: #fff;
+        }}
+        .nav a.disabled {{
+          pointer-events: none;
+          color: #9fb3c8;
+          background: #f8fafc;
+        }}
         .card {{
           background: var(--panel);
           border: 1px solid var(--line);
@@ -504,13 +546,17 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
         .empty {{ color: var(--muted); margin: 0; }}
       </style>
     </head>
-    <body>
+      <body>
       <header>
         <h1>Respuesta {value("respuesta_id")}</h1>
         <p>{value("provincia_nombre")} - {value("municipio_nombre")} - {value("nombre_institucion")}</p>
       </header>
       <main>
-        <a class="back" href="/">Volver al panel</a>
+        <div class="nav">
+          <a class="back" href="/">Volver al panel</a>
+          {"<a href='/respuestas/" + str(data["previous_id"]) + "'>Anterior</a>" if data.get("previous_id") else "<a class='disabled' href='#'>Anterior</a>"}
+          {"<a href='/respuestas/" + str(data["next_id"]) + "'>Siguiente</a>" if data.get("next_id") else "<a class='disabled' href='#'>Siguiente</a>"}
+        </div>
         <section class="card">
           <div class="grid">
             <div class="field"><span>Estado</span><strong>{value("estado_validacion")}</strong></div>

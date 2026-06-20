@@ -67,6 +67,7 @@ El panel HTML acepta filtros por query string:
 `GET /api/v1/resumen.csv` devuelve el mismo resumen filtrado como CSV descargable con las últimas respuestas visibles en el panel.
 
 `GET /api/v1/respuestas/{respuesta_id}` devuelve el detalle estructurado de una respuesta concreta, y `GET /respuestas/{respuesta_id}` lo muestra en HTML.
+La vista HTML del detalle incluye navegación a la respuesta anterior y siguiente cuando existen.
 
 ## Scripts SQL
 

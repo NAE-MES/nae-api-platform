@@ -25,6 +25,7 @@ El panel ya quedó con:
 - bloques visibles de territorio, estados, género, temas, nivel de instrucción e instituciones
 - exportación CSV separada en una barra superior para no romper el bloque de filtros
 - detalle navegable desde la tabla de últimas respuestas
+- navegación anterior/siguiente en la vista de detalle
 
 ## Cambios ya incorporados
 
