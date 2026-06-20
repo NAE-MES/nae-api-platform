@@ -43,11 +43,21 @@ La API expone la documentación interactiva en:
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/` para un panel HTML de resumen con filtros
 
+## Pruebas
+
+La base mínima de pruebas HTTP se ejecuta con:
+
+```bash
+cd nae-platform-api
+.venv\Scripts\python.exe -m pytest -q
+```
+
 ## Endpoints principales
 
 - `GET /api/v1/salud`
 - `GET /api/v1/resumen`
 - `GET /api/v1/resumen.csv`
+- `GET /api/v1/respuestas/{respuesta_id}`
 - `POST /api/v1/respuestas`
 - `POST /api/v1/pipelines/staging/raw-to-staging`
 - `POST /api/v1/pipelines/operational/staging-to-operational`
@@ -64,6 +74,9 @@ El panel HTML acepta filtros por query string:
 - `limit`
 
 `GET /api/v1/resumen.csv` devuelve el mismo resumen filtrado como CSV descargable con las últimas respuestas visibles en el panel.
+
+`GET /api/v1/respuestas/{respuesta_id}` devuelve el detalle estructurado de una respuesta concreta, y `GET /respuestas/{respuesta_id}` lo muestra en HTML.
+La vista HTML del detalle incluye navegación a la respuesta anterior y siguiente cuando existen.
 
 ## Scripts SQL
 
@@ -89,4 +102,5 @@ La rama de trabajo activa es `dev`, y los cambios se promueven a `main` mediante
 
 - `docs/Estado_Proyecto_NAE_2026-06-19.md`
 - `docs/scripts-googleform.txt`
+- `docs/google-apps-script-nae.gs`
 - `docs/NAE Platform - Actualización de Modelo de Datos.pdf`

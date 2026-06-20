@@ -17,12 +17,18 @@ Se habilitó además una primera capa de consumo:
 - `GET /api/v1/resumen`
 - `GET /` con un panel HTML de resumen y filtros
 - `GET /api/v1/resumen.csv` para exportar el resumen filtrado
+- `GET /api/v1/respuestas/{respuesta_id}` y `/respuestas/{respuesta_id}` para ver el detalle de una respuesta
+- script base de Google Apps Script para enviar respuestas al API
 
 El panel ya quedó con:
 
 - encabezado azul compacto
 - bloques visibles de territorio, estados, género, temas, nivel de instrucción e instituciones
 - exportación CSV separada en una barra superior para no romper el bloque de filtros
+- detalle navegable desde la tabla de últimas respuestas
+- navegación anterior/siguiente en la vista de detalle
+- pruebas mínimas de endpoints para salud, resumen, CSV y detalle
+- artefacto `docs/google-apps-script-nae.gs` para integrar Google Forms con la API
 
 ## Cambios ya incorporados
 
