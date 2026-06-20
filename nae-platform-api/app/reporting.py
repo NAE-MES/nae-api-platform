@@ -530,6 +530,18 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             {_bar_rows(data["limitaciones"])}
           </section>
         </section>
+        <section class="subgrid">
+          <section class="card">
+            <p class="section-lead">Perfil</p>
+            <h2>Nivel de instrucción</h2>
+            {_bar_rows(data["por_nivel_instruccion"])}
+          </section>
+          <section class="card">
+            <p class="section-lead">Cobertura</p>
+            <h2>Instituciones más presentes</h2>
+            {_bar_rows(data["instituciones"])}
+          </section>
+        </section>
         <section class="card wide">
           <p class="section-lead">Detalle</p>
           <h2>Últimas respuestas</h2>
