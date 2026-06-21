@@ -63,7 +63,6 @@ FIELD_MAP = {
 }
 
 BASE_REQUIRED_FIELDS = {
-    "consentimiento",
     "genero",
     "provincia",
     "municipio",
@@ -173,19 +172,10 @@ def validate_payload(payload: Dict[str, Any]) -> ValidationResult:
             }
         )
 
-    if normalized.get("consentimiento") not in {"Sí, acepto", "Sí"}:
-        errors.append(
-            {
-                "campo": "consentimiento",
-                "tipo_error": "consentimiento",
-                "descripcion": "La persona no aceptó participar o la respuesta es inválida",
-            }
-        )
-
     if not errors:
         state = "validada"
     else:
-        critical_fields = {"consentimiento", "provincia", "municipio", "tipo_institucion", "nombre_institucion"}
+        critical_fields = {"provincia", "municipio", "tipo_institucion", "nombre_institucion"}
         critical_error = any(error["campo"] in critical_fields for error in errors)
         state = "rechazada" if critical_error else "con_observaciones"
         if state == "con_observaciones":

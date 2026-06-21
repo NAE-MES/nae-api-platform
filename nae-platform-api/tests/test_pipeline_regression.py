@@ -71,7 +71,6 @@ class FakeDB:
 
 
 SAMPLE_PAYLOAD = {
-    "¿Acepta participar voluntariamente en esta encuesta y autoriza el uso de la información con fines de diagnóstico y planificación del proyecto?": "Sí, acepto",
     "0.3 Género de la persona que responde": "Mujer",
     "0.4 Nivel de instrucción terminado": "Universitario",
     "1.1 Provincia": "La Habana",

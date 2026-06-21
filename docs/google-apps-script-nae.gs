@@ -1,5 +1,7 @@
-const NAE_API_URL = 'https://TU_DOMINIO_O_IP/api/v1/respuestas';
-const NAE_API_TOKEN = 'NAE_LOCAL_DEV_2025';
+const NAE_API_URL = 'https://nae-plataforma.mes.gob.cu/api/v1/respuestas';
+const NAE_API_TOKEN = 'TU_TOKEN_REAL';
+const NAE_FORM_TITLE = 'Propuesta de ENCUESTA FINAL SOBRE ESPACIOS DE INTERCAMBIO ENTRE NAE Y OTROS ACTORES – VERSION GOOGLE FORMS';
+const NAE_SURVEY_VERSION = '0';
 
 function onFormSubmit(e) {
   if (!e || !e.namedValues) {
@@ -14,7 +16,7 @@ function onFormSubmit(e) {
 
   const body = {
     id_respuesta_origen: Utilities.getUuid(),
-    formulario_origen: 'Encuesta NAE v1.1',
+    formulario_origen: NAE_FORM_TITLE,
     fecha_respuesta: new Date().toISOString(),
     version_encuesta: detectSurveyVersion(payload),
     payload: payload
@@ -41,11 +43,21 @@ function onFormSubmit(e) {
 }
 
 function detectSurveyVersion(payload) {
-  if (payload['0.4 Nivel de instrucción terminado']) {
+  if (
+    payload['0.5 Nivel de conocimiento sobre la realidad del municipio'] ||
+    payload['3.4 Nivel de interés de los actores de gobierno en formación sobre NAE'] ||
+    payload['4.1 Conoce la existencia de mecanismos de coordinación institucional']
+  ) {
+    return NAE_SURVEY_VERSION;
+  }
+
+  if (
+    payload['0.4 Nivel de conocimiento sobre la realidad del municipio'] ||
+    payload['4.1 Nivel de interés de los actores de gobierno en formación sobre NAE'] ||
+    payload['5.1 Existencia de mecanismos de coordinación institucional']
+  ) {
     return '1.1';
   }
-  if (payload['0.4 Nivel de conocimiento sobre la realidad del municipio']) {
-    return '1.0';
-  }
-  return '1.0';
+
+  return NAE_SURVEY_VERSION;
 }
