@@ -62,6 +62,10 @@ FIELD_MAP = {
     "5.1 Existencia de mecanismos de coordinación institucional": "mecanismos_coordinacion",
 }
 
+RAW_FIELD_ALIASES: Dict[str, List[str]] = {}
+for raw_question, normalized_field in FIELD_MAP.items():
+    RAW_FIELD_ALIASES.setdefault(normalized_field, []).append(raw_question)
+
 BASE_REQUIRED_FIELDS = {
     "genero",
     "provincia",
@@ -113,6 +117,13 @@ def _payload_as_dict(raw_payload: Any) -> Dict[str, Any]:
     if isinstance(raw_payload, str):
         return json.loads(raw_payload)
     raise HTTPException(status_code=500, detail="Formato de payload no soportado")
+
+
+def _raw_value_for_field(payload: Dict[str, Any], field_name: str) -> Any:
+    for raw_question in RAW_FIELD_ALIASES.get(field_name, []):
+        if raw_question in payload:
+            return payload.get(raw_question)
+    return payload.get(field_name)
 
 
 def _extract_normalized_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,7 +279,7 @@ def process_raw_to_staging(limit: int = 100) -> Dict[str, Any]:
                         {
                             "respuesta_raw_id": raw_row["id"],
                             "campo": error["campo"],
-                            "valor_recibido": json.dumps(payload.get(error["campo"]), ensure_ascii=False),
+                            "valor_recibido": json.dumps(_raw_value_for_field(payload, error["campo"]), ensure_ascii=False),
                             "tipo_error": error["tipo_error"],
                             "descripcion": error["descripcion"],
                         },
