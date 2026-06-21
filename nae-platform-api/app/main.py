@@ -3,7 +3,7 @@ import logging
 import json
 from typing import Any, Dict, Optional
 
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
@@ -133,7 +133,6 @@ def detalle_respuesta_html(respuesta_id: int):
 @app.post("/api/v1/respuestas")
 def recibir_respuesta(
     data: RespuestaFormulario,
-    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None)
 ):
     expected = f"Bearer {API_TOKEN}"
@@ -189,7 +188,7 @@ def recibir_respuesta(
 
         raw_id = result.scalar()
         db.commit()
-        background_tasks.add_task(_run_pipeline_chain)
+        _run_pipeline_chain()
 
         return {
             "status": "ok",
