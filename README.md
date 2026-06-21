@@ -119,6 +119,10 @@ La rama de trabajo activa es `dev`, y los cambios se promueven a `main` mediante
 ## Documentación relacionada
 
 - `docs/Estado_Proyecto_NAE_2026-06-19.md`
+- `docs/Despliegue_Ubuntu_22_04.md`
+- `nae-platform-api/.env.example`
+- `deploy/ubuntu-22.04/nae-api.service`
+- `deploy/ubuntu-22.04/nginx/nae-api.conf`
 - `docs/scripts-googleform.txt`
 - `docs/google-apps-script-nae.gs`
 - `docs/NAE Platform - Actualización de Modelo de Datos.pdf`

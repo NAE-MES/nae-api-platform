@@ -1,6 +1,6 @@
 # Estado del proyecto NAE
 
-Fecha: 2026-06-19
+Fecha: 2026-06-20
 
 ## Estado actual
 
@@ -11,6 +11,15 @@ La plataforma quedó validada con el modelo de datos v1.1:
 - `operational -> analytics` funcionando
 
 La rama `dev` ya fue publicada en `origin/dev`.
+
+También quedó incorporado un bloque mínimo de pruebas de regresión para la canalización:
+
+- validación de payload en `staging`
+- persistencia de `raw` a `staging`
+- separación de multiselección en `operational`
+- mapeo de dimensiones en `analytics`
+
+La suite local quedó en `11 passed` y el smoke end-to-end del flujo local también fue validado con éxito.
 
 Se habilitó además una primera capa de consumo:
 
@@ -28,6 +37,8 @@ El panel ya quedó con:
 - detalle navegable desde la tabla de últimas respuestas
 - navegación anterior/siguiente en la vista de detalle
 - pruebas mínimas de endpoints para salud, resumen, CSV y detalle
+- pruebas de regresión de pipeline en `nae-platform-api/tests/test_pipeline_regression.py`
+- smoke local del flujo completo con `scripts/smoke_local_flow.py`
 - artefacto `docs/google-apps-script-nae.gs` para integrar Google Forms con la API
 
 ## Cambios ya incorporados
