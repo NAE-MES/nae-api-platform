@@ -3,6 +3,7 @@
 Fecha: 2026-06-20
 
 Este documento deja listo el despliegue de la API NAE sobre Ubuntu 22.04 con PostgreSQL, `systemd` y Nginx.
+El certificado TLS lo termina un HAProxy remoto.
 
 ## Archivos incluidos
 
@@ -12,7 +13,8 @@ Este documento deja listo el despliegue de la API NAE sobre Ubuntu 22.04 con Pos
 
 ## Supuestos
 
-- El dominio o IP pública ya existe.
+- El dominio público es `nae-plataforma.mes.gob.cu`.
+- HAProxy remoto recibe HTTPS y reenvía tráfico HTTP al puerto 8080 de este servidor.
 - PostgreSQL está disponible en el mismo servidor o en una red accesible.
 - La base de datos de producción se crea antes de levantar la API.
 - La ruta de instalación será `/srv/nae/nae-api-platform`.
@@ -62,7 +64,26 @@ pip install -r requirements.txt
 
 ## 4. Variables de entorno
 
-Copiar `nae-platform-api/.env.example` a `nae-platform-api/.env` y ajustar valores reales.
+El repositorio no debe contener `.env` con secretos. El archivo `nae-platform-api/.env.example` solo sirve como plantilla.
+
+Crear el archivo real en el servidor:
+
+```bash
+cd /srv/nae/nae-api-platform/nae-platform-api
+cp .env.example .env
+nano .env
+```
+
+Contenido esperado:
+
+```env
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=nae
+DB_USER=nae
+DB_PASSWORD=tu_password_real
+API_TOKEN=tu_token_real
+```
 
 Permisos recomendados:
 
@@ -75,13 +96,32 @@ chown nae:nae /srv/nae/nae-api-platform/nae-platform-api/.env
 
 Crear usuario y base, si faltan:
 
-```sql
-CREATE USER nae WITH PASSWORD 'change-me';
-CREATE DATABASE nae OWNER nae;
-GRANT ALL PRIVILEGES ON DATABASE nae TO nae;
+1. Entrar a PostgreSQL como administrador:
+
+```bash
+sudo -u postgres psql
 ```
 
-Ejecutar los scripts SQL en orden:
+2. Crear el usuario de la aplicación:
+
+```sql
+CREATE USER nae WITH PASSWORD 'tu_password_real';
+```
+
+3. Crear la base de datos y asignar propietario:
+
+```sql
+CREATE DATABASE nae OWNER nae;
+```
+
+4. Dar permisos explícitos sobre la base:
+
+```sql
+GRANT ALL PRIVILEGES ON DATABASE nae TO nae;
+\q
+```
+
+5. Conectar con el usuario creado y aplicar el esquema:
 
 ```bash
 psql -U nae -d nae -h 127.0.0.1 -f sql/001_create_staging_layer.sql
@@ -120,18 +160,10 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Reemplazar `server_name _;` por el dominio real antes de producción.
+Nginx escucha en el puerto `8080` y reenvía a `127.0.0.1:8000`.
+HAProxy remoto debe apuntar a `http://nae-plataforma.mes.gob.cu:8080` o a la IP privada de este servidor en ese mismo puerto.
 
-## 8. TLS
-
-Si hay dominio público:
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d tu-dominio.com
-```
-
-## 9. Validación
+## 8. Validación
 
 ```bash
 curl http://127.0.0.1:8000/api/v1/salud
@@ -149,13 +181,13 @@ Validación mínima antes del corte:
 - `POST /api/v1/pipelines/operational/staging-to-operational`
 - `POST /api/v1/pipelines/analytics/operational-to-analytics`
 
-## 10. Checklist de corte
+## 9. Checklist de corte
 
 - backup de la base de datos
 - `dev` fusionada en `main`
 - despliegue hecho desde `main`
 - variables reales cargadas
-- Nginx y TLS activos
+- Nginx escuchando en `8080`
+- HAProxy remoto apuntando al servidor
 - smoke test verde
 - Google Apps Script apuntando a la URL pública
-
