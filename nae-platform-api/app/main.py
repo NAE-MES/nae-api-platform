@@ -1,8 +1,9 @@
 from datetime import datetime
+import logging
 import json
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +28,8 @@ app = FastAPI(
     version="0.1.0"
 )
 
+logger = logging.getLogger(__name__)
+
 
 class RespuestaFormulario(BaseModel):
     id_respuesta_origen: Optional[str] = None
@@ -34,6 +37,17 @@ class RespuestaFormulario(BaseModel):
     fecha_respuesta: Optional[datetime] = None
     version_encuesta: Optional[str] = None
     payload: Dict[str, Any]
+
+
+def _run_pipeline_chain(limit: int = 100) -> None:
+    logger.info("Iniciando cadena automatica de pipelines para %s registros", limit)
+    try:
+        process_raw_to_staging(limit=limit)
+        process_staging_to_operational(limit=limit)
+        process_operational_to_analytics(limit=limit)
+        logger.info("Cadena automatica de pipelines completada")
+    except Exception:
+        logger.exception("Error ejecutando la cadena automatica de pipelines")
 
 
 @app.get("/api/v1/salud")
@@ -119,6 +133,7 @@ def detalle_respuesta_html(respuesta_id: int):
 @app.post("/api/v1/respuestas")
 def recibir_respuesta(
     data: RespuestaFormulario,
+    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None)
 ):
     expected = f"Bearer {API_TOKEN}"
@@ -174,6 +189,7 @@ def recibir_respuesta(
 
         raw_id = result.scalar()
         db.commit()
+        background_tasks.add_task(_run_pipeline_chain)
 
         return {
             "status": "ok",

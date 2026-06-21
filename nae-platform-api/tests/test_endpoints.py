@@ -168,3 +168,56 @@ def test_response_detail_missing_returns_404(monkeypatch):
     response = client.get("/api/v1/respuestas/9999")
 
     assert response.status_code == 404
+
+
+def test_recibir_respuesta_dispara_pipelines_automaticamente(monkeypatch):
+    class FakeResult:
+        def scalar_one_or_none(self):
+            return None
+
+        def scalar(self):
+            return 42
+
+    class FakeDB:
+        def __init__(self):
+            self.commits = 0
+            self.rollbacks = 0
+            self.closed = False
+            self.calls = []
+
+        def execute(self, query, params=None):
+            self.calls.append({"query": str(query), "params": params})
+            return FakeResult()
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+        def close(self):
+            self.closed = True
+
+    order = []
+
+    monkeypatch.setattr(main, "SessionLocal", lambda: fake_db)
+    monkeypatch.setattr(main, "process_raw_to_staging", lambda limit=100: order.append(("raw", limit)))
+    monkeypatch.setattr(main, "process_staging_to_operational", lambda limit=100: order.append(("operational", limit)))
+    monkeypatch.setattr(main, "process_operational_to_analytics", lambda limit=100: order.append(("analytics", limit)))
+
+    fake_db = FakeDB()
+
+    response = client.post(
+        "/api/v1/respuestas",
+        headers={"Authorization": "Bearer test-token"},
+        json={
+            "formulario_origen": "Encuesta NAE v1.1",
+            "payload": {"1.1 Provincia": "La Habana"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "raw_id": 42}
+    assert order == [("raw", 100), ("operational", 100), ("analytics", 100)]
+    assert fake_db.commits == 1
+    assert fake_db.closed is True
