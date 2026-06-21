@@ -99,6 +99,21 @@ def test_validate_payload_infers_version_and_accepts_realistic_payload():
     assert not result.errors
 
 
+def test_validate_payload_keeps_current_form_values_when_legacy_aliases_are_missing():
+    payload = dict(SAMPLE_PAYLOAD)
+    payload.pop("4.1 Nivel de interés de los actores de gobierno en formación sobre NAE")
+    payload.pop("5.1 Existencia de mecanismos de coordinación institucional")
+    payload["3.4 Nivel de interés de los actores de gobierno en formación sobre NAE"] = "Medio"
+    payload["4.1 Conoce la existencia de mecanismos de coordinación institucional"] = "Sí, funcionan sistemáticamente"
+
+    result = staging_pipeline.validate_payload(payload)
+
+    assert result.state == "validada"
+    assert result.normalized["nivel_interes_gobierno"] == "Medio"
+    assert result.normalized["mecanismos_coordinacion"] == "Sí, funcionan sistemáticamente"
+    assert not result.errors
+
+
 def test_validate_payload_rejects_invalid_catalogs():
     payload = dict(SAMPLE_PAYLOAD)
     payload["1.1 Provincia"] = "Atlantis"

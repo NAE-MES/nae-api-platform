@@ -129,7 +129,9 @@ def _raw_value_for_field(payload: Dict[str, Any], field_name: str) -> Any:
 def _extract_normalized_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     normalized: Dict[str, Any] = {}
     for question, field_name in FIELD_MAP.items():
-        normalized[field_name] = _scalar_value(payload.get(question))
+        value = _scalar_value(payload.get(question))
+        if value is not None or field_name not in normalized:
+            normalized[field_name] = value
     normalized["version_encuesta"] = _scalar_value(payload.get("version_encuesta"))
     if not normalized["version_encuesta"]:
         if normalized.get("nivel_instruccion"):
