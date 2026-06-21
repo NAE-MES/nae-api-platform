@@ -100,6 +100,7 @@ La vista HTML del detalle incluye navegación a la respuesta anterior y siguient
 
 El orden recomendado para materializar el modelo es:
 
+0. `sql/000_create_control_layer.sql`
 1. `sql/001_create_staging_layer.sql`
 2. `sql/002_create_operational_layer.sql`
 3. `sql/003_create_analytics_layer.sql`
@@ -119,6 +120,7 @@ La rama de trabajo activa es `dev`, y los cambios se promueven a `main` mediante
 ## Documentación relacionada
 
 - `docs/Estado_Proyecto_NAE_2026-06-19.md`
+- `docs/Estado_Puesta_Produccion_2026-06-21.md`
 - `docs/Despliegue_Ubuntu_22_04.md`
 - `nae-platform-api/.env.example`
 - `deploy/ubuntu-22.04/nae-api.service`

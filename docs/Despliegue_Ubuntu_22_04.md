@@ -7,6 +7,7 @@ El certificado TLS lo termina un HAProxy remoto.
 
 ## Archivos incluidos
 
+- `nae-platform-api/sql/000_create_control_layer.sql`
 - `nae-platform-api/.env.example`
 - `deploy/ubuntu-22.04/nae-api.service`
 - `deploy/ubuntu-22.04/nginx/nae-api.conf`
@@ -124,6 +125,7 @@ GRANT ALL PRIVILEGES ON DATABASE nae TO nae;
 5. Conectar con el usuario creado y aplicar el esquema:
 
 ```bash
+psql -U nae -d nae -h 127.0.0.1 -f sql/000_create_control_layer.sql
 psql -U nae -d nae -h 127.0.0.1 -f sql/001_create_staging_layer.sql
 psql -U nae -d nae -h 127.0.0.1 -f sql/002_create_operational_layer.sql
 psql -U nae -d nae -h 127.0.0.1 -f sql/003_create_analytics_layer.sql
