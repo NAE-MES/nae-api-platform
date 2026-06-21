@@ -1,0 +1,18 @@
+[Unit]
+Description=NAE Platform API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=nae
+Group=www-data
+WorkingDirectory=/srv/nae/nae-api-platform/nae-platform-api
+EnvironmentFile=/srv/nae/nae-api-platform/nae-platform-api/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/nae/nae-api-platform/nae-platform-api/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -52,6 +52,24 @@ cd nae-platform-api
 .venv\Scripts\python.exe -m pytest -q
 ```
 
+Ese comando incluye las pruebas de regresión de `nae-platform-api/tests/test_pipeline_regression.py`, que cubren:
+
+- validación del payload de staging
+- persistencia de `raw` a `staging`
+- separación de multiselección en `operational`
+- mapeo de dimensiones en `analytics`
+
+## Smoke local
+
+Para validar el flujo con un payload de ejemplo sin usar Google Forms:
+
+```bash
+cd nae-platform-api
+.venv\Scripts\python.exe scripts\smoke_local_flow.py --run-pipelines
+```
+
+El payload de ejemplo vive en `nae-platform-api/scripts/sample_payload.json`.
+
 ## Endpoints principales
 
 - `GET /api/v1/salud`
@@ -101,6 +119,10 @@ La rama de trabajo activa es `dev`, y los cambios se promueven a `main` mediante
 ## Documentación relacionada
 
 - `docs/Estado_Proyecto_NAE_2026-06-19.md`
+- `docs/Despliegue_Ubuntu_22_04.md`
+- `nae-platform-api/.env.example`
+- `deploy/ubuntu-22.04/nae-api.service`
+- `deploy/ubuntu-22.04/nginx/nae-api.conf`
 - `docs/scripts-googleform.txt`
 - `docs/google-apps-script-nae.gs`
 - `docs/NAE Platform - Actualización de Modelo de Datos.pdf`
