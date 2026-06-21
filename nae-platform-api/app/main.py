@@ -41,13 +41,15 @@ class RespuestaFormulario(BaseModel):
 
 def _run_pipeline_chain(limit: int = 100) -> None:
     logger.info("Iniciando cadena automatica de pipelines para %s registros", limit)
-    try:
-        process_raw_to_staging(limit=limit)
-        process_staging_to_operational(limit=limit)
-        process_operational_to_analytics(limit=limit)
-        logger.info("Cadena automatica de pipelines completada")
-    except Exception:
-        logger.exception("Error ejecutando la cadena automatica de pipelines")
+    staging_result = process_raw_to_staging(limit=limit)
+    operational_result = process_staging_to_operational(limit=limit)
+    analytics_result = process_operational_to_analytics(limit=limit)
+    logger.info("Cadena automatica de pipelines completada")
+    return {
+        "staging": staging_result.get("stats", {}),
+        "operational": operational_result.get("stats", {}),
+        "analytics": analytics_result.get("stats", {}),
+    }
 
 
 @app.get("/api/v1/salud")
@@ -188,11 +190,12 @@ def recibir_respuesta(
 
         raw_id = result.scalar()
         db.commit()
-        _run_pipeline_chain()
+        pipeline_result = _run_pipeline_chain()
 
         return {
             "status": "ok",
-            "raw_id": raw_id
+            "raw_id": raw_id,
+            "pipeline": pipeline_result,
         }
 
     except HTTPException:

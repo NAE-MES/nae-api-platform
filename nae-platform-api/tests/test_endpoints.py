@@ -201,9 +201,9 @@ def test_recibir_respuesta_dispara_pipelines_automaticamente(monkeypatch):
     order = []
 
     monkeypatch.setattr(main, "SessionLocal", lambda: fake_db)
-    monkeypatch.setattr(main, "process_raw_to_staging", lambda limit=100: order.append(("raw", limit)))
-    monkeypatch.setattr(main, "process_staging_to_operational", lambda limit=100: order.append(("operational", limit)))
-    monkeypatch.setattr(main, "process_operational_to_analytics", lambda limit=100: order.append(("analytics", limit)))
+    monkeypatch.setattr(main, "process_raw_to_staging", lambda limit=100: (order.append(("raw", limit)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_staging_to_operational", lambda limit=100: (order.append(("operational", limit)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_operational_to_analytics", lambda limit=100: (order.append(("analytics", limit)) or {"stats": {"total": 1}}))
 
     fake_db = FakeDB()
 
@@ -217,7 +217,15 @@ def test_recibir_respuesta_dispara_pipelines_automaticamente(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "raw_id": 42}
+    assert response.json() == {
+        "status": "ok",
+        "raw_id": 42,
+        "pipeline": {
+            "staging": {"total": 1},
+            "operational": {"total": 1},
+            "analytics": {"total": 1},
+        },
+    }
     assert order == [("raw", 100), ("operational", 100), ("analytics", 100)]
     assert fake_db.commits == 1
     assert fake_db.closed is True
