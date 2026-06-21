@@ -42,6 +42,7 @@ FIELD_MAP = {
     CONSENT_QUESTION: "consentimiento",
     "0.3 Género de la persona que responde": "genero",
     "0.4 Nivel de conocimiento sobre la realidad del municipio": "nivel_conocimiento_municipio",
+    "0.5 Nivel de conocimiento sobre la realidad del municipio": "nivel_conocimiento_municipio",
     "0.4 Nivel de instrucción terminado": "nivel_instruccion",
     "1.1 Provincia": "provincia",
     "1.2 Municipio": "municipio",
@@ -50,12 +51,14 @@ FIELD_MAP = {
     "1.5 Nombre oficial de la institución": "nombre_institucion",
     "1.6 Nivel de involucramiento en actividades de formación sobre NAE": "nivel_involucramiento",
     "3.1 Nivel de capacitación de formadores locales": "nivel_capacitacion_formadores",
+    "3.4 Nivel de interés de los actores de gobierno en formación sobre NAE": "nivel_interes_gobierno",
     "4.2 Mayoría de titulares de emprendimientos": "mayoria_titulares_emprendimientos",
     "4.3 Porcentaje de mujeres en cargos directivos": "porcentaje_mujeres_directivas",
     "4.4 Programas dirigidos a mujeres emprendedoras": "programas_mujeres_emprendedoras",
     "4.4.1 Si respondió “Sí”, describa brevemente el programa": "descripcion_programa_mujeres",
     "3.3 Principal necesidad del municipio": "principal_necesidad",
     "4.1 Nivel de interés de los actores de gobierno en formación sobre NAE": "nivel_interes_gobierno",
+    "4.1 Conoce la existencia de mecanismos de coordinación institucional": "mecanismos_coordinacion",
     "5.1 Existencia de mecanismos de coordinación institucional": "mecanismos_coordinacion",
 }
 
