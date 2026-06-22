@@ -334,7 +334,6 @@ def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
                        op.formulario_origen,
                        COALESCE(op.version_encuesta, f.version_encuesta, '1.0') AS version_encuesta,
                        op.fecha_respuesta,
-                       op.consentimiento,
                        t.provincia_nombre,
                        t.municipio_nombre,
                        i.tipo_institucion,
@@ -571,7 +570,6 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
         </section>
         <section class="card">
           <div class="grid">
-            <div class="field"><span>Consentimiento</span><strong>{value("consentimiento")}</strong></div>
             <div class="field"><span>Ámbito</span><strong>{value("ambito_actuacion")}</strong></div>
             <div class="field"><span>Nivel involucramiento</span><strong>{value("nivel_involucramiento")}</strong></div>
             <div class="field"><span>Capacitación formadores</span><strong>{value("nivel_capacitacion_formadores")}</strong></div>
@@ -579,6 +577,14 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
             <div class="field"><span>Interés gobierno</span><strong>{value("nivel_interes_gobierno")}</strong></div>
             <div class="field"><span>Mecanismos coordinación</span><strong>{value("mecanismos_coordinacion")}</strong></div>
             <div class="field"><span>Conocimiento municipio</span><strong>{value("nivel_conocimiento_municipio")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="grid">
+            <div class="field"><span>Mayoría titulares emprendimientos</span><strong>{value("mayoria_titulares_emprendimientos")}</strong></div>
+            <div class="field"><span>Mujeres en cargos directivos</span><strong>{value("porcentaje_mujeres_directivas")}</strong></div>
+            <div class="field"><span>Programas mujeres emprendedoras</span><strong>{value("programas_mujeres_emprendedoras")}</strong></div>
+            <div class="field"><span>Descripción programa</span><strong>{value("descripcion_programa_mujeres")}</strong></div>
           </div>
         </section>
         <section class="card">

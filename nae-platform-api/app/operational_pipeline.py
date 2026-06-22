@@ -14,11 +14,20 @@ PIPELINE_NAME = "staging_to_operational"
 
 MULTISELECT_FIELDS = {
     "3.2 Temas prioritarios de formación": ("respuestas_temas_formacion", "tema_formacion"),
+    "3.2 Temas prioritarios de formación que necesita": ("respuestas_temas_formacion", "tema_formacion"),
     "5.3 Instituciones que participan en actividades formativas": (
         "respuestas_instituciones_participantes",
         "institucion_participante",
     ),
+    "4.3 Instituciones que participan en actividades formativas": (
+        "respuestas_instituciones_participantes",
+        "institucion_participante",
+    ),
     "5.4 Principales limitaciones": ("respuestas_limitaciones", "limitacion"),
+    "4.4 Principales limitaciones que existen para desarrollar actividades formativas": (
+        "respuestas_limitaciones",
+        "limitacion",
+    ),
 }
 
 
@@ -204,7 +213,9 @@ def _coerce_list(value: Any) -> List[str]:
 def _extract_multiselects(raw_payload: Dict[str, Any]) -> Dict[str, List[str]]:
     extracted: Dict[str, List[str]] = {}
     for question, (table_name, column_name) in MULTISELECT_FIELDS.items():
-        extracted[table_name] = _coerce_list(raw_payload.get(question))
+        values = _coerce_list(raw_payload.get(question))
+        if values or table_name not in extracted:
+            extracted[table_name] = values
     return extracted
 
 

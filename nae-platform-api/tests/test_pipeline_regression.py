@@ -105,12 +105,20 @@ def test_validate_payload_keeps_current_form_values_when_legacy_aliases_are_miss
     payload.pop("5.1 Existencia de mecanismos de coordinación institucional")
     payload["3.4 Nivel de interés de los actores de gobierno en formación sobre NAE"] = "Medio"
     payload["4.1 Conoce la existencia de mecanismos de coordinación institucional"] = "Sí, funcionan sistemáticamente"
+    payload["3.5 Según Ud. ha observado, la mayoría de las personas dueñas o titulares de emprendimientos son:"] = "Mujeres"
+    payload["3.6 Según su percepción, el porcentaje aproximado de mujeres en otros cargos directivos está entre:"] = "31–50%"
+    payload["3.7 En su municipio, conoce si se han desarrollado programas dirigidos a mujeres emprendedoras"] = "Sí"
+    payload["Describa brevemente"] = "Programa piloto"
 
     result = staging_pipeline.validate_payload(payload)
 
     assert result.state == "validada"
     assert result.normalized["nivel_interes_gobierno"] == "Medio"
     assert result.normalized["mecanismos_coordinacion"] == "Sí, funcionan sistemáticamente"
+    assert result.normalized["mayoria_titulares_emprendimientos"] == "Mujeres"
+    assert result.normalized["porcentaje_mujeres_directivas"] == "31–50%"
+    assert result.normalized["programas_mujeres_emprendedoras"] == "Sí"
+    assert result.normalized["descripcion_programa_mujeres"] == "Programa piloto"
     assert not result.errors
 
 
@@ -168,9 +176,9 @@ def test_process_raw_to_staging_persists_validated_row(monkeypatch):
 def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
     raw_payload = json.dumps(
         {
-            "3.2 Temas prioritarios de formación": "Género y NAE | Gestión empresarial",
-            "5.3 Instituciones que participan en actividades formativas": ["Gobierno municipal", "Universidad"],
-            "5.4 Principales limitaciones": "Falta de coordinación | Limitaciones financieras",
+            "3.2 Temas prioritarios de formación que necesita": "Género y NAE | Gestión empresarial",
+            "4.3 Instituciones que participan en actividades formativas": ["Gobierno municipal", "Universidad"],
+            "4.4 Principales limitaciones que existen para desarrollar actividades formativas": "Falta de coordinación | Limitaciones financieras",
         },
         ensure_ascii=False,
     )
