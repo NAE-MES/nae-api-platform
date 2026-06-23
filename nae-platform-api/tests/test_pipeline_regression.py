@@ -176,7 +176,7 @@ def test_process_raw_to_staging_persists_validated_row(monkeypatch):
 def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
     raw_payload = json.dumps(
         {
-            "3.2 Temas prioritarios de formación que necesita": "Género y NAE | Gestión empresarial",
+            "3.2 Temas prioritarios de formación que necesita": "Género y NAE, Gestión empresarial",
             "4.3 Instituciones que participan en actividades formativas": ["Gobierno municipal", "Universidad"],
             "4.4 Principales limitaciones que existen para desarrollar actividades formativas": "Falta de coordinación | Limitaciones financieras",
         },

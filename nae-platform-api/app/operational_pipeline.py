@@ -205,6 +205,8 @@ def _coerce_list(value: Any) -> List[str]:
             continue
         if " | " in text_value:
             normalized.extend([part.strip() for part in text_value.split(" | ") if part.strip()])
+        elif ", " in text_value:
+            normalized.extend([part.strip() for part in text_value.split(", ") if part.strip()])
         else:
             normalized.append(text_value)
     return normalized
