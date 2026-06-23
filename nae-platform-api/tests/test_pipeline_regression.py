@@ -179,6 +179,10 @@ def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
             "3.2 Temas prioritarios de formación que necesita": "Género y NAE, Gestión empresarial",
             "4.3 Instituciones que participan en actividades formativas": ["Gobierno municipal", "Universidad"],
             "4.4 Principales limitaciones que existen para desarrollar actividades formativas": "Falta de coordinación | Limitaciones financieras",
+            "3.5 Según Ud. ha observado, la mayoría de las personas dueñas o titulares de emprendimientos son:": "Mujeres",
+            "3.6 Según su percepción, el porcentaje aproximado de mujeres en otros cargos directivos está entre:": "31–50%",
+            "3.7 En su municipio, conoce si se han desarrollado programas dirigidos a mujeres emprendedoras": "Sí",
+            "Describa brevemente": "Programa piloto",
         },
         ensure_ascii=False,
     )
@@ -205,10 +209,10 @@ def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
                     "nombre_institucion": "NAE Smoke Test",
                     "nivel_involucramiento": "Medio",
                     "nivel_capacitacion_formadores": "Medianamente capacitados",
-                    "mayoria_titulares_emprendimientos": "Mujeres",
-                    "porcentaje_mujeres_directivas": "31–50%",
-                    "programas_mujeres_emprendedoras": "Sí",
-                    "descripcion_programa_mujeres": "Programa piloto",
+                    "mayoria_titulares_emprendimientos": None,
+                    "porcentaje_mujeres_directivas": None,
+                    "programas_mujeres_emprendedoras": None,
+                    "descripcion_programa_mujeres": None,
                     "principal_necesidad": "Coordinación institucional",
                     "nivel_interes_gobierno": "Medio",
                     "mecanismos_coordinacion": "Existen con poca coordinación",
@@ -220,11 +224,16 @@ def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
         ]
     )
     captured = []
+    upsert_rows = []
 
     monkeypatch.setattr(operational_pipeline, "SessionLocal", lambda: fake_db)
     monkeypatch.setattr(operational_pipeline, "_resolve_provincia", lambda db, provincia: 101)
     monkeypatch.setattr(operational_pipeline, "_resolve_municipio", lambda db, provincia_id, municipio: 202)
-    monkeypatch.setattr(operational_pipeline, "_upsert_operational_response", lambda db, row, provincia_id, municipio_id: 303)
+    def capture_upsert(db, row, provincia_id, municipio_id):
+        upsert_rows.append(row)
+        return 303
+
+    monkeypatch.setattr(operational_pipeline, "_upsert_operational_response", capture_upsert)
 
     def capture_insert(db, operational_respuesta_id, table_name, column_name, values):
         captured.append((table_name, column_name, values))
@@ -242,6 +251,10 @@ def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
     assert ("respuestas_temas_formacion", "tema_formacion", ["Género y NAE", "Gestión empresarial"]) in captured
     assert ("respuestas_instituciones_participantes", "institucion_participante", ["Gobierno municipal", "Universidad"]) in captured
     assert ("respuestas_limitaciones", "limitacion", ["Falta de coordinación", "Limitaciones financieras"]) in captured
+    assert upsert_rows[0]["mayoria_titulares_emprendimientos"] == "Mujeres"
+    assert upsert_rows[0]["porcentaje_mujeres_directivas"] == "31–50%"
+    assert upsert_rows[0]["programas_mujeres_emprendedoras"] == "Sí"
+    assert upsert_rows[0]["descripcion_programa_mujeres"] == "Programa piloto"
 
 
 def test_process_operational_to_analytics_maps_dimensions(monkeypatch):

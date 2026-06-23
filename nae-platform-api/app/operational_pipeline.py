@@ -30,6 +30,25 @@ MULTISELECT_FIELDS = {
     ),
 }
 
+SCALAR_FIELD_ALIASES = {
+    "mayoria_titulares_emprendimientos": [
+        "3.5 Según Ud. ha observado, la mayoría de las personas dueñas o titulares de emprendimientos son:",
+        "4.2 Mayoría de titulares de emprendimientos",
+    ],
+    "porcentaje_mujeres_directivas": [
+        "3.6 Según su percepción, el porcentaje aproximado de mujeres en otros cargos directivos está entre:",
+        "4.3 Porcentaje de mujeres en cargos directivos",
+    ],
+    "programas_mujeres_emprendedoras": [
+        "3.7 En su municipio, conoce si se han desarrollado programas dirigidos a mujeres emprendedoras",
+        "4.4 Programas dirigidos a mujeres emprendedoras",
+    ],
+    "descripcion_programa_mujeres": [
+        "Describa brevemente",
+        "4.4.1 Si respondió “Sí”, describa brevemente el programa",
+    ],
+}
+
 
 @dataclass
 class OperationResult:
@@ -212,6 +231,29 @@ def _coerce_list(value: Any) -> List[str]:
     return normalized
 
 
+def _scalar_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        items = [str(item).strip() for item in value if str(item).strip()]
+        return " | ".join(items) if items else None
+    text_value = str(value).strip()
+    return text_value or None
+
+
+def _with_raw_scalar_fallbacks(row: Dict[str, Any], raw_payload: Dict[str, Any]) -> Dict[str, Any]:
+    enriched = dict(row)
+    for field_name, aliases in SCALAR_FIELD_ALIASES.items():
+        if enriched.get(field_name):
+            continue
+        for alias in aliases:
+            value = _scalar_value(raw_payload.get(alias))
+            if value:
+                enriched[field_name] = value
+                break
+    return enriched
+
+
 def _extract_multiselects(raw_payload: Dict[str, Any]) -> Dict[str, List[str]]:
     extracted: Dict[str, List[str]] = {}
     for question, (table_name, column_name) in MULTISELECT_FIELDS.items():
@@ -323,8 +365,13 @@ def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
 
         for row in staging_rows:
             stats["total"] += 1
-            provincia = row["provincia"]
-            municipio = row["municipio"]
+            raw_payload = row["raw_payload"] or {}
+            if isinstance(raw_payload, str):
+                raw_payload = json.loads(raw_payload)
+
+            row_data = _with_raw_scalar_fallbacks(dict(row), raw_payload)
+            provincia = row_data["provincia"]
+            municipio = row_data["municipio"]
 
             if not provincia or not municipio:
                 stats["saltada"] += 1
@@ -349,7 +396,7 @@ def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
                         )
                     """),
                     {
-                        "respuesta_raw_id": row["raw_respuesta_id"],
+                        "respuesta_raw_id": row_data["raw_respuesta_id"],
                         "campo": "ubicacion",
                         "valor_recibido": f"{provincia} / {municipio}",
                         "tipo_error": "operational_missing_reference",
@@ -360,11 +407,7 @@ def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
 
             provincia_id = _resolve_provincia(db, provincia)
             municipio_id = _resolve_municipio(db, provincia_id, municipio)
-            operational_id = _upsert_operational_response(db, row, provincia_id, municipio_id)
-
-            raw_payload = row["raw_payload"] or {}
-            if isinstance(raw_payload, str):
-                raw_payload = json.loads(raw_payload)
+            operational_id = _upsert_operational_response(db, row_data, provincia_id, municipio_id)
 
             multiselects = _extract_multiselects(raw_payload)
             for table_name, values in multiselects.items():
@@ -382,7 +425,7 @@ def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
                     SET estado = 'cargada_operational'
                     WHERE id = :raw_id
                 """),
-                {"raw_id": row["raw_respuesta_id"]},
+                {"raw_id": row_data["raw_respuesta_id"]},
             )
 
         if pipeline_run_id is not None:
