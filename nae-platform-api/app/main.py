@@ -42,8 +42,8 @@ class RespuestaFormulario(BaseModel):
 def _run_pipeline_chain(limit: int = 100) -> None:
     logger.info("Iniciando cadena automatica de pipelines para %s registros", limit)
     staging_result = process_raw_to_staging(limit=limit)
-    operational_result = process_staging_to_operational(limit=limit)
-    analytics_result = process_operational_to_analytics(limit=limit)
+    operational_result = process_staging_to_operational(limit=limit, only_pending=True)
+    analytics_result = process_operational_to_analytics(limit=limit, only_pending=True)
     logger.info("Cadena automatica de pipelines completada")
     return {
         "staging": staging_result.get("stats", {}),

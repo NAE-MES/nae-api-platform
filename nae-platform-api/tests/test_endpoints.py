@@ -201,9 +201,9 @@ def test_recibir_respuesta_dispara_pipelines_automaticamente(monkeypatch):
     order = []
 
     monkeypatch.setattr(main, "SessionLocal", lambda: fake_db)
-    monkeypatch.setattr(main, "process_raw_to_staging", lambda limit=100: (order.append(("raw", limit)) or {"stats": {"total": 1}}))
-    monkeypatch.setattr(main, "process_staging_to_operational", lambda limit=100: (order.append(("operational", limit)) or {"stats": {"total": 1}}))
-    monkeypatch.setattr(main, "process_operational_to_analytics", lambda limit=100: (order.append(("analytics", limit)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_raw_to_staging", lambda limit=100: (order.append(("raw", limit, None)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_staging_to_operational", lambda limit=100, only_pending=False: (order.append(("operational", limit, only_pending)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_operational_to_analytics", lambda limit=100, only_pending=False: (order.append(("analytics", limit, only_pending)) or {"stats": {"total": 1}}))
 
     fake_db = FakeDB()
 
@@ -226,6 +226,6 @@ def test_recibir_respuesta_dispara_pipelines_automaticamente(monkeypatch):
             "analytics": {"total": 1},
         },
     }
-    assert order == [("raw", 100), ("operational", 100), ("analytics", 100)]
+    assert order == [("raw", 100, None), ("operational", 100, True), ("analytics", 100, True)]
     assert fake_db.commits == 1
     assert fake_db.closed is True

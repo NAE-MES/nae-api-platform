@@ -294,7 +294,7 @@ def _insert_child_values(db, operational_respuesta_id: int, table_name: str, col
         )
 
 
-def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
+def process_staging_to_operational(limit: int = 100, only_pending: bool = False) -> Dict[str, Any]:
     db = SessionLocal()
     pipeline_run_id: Optional[int] = None
     stats = {
@@ -327,8 +327,16 @@ def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
         ).scalar_one()
         db.commit()
 
+        pending_filter = """
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM operational.respuestas_encuesta existing
+                      WHERE existing.staging_respuesta_id = staging.respuestas_formulario.id
+                  )
+            """ if only_pending else ""
+
         staging_rows = db.execute(
-            text("""
+            text(f"""
                 SELECT id,
                        raw_respuesta_id,
                        id_respuesta_origen,
@@ -357,6 +365,7 @@ def process_staging_to_operational(limit: int = 100) -> Dict[str, Any]:
                        estado_validacion
                 FROM staging.respuestas_formulario
                 WHERE estado_validacion IN ('validada', 'con_observaciones')
+                {pending_filter}
                 ORDER BY id
                 LIMIT :limit
             """),

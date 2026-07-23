@@ -247,7 +247,7 @@ def _upsert_fact(
     ).scalar_one()
 
 
-def process_operational_to_analytics(limit: int = 100) -> Dict[str, Any]:
+def process_operational_to_analytics(limit: int = 100, only_pending: bool = False) -> Dict[str, Any]:
     db = SessionLocal()
     pipeline_run_id: Optional[int] = None
     stats = {"total": 0, "cargada": 0, "saltada": 0, "errores_registrados": 0}
@@ -275,8 +275,16 @@ def process_operational_to_analytics(limit: int = 100) -> Dict[str, Any]:
         ).scalar_one()
         db.commit()
 
+        pending_filter = """
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM analytics.f_respuestas_encuesta existing
+                      WHERE existing.operational_respuesta_id = o.id
+                  )
+            """ if only_pending else ""
+
         rows = db.execute(
-            text("""
+            text(f"""
                 SELECT o.id,
                        o.raw_respuesta_id,
                        o.staging_respuesta_id,
@@ -307,6 +315,7 @@ def process_operational_to_analytics(limit: int = 100) -> Dict[str, Any]:
                 JOIN operational.provincias p ON p.id = o.provincia_id
                 JOIN operational.municipios m ON m.id = o.municipio_id
                 WHERE o.estado_validacion IN ('validada', 'con_observaciones')
+                {pending_filter}
                 ORDER BY o.id
                 LIMIT :limit
             """),
