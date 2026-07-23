@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NAE Platform - Analítica</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <img class="brand-strip" src="../images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+    <nav class="site-nav">
+      <div class="nav-inner">
+        <a class="nav-title" href="index.html"><strong>NAE Platform</strong><span>Área privada</span></a>
+        <div class="nav-links">
+          <a href="index.html">Inicio</a>
+          <a href="encuesta.html">Encuesta</a>
+          <a href="mapa-entidades.html">Mapa de entidades</a>
+          <a href="documentacion.html">Documentación</a>
+          <a class="active locked" href="analitica.html">Analítica</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Privado</p>
+          <h1>Panel analítico operativo</h1>
+          <p class="lead">Resumen filtrable de respuestas procesadas para seguimiento técnico del piloto y control de calidad del dato.</p>
+        </div>
+        <div class="actions">
+          <a class="button secondary" href="#">Exportar CSV</a>
+        </div>
+      </header>
+
+      <section class="metric-row">
+        <div class="metric"><span>Total respuestas</span><strong>126</strong></div>
+        <div class="metric"><span>Validadas</span><strong>118</strong></div>
+        <div class="metric"><span>Observaciones</span><strong>8</strong></div>
+        <div class="metric"><span>Rechazadas</span><strong>0</strong></div>
+      </section>
+
+      <section class="card pad">
+        <div class="toolbar">
+          <label class="field"><span>Provincia</span><select><option>Todas</option><option>La Habana</option></select></label>
+          <label class="field"><span>Municipio</span><select><option>Todos</option><option>Plaza</option></select></label>
+          <label class="field"><span>Tipo entidad</span><select><option>Todos</option><option>Gobierno municipal</option></select></label>
+          <label class="field"><span>Estado</span><select><option>Todos</option><option>Validada</option></select></label>
+          <label class="field"><span>Límite</span><input value="25" /></label>
+        </div>
+
+        <div class="split-panel">
+          <div>
+            <h2>Distribución territorial</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Provincia</th><th>Municipio</th><th>Total</th><th>Estado</th></tr></thead>
+                <tbody>
+                  <tr><td>La Habana</td><td>Plaza de la Revolución</td><td>18</td><td><span class="status">Activa</span></td></tr>
+                  <tr><td>Villa Clara</td><td>Santa Clara</td><td>14</td><td><span class="status">Activa</span></td></tr>
+                  <tr><td>Holguín</td><td>Holguín</td><td>11</td><td><span class="status warn">Revisar</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <aside>
+            <h2>Últimas respuestas</h2>
+            <ul class="list-clean">
+              <li>Entidad municipal de apoyo - validada</li>
+              <li>Centro universitario municipal - validada</li>
+              <li>Organización empresarial - con observaciones</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <img class="partner-strip" src="../images/footer.png" alt="Instituciones asociadas" />
+      <div class="footer-text">Prototipo visual no funcional para revisión de diseño. Proyecto NAE.</div>
+    </footer>
+  </body>
+</html>
