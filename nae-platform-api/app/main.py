@@ -12,9 +12,11 @@ from sqlalchemy import text
 from app.config import API_TOKEN
 from app.database import SessionLocal
 from app.reporting import (
+    build_support_entities_csv,
     build_resumen_csv,
     get_dashboard_data,
     get_response_detail,
+    get_support_entities,
     render_dashboard_html,
     render_response_detail_html,
 )
@@ -94,6 +96,34 @@ def resumen_csv(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="nae_resumen.csv"'},
+    )
+
+
+@app.get("/api/v1/entidades-apoyo")
+def entidades_apoyo(
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+):
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
+    return get_support_entities(limit=limit, provincia=provincia, municipio=municipio)
+
+
+@app.get("/api/v1/entidades-apoyo.csv")
+def entidades_apoyo_csv(
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+):
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
+    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio)
+    csv_content = build_support_entities_csv(data)
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="nae_entidades_apoyo.csv"'},
     )
 
 

@@ -1,7 +1,7 @@
 const NAE_API_URL = 'https://nae-plataforma.mes.gob.cu/api/v1/respuestas';
 const NAE_API_TOKEN = 'TU_TOKEN_REAL';
-const NAE_FORM_TITLE = 'Propuesta de ENCUESTA FINAL SOBRE ESPACIOS DE INTERCAMBIO ENTRE NAE Y OTROS ACTORES – VERSION GOOGLE FORMS';
-const NAE_SURVEY_VERSION = '0';
+const NAE_FORM_TITLE = 'Formulario V1 · Mapeo de estructuras de apoyo a los NAE';
+const NAE_SURVEY_VERSION = 'mapeo_estructuras_v1';
 
 function onFormSubmit(e) {
   if (!e || !e.namedValues) {
@@ -44,6 +44,15 @@ function onFormSubmit(e) {
 
 function detectSurveyVersion(payload) {
   if (
+    payload['0.1* Entidad a la que pertenece'] ||
+    payload['0.4* Nivel de conocimiento sobre los NAE en el municipio'] ||
+    payload['1.6* Tipo de entidad o estructura de apoyo'] ||
+    hasKeyStartingWith(payload, '1.2* Municipio donde se ubica la entidad o estructura de apoyo')
+  ) {
+    return NAE_SURVEY_VERSION;
+  }
+
+  if (
     payload['0.5 Nivel de conocimiento sobre la realidad del municipio'] ||
     payload['3.4 Nivel de interés de los actores de gobierno en formación sobre NAE'] ||
     payload['4.1 Conoce la existencia de mecanismos de coordinación institucional']
@@ -60,4 +69,10 @@ function detectSurveyVersion(payload) {
   }
 
   return NAE_SURVEY_VERSION;
+}
+
+function hasKeyStartingWith(payload, prefix) {
+  return Object.keys(payload).some(function (key) {
+    return key.indexOf(prefix) === 0;
+  });
 }

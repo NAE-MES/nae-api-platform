@@ -351,7 +351,43 @@ def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
                        op.nivel_capacitacion_formadores,
                        op.principal_necesidad,
                        op.nivel_interes_gobierno,
-                       op.mecanismos_coordinacion
+                       op.mecanismos_coordinacion,
+                       COALESCE(m.direccion_fisica, 'Sin dato') AS direccion_fisica,
+                       COALESCE(m.telefonos, 'Sin dato') AS telefonos,
+                       COALESCE(m.correo_electronico, 'Sin dato') AS correo_electronico,
+                       COALESCE(m.sitio_web, 'Sin dato') AS sitio_web,
+                       COALESCE(m.redes_sociales, 'Sin dato') AS redes_sociales,
+                       COALESCE(m.persona_contacto_cargo, 'Sin dato') AS persona_contacto_cargo,
+                       COALESCE(m.territorios_servicio, 'Sin dato') AS territorios_servicio,
+                       COALESCE(m.modalidad_atencion, 'Sin dato') AS modalidad_atencion,
+                       COALESCE(m.presta_servicios_actualmente, 'Sin dato') AS presta_servicios_actualmente,
+                       COALESCE(m.cantidad_nae_atendidos, 'Sin dato') AS cantidad_nae_atendidos,
+                       COALESCE(m.antiguedad_servicios, 'Sin dato') AS antiguedad_servicios,
+                       COALESCE(m.capacidad_ampliar_cobertura, 'Sin dato') AS capacidad_ampliar_cobertura,
+                       COALESCE(m.frecuencia_servicios, 'Sin dato') AS frecuencia_servicios,
+                       COALESCE(m.modalidad_pago_servicios, 'Sin dato') AS modalidad_pago_servicios,
+                       COALESCE(m.metodologia_apoyo, 'Sin dato') AS metodologia_apoyo,
+                       COALESCE(m.seguimiento_posterior, 'Sin dato') AS seguimiento_posterior,
+                       COALESCE(m.servicios_mas_demandados, 'Sin dato') AS servicios_mas_demandados,
+                       COALESCE(m.servicios_mejor_funcionan, 'Sin dato') AS servicios_mejor_funcionan,
+                       COALESCE(m.servicios_insuficientes, 'Sin dato') AS servicios_insuficientes,
+                       COALESCE(m.dispone_espacios_fisicos, 'Sin dato') AS dispone_espacios_fisicos,
+                       COALESCE(m.disponibilidad_tecnologica, 'Sin dato') AS disponibilidad_tecnologica,
+                       COALESCE(m.condiciones_conectividad, 'Sin dato') AS condiciones_conectividad,
+                       COALESCE(m.autonomia_energetica, 'Sin dato') AS autonomia_energetica,
+                       COALESCE(m.mejoras_infraestructura, 'Sin dato') AS mejoras_infraestructura,
+                       COALESCE(m.actores_liderar_brecha, 'Sin dato') AS actores_liderar_brecha,
+                       COALESCE(m.adecuacion_servicios, 'Sin dato') AS adecuacion_servicios,
+                       COALESCE(m.comentarios_servicios, 'Sin dato') AS comentarios_servicios,
+                       COALESCE(m.coordinador_articulacion, 'Sin dato') AS coordinador_articulacion,
+                       COALESCE(m.actividades_conjuntas, 'Sin dato') AS actividades_conjuntas,
+                       COALESCE(m.nivel_articulacion, 'Sin dato') AS nivel_articulacion,
+                       COALESCE(m.capacidad_sostener_servicios, 'Sin dato') AS capacidad_sostener_servicios,
+                       COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato') AS capacidad_actualizar_mapeo,
+                       COALESCE(m.apoyos_sostenibilidad, 'Sin dato') AS apoyos_sostenibilidad,
+                       COALESCE(m.programas_especializados, 'Sin dato') AS programas_especializados,
+                       COALESCE(m.descripcion_programas_especializados, 'Sin dato') AS descripcion_programas_especializados,
+                       COALESCE(m.observaciones_finales, 'Sin dato') AS observaciones_finales
                 FROM analytics.f_respuestas_encuesta f
                 JOIN operational.respuestas_encuesta op ON op.id = f.operational_respuesta_id
                 JOIN analytics.dim_territorio t ON t.id = f.territorio_id
@@ -359,6 +395,7 @@ def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
                 JOIN analytics.dim_estado_validacion e ON e.id = f.estado_validacion_id
                 LEFT JOIN analytics.dim_genero g ON g.id = f.genero_id
                 LEFT JOIN analytics.dim_respuesta_genero rg ON rg.id = f.respuesta_genero_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
                 WHERE f.id = :respuesta_id
             """),
             {"respuesta_id": respuesta_id},
@@ -397,6 +434,77 @@ def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
             {"operational_respuesta_id": core["operational_respuesta_id"]},
         ).scalars().all()
 
+        tipos_nae = db.execute(
+            text("""
+                SELECT tipo_nae
+                FROM operational.respuestas_mapeo_tipos_nae
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY tipo_nae
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).scalars().all()
+
+        capacidades_tecnicas = db.execute(
+            text("""
+                SELECT capacidad_tecnica
+                FROM operational.respuestas_mapeo_capacidades_tecnicas
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY capacidad_tecnica
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).scalars().all()
+
+        necesidades_fortalecimiento = db.execute(
+            text("""
+                SELECT necesidad_fortalecimiento
+                FROM operational.respuestas_mapeo_necesidades_fortalecimiento
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY necesidad_fortalecimiento
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).scalars().all()
+
+        servicios_mapeo = db.execute(
+            text("""
+                SELECT servicio, ofrece_actualmente, requiere_fortalecer
+                FROM operational.respuestas_mapeo_servicios
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY servicio
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).mappings().all()
+
+        espacios = db.execute(
+            text("""
+                SELECT orden, espacio, direccion_lugar, aforo_aprox, conectividad_tipo,
+                       energia_alternativa, aire_acondicionado, uso_posible
+                FROM operational.respuestas_mapeo_espacios
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY orden
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).mappings().all()
+
+        perfiles = db.execute(
+            text("""
+                SELECT orden, perfil
+                FROM operational.respuestas_mapeo_perfiles
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY orden
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).mappings().all()
+
+        recomendaciones = db.execute(
+            text("""
+                SELECT orden, nombre_estructura, tipo_actor, servicios, municipio_territorio, contacto
+                FROM operational.respuestas_mapeo_recomendaciones
+                WHERE operational_respuesta_id = :operational_respuesta_id
+                ORDER BY orden
+            """),
+            {"operational_respuesta_id": core["operational_respuesta_id"]},
+        ).mappings().all()
+
         previous_id = db.execute(
             text("""
                 SELECT MAX(id)
@@ -420,6 +528,13 @@ def get_response_detail(respuesta_id: int) -> Optional[Dict[str, Any]]:
             "temas_formacion": list(temas),
             "instituciones_participantes": list(instituciones_participantes),
             "limitaciones": list(limitaciones),
+            "tipos_nae": list(tipos_nae),
+            "capacidades_tecnicas": list(capacidades_tecnicas),
+            "necesidades_fortalecimiento": list(necesidades_fortalecimiento),
+            "servicios_mapeo": [dict(row) for row in servicios_mapeo],
+            "espacios": [dict(row) for row in espacios],
+            "perfiles": [dict(row) for row in perfiles],
+            "recomendaciones": [dict(row) for row in recomendaciones],
             "previous_id": previous_id,
             "next_id": next_id,
         }
@@ -437,6 +552,152 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
             return "<p class='empty'>Sin datos</p>"
         pills = "".join(f"<span>{escape(item)}</span>" for item in items)
         return f"<div class='pills'>{pills}</div>"
+
+    is_mapeo = data.get("version_encuesta") == "mapeo_estructuras_v1"
+    identity_extra = "" if is_mapeo else f"""
+            <div class="field"><span>Género</span><strong>{value("genero")}</strong></div>
+            <div class="field"><span>Nivel de instrucción</span><strong>{value("nivel_instruccion")}</strong></div>
+    """
+    context_extra = "" if is_mapeo else f"""
+            <div class="field"><span>Capacitación formadores</span><strong>{value("nivel_capacitacion_formadores")}</strong></div>
+            <div class="field"><span>Interés gobierno</span><strong>{value("nivel_interes_gobierno")}</strong></div>
+    """
+    gender_section = "" if is_mapeo else f"""
+        <section class="card">
+          <div class="grid">
+            <div class="field"><span>Mayoría titulares emprendimientos</span><strong>{value("mayoria_titulares_emprendimientos")}</strong></div>
+            <div class="field"><span>Mujeres en cargos directivos</span><strong>{value("porcentaje_mujeres_directivas")}</strong></div>
+            <div class="field"><span>Programas mujeres emprendedoras</span><strong>{value("programas_mujeres_emprendedoras")}</strong></div>
+            <div class="field"><span>Descripción programa</span><strong>{value("descripcion_programa_mujeres")}</strong></div>
+          </div>
+        </section>
+    """
+    topics_title = "Necesidades principales" if is_mapeo else "Temas prioritarios"
+    institutions_title = "Actores de coordinación" if is_mapeo else "Instituciones participantes"
+    limitation_title = "Limitaciones de apoyo" if is_mapeo else "Limitaciones"
+    servicios_rows = [
+        {
+            "Servicio": row.get("servicio"),
+            "Ofrece": "Sí" if row.get("ofrece_actualmente") else "No",
+            "Requiere fortalecer": "Sí" if row.get("requiere_fortalecer") else "No",
+        }
+        for row in data.get("servicios_mapeo", [])
+    ]
+    espacios_rows = [
+        {
+            "Espacio": row.get("espacio"),
+            "Dirección": row.get("direccion_lugar"),
+            "Aforo": row.get("aforo_aprox"),
+            "Conectividad": row.get("conectividad_tipo"),
+            "Energía": row.get("energia_alternativa"),
+            "Uso": row.get("uso_posible"),
+        }
+        for row in data.get("espacios", [])
+    ]
+    perfiles_rows = [
+        {"Orden": row.get("orden"), "Perfil": row.get("perfil")}
+        for row in data.get("perfiles", [])
+    ]
+    recomendaciones_rows = [
+        {
+            "Nombre": row.get("nombre_estructura"),
+            "Tipo": row.get("tipo_actor"),
+            "Servicios": row.get("servicios"),
+            "Municipio": row.get("municipio_territorio"),
+            "Contacto": row.get("contacto"),
+        }
+        for row in data.get("recomendaciones", [])
+    ]
+    mapeo_sections = "" if not is_mapeo else f"""
+        <section class="card">
+          <h2>Contacto para mapa y directorio</h2>
+          <div class="grid">
+            <div class="field"><span>Dirección</span><strong>{value("direccion_fisica")}</strong></div>
+            <div class="field"><span>Teléfono(s)</span><strong>{value("telefonos")}</strong></div>
+            <div class="field"><span>Correo</span><strong>{value("correo_electronico")}</strong></div>
+            <div class="field"><span>Sitio web</span><strong>{value("sitio_web")}</strong></div>
+            <div class="field"><span>Redes sociales</span><strong>{value("redes_sociales")}</strong></div>
+            <div class="field"><span>Persona de contacto</span><strong>{value("persona_contacto_cargo")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Cobertura y atención</h2>
+          <div class="grid">
+            <div class="field"><span>Territorios donde presta servicios</span><strong>{value("territorios_servicio")}</strong></div>
+            <div class="field"><span>Modalidad de atención</span><strong>{value("modalidad_atencion")}</strong></div>
+            <div class="field"><span>Presta servicios actualmente</span><strong>{value("presta_servicios_actualmente")}</strong></div>
+            <div class="field"><span>NAE atendidos últimos 12 meses</span><strong>{value("cantidad_nae_atendidos")}</strong></div>
+            <div class="field"><span>Antigüedad de servicios</span><strong>{value("antiguedad_servicios")}</strong></div>
+            <div class="field"><span>Capacidad de ampliar cobertura</span><strong>{value("capacidad_ampliar_cobertura")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Tipos de NAE</h2>
+          {pill_list(data.get("tipos_nae", []))}
+        </section>
+        <section class="card">
+          <h2>Servicios de apoyo</h2>
+          {_table(["Servicio", "Ofrece", "Requiere fortalecer"], servicios_rows)}
+        </section>
+        <section class="card">
+          <h2>Funcionamiento de servicios</h2>
+          <div class="grid">
+            <div class="field"><span>Frecuencia</span><strong>{value("frecuencia_servicios")}</strong></div>
+            <div class="field"><span>Modalidad de pago</span><strong>{value("modalidad_pago_servicios")}</strong></div>
+            <div class="field"><span>Metodología</span><strong>{value("metodologia_apoyo")}</strong></div>
+            <div class="field"><span>Seguimiento posterior</span><strong>{value("seguimiento_posterior")}</strong></div>
+            <div class="field"><span>Más demandados</span><strong>{value("servicios_mas_demandados")}</strong></div>
+            <div class="field"><span>Funcionan mejor</span><strong>{value("servicios_mejor_funcionan")}</strong></div>
+            <div class="field"><span>Insuficientes</span><strong>{value("servicios_insuficientes")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Recursos e infraestructura</h2>
+          <div class="grid">
+            <div class="field"><span>Espacios físicos</span><strong>{value("dispone_espacios_fisicos")}</strong></div>
+            <div class="field"><span>Tecnología</span><strong>{value("disponibilidad_tecnologica")}</strong></div>
+            <div class="field"><span>Conectividad</span><strong>{value("condiciones_conectividad")}</strong></div>
+            <div class="field"><span>Autonomía energética</span><strong>{value("autonomia_energetica")}</strong></div>
+            <div class="field"><span>Mejoras necesarias</span><strong>{value("mejoras_infraestructura")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Espacios disponibles</h2>
+          {_table(["Espacio", "Dirección", "Aforo", "Conectividad", "Energía", "Uso"], espacios_rows)}
+        </section>
+        <section class="card">
+          <h2>Capacidades y perfiles</h2>
+          {pill_list(data.get("capacidades_tecnicas", []))}
+          <h3>Perfiles disponibles</h3>
+          {_table(["Orden", "Perfil"], perfiles_rows)}
+          <h3>Necesidades de fortalecimiento</h3>
+          {pill_list(data.get("necesidades_fortalecimiento", []))}
+        </section>
+        <section class="card">
+          <h2>Articulación y sostenibilidad</h2>
+          <div class="grid">
+            <div class="field"><span>Actores para liderar brecha</span><strong>{value("actores_liderar_brecha")}</strong></div>
+            <div class="field"><span>Adecuación de servicios</span><strong>{value("adecuacion_servicios")}</strong></div>
+            <div class="field"><span>Comentarios sobre servicios</span><strong>{value("comentarios_servicios")}</strong></div>
+            <div class="field"><span>Coordinador articulación</span><strong>{value("coordinador_articulacion")}</strong></div>
+            <div class="field"><span>Actividades conjuntas</span><strong>{value("actividades_conjuntas")}</strong></div>
+            <div class="field"><span>Nivel articulación</span><strong>{value("nivel_articulacion")}</strong></div>
+            <div class="field"><span>Sostenibilidad</span><strong>{value("capacidad_sostener_servicios")}</strong></div>
+            <div class="field"><span>Actualización del mapa</span><strong>{value("capacidad_actualizar_mapeo")}</strong></div>
+            <div class="field"><span>Apoyos necesarios</span><strong>{value("apoyos_sostenibilidad")}</strong></div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Inclusión y recomendaciones</h2>
+          <div class="grid">
+            <div class="field"><span>Programas especializados</span><strong>{value("programas_especializados")}</strong></div>
+            <div class="field"><span>Descripción</span><strong>{value("descripcion_programas_especializados")}</strong></div>
+            <div class="field"><span>Observaciones finales</span><strong>{value("observaciones_finales")}</strong></div>
+          </div>
+          <h3>Estructuras recomendadas</h3>
+          {_table(["Nombre", "Tipo", "Servicios", "Municipio", "Contacto"], recomendaciones_rows)}
+        </section>
+    """
 
     return f"""
     <!doctype html>
@@ -562,43 +823,35 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
             <div class="field"><span>Versión</span><strong>{value("version_encuesta")}</strong></div>
             <div class="field"><span>Provincia</span><strong>{value("provincia_nombre")}</strong></div>
             <div class="field"><span>Municipio</span><strong>{value("municipio_nombre")}</strong></div>
-            <div class="field"><span>Institución</span><strong>{value("nombre_institucion")}</strong></div>
-            <div class="field"><span>Tipo de institución</span><strong>{value("tipo_institucion")}</strong></div>
-            <div class="field"><span>Género</span><strong>{value("genero")}</strong></div>
-            <div class="field"><span>Nivel de instrucción</span><strong>{value("nivel_instruccion")}</strong></div>
+            <div class="field"><span>Entidad</span><strong>{value("nombre_institucion")}</strong></div>
+            <div class="field"><span>Tipo de estructura</span><strong>{value("tipo_institucion")}</strong></div>
+            {identity_extra}
           </div>
         </section>
         <section class="card">
           <div class="grid">
-            <div class="field"><span>Ámbito</span><strong>{value("ambito_actuacion")}</strong></div>
+            <div class="field"><span>Cobertura</span><strong>{value("ambito_actuacion")}</strong></div>
             <div class="field"><span>Nivel involucramiento</span><strong>{value("nivel_involucramiento")}</strong></div>
-            <div class="field"><span>Capacitación formadores</span><strong>{value("nivel_capacitacion_formadores")}</strong></div>
-            <div class="field"><span>Principal necesidad</span><strong>{value("principal_necesidad")}</strong></div>
-            <div class="field"><span>Interés gobierno</span><strong>{value("nivel_interes_gobierno")}</strong></div>
+            {context_extra}
+            <div class="field"><span>Principal brecha</span><strong>{value("principal_necesidad")}</strong></div>
             <div class="field"><span>Mecanismos coordinación</span><strong>{value("mecanismos_coordinacion")}</strong></div>
-            <div class="field"><span>Conocimiento municipio</span><strong>{value("nivel_conocimiento_municipio")}</strong></div>
+            <div class="field"><span>Conocimiento sobre NAE</span><strong>{value("nivel_conocimiento_municipio")}</strong></div>
           </div>
         </section>
+        {gender_section}
         <section class="card">
-          <div class="grid">
-            <div class="field"><span>Mayoría titulares emprendimientos</span><strong>{value("mayoria_titulares_emprendimientos")}</strong></div>
-            <div class="field"><span>Mujeres en cargos directivos</span><strong>{value("porcentaje_mujeres_directivas")}</strong></div>
-            <div class="field"><span>Programas mujeres emprendedoras</span><strong>{value("programas_mujeres_emprendedoras")}</strong></div>
-            <div class="field"><span>Descripción programa</span><strong>{value("descripcion_programa_mujeres")}</strong></div>
-          </div>
-        </section>
-        <section class="card">
-          <h2>Temas prioritarios</h2>
+          <h2>{topics_title}</h2>
           {pill_list(data.get("temas_formacion", []))}
         </section>
         <section class="card">
-          <h2>Instituciones participantes</h2>
+          <h2>{institutions_title}</h2>
           {pill_list(data.get("instituciones_participantes", []))}
         </section>
         <section class="card">
-          <h2>Limitaciones</h2>
+          <h2>{limitation_title}</h2>
           {pill_list(data.get("limitaciones", []))}
         </section>
+        {mapeo_sections}
       </main>
     </body>
     </html>
@@ -1068,4 +1321,99 @@ def build_resumen_csv(data: Dict[str, Any]) -> str:
             row.get("genero"),
             row.get("nivel_instruccion"),
         ])
+    return output.getvalue()
+
+
+def get_support_entities(
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+) -> Dict[str, Any]:
+    clauses = ["COALESCE(op.version_encuesta, '') = 'mapeo_estructuras_v1'"]
+    params: Dict[str, Any] = {"limit": limit}
+    if provincia:
+        clauses.append("p.nombre = :provincia")
+        params["provincia"] = provincia
+    if municipio:
+        clauses.append("mu.nombre = :municipio")
+        params["municipio"] = municipio
+
+    where_clause = " AND ".join(clauses)
+    db = SessionLocal()
+    try:
+        rows = db.execute(
+            text(f"""
+                SELECT op.id AS operational_respuesta_id,
+                       op.raw_respuesta_id,
+                       op.id_respuesta_origen,
+                       op.fecha_respuesta,
+                       p.nombre AS provincia,
+                       mu.nombre AS municipio,
+                       COALESCE(m.entidad_nombre, op.nombre_institucion) AS entidad_nombre,
+                       COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) AS tipo_estructura_apoyo,
+                       COALESCE(m.cobertura_principal, op.ambito_actuacion) AS cobertura_principal,
+                       m.modalidad_atencion,
+                       m.direccion_fisica,
+                       m.telefonos,
+                       m.correo_electronico,
+                       m.sitio_web,
+                       m.redes_sociales,
+                       m.persona_contacto_cargo,
+                       m.territorios_servicio,
+                       m.presta_servicios_actualmente,
+                       m.capacidad_ampliar_cobertura,
+                       m.condiciones_conectividad,
+                       m.autonomia_energetica,
+                       op.estado_validacion
+                FROM operational.respuestas_encuesta op
+                JOIN operational.provincias p ON p.id = op.provincia_id
+                JOIN operational.municipios mu ON mu.id = op.municipio_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                WHERE {where_clause}
+                ORDER BY p.nombre, mu.nombre, entidad_nombre
+                LIMIT :limit
+            """),
+            params,
+        ).mappings().all()
+
+        return {
+            "filters": {
+                "provincia": provincia,
+                "municipio": municipio,
+                "limit": limit,
+            },
+            "total": len(rows),
+            "entidades": [dict(row) for row in rows],
+        }
+    finally:
+        db.close()
+
+
+def build_support_entities_csv(data: Dict[str, Any]) -> str:
+    output = StringIO()
+    headers = [
+        "operational_respuesta_id",
+        "provincia",
+        "municipio",
+        "entidad_nombre",
+        "tipo_estructura_apoyo",
+        "cobertura_principal",
+        "modalidad_atencion",
+        "direccion_fisica",
+        "telefonos",
+        "correo_electronico",
+        "sitio_web",
+        "redes_sociales",
+        "persona_contacto_cargo",
+        "territorios_servicio",
+        "presta_servicios_actualmente",
+        "capacidad_ampliar_cobertura",
+        "condiciones_conectividad",
+        "autonomia_energetica",
+        "estado_validacion",
+    ]
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    for row in data.get("entidades", []):
+        writer.writerow({key: row.get(key) for key in headers})
     return output.getvalue()

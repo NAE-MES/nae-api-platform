@@ -8,6 +8,15 @@ from fastapi import HTTPException
 from sqlalchemy import text
 
 from app.database import SessionLocal
+from app.mapeo_survey import (
+    SCALAR_FIELDS as MAPEO_SCALAR_FIELDS,
+    extract_espacios,
+    extract_named_lists,
+    extract_perfiles,
+    extract_recomendaciones,
+    extract_scalar_fields,
+    extract_servicios,
+)
 
 
 PIPELINE_NAME = "staging_to_operational"
@@ -25,6 +34,18 @@ MULTISELECT_FIELDS = {
     ),
     "5.4 Principales limitaciones": ("respuestas_limitaciones", "limitacion"),
     "4.4 Principales limitaciones que existen para desarrollar actividades formativas": (
+        "respuestas_limitaciones",
+        "limitacion",
+    ),
+    "5.1* Principales necesidades de los NAE en el municipio o territorio atendido": (
+        "respuestas_temas_formacion",
+        "tema_formacion",
+    ),
+    "6.2* Actores con los que coordina o podría coordinar su entidad para apoyar a los NAE": (
+        "respuestas_instituciones_participantes",
+        "institucion_participante",
+    ),
+    "7.1* Principales limitaciones que enfrenta la entidad para brindar servicios de apoyo a NAE": (
         "respuestas_limitaciones",
         "limitacion",
     ),
@@ -46,6 +67,33 @@ SCALAR_FIELD_ALIASES = {
     "descripcion_programa_mujeres": [
         "Describa brevemente",
         "4.4.1 Si respondió “Sí”, describa brevemente el programa",
+    ],
+    "nombre_institucion": [
+        "0.1* Entidad a la que pertenece",
+    ],
+    "nivel_conocimiento_municipio": [
+        "0.4* Nivel de conocimiento sobre los NAE en el municipio",
+    ],
+    "ambito_actuacion": [
+        "1.4* Cobertura principal de actuación",
+    ],
+    "tipo_institucion": [
+        "1.6* Tipo de entidad o estructura de apoyo",
+    ],
+    "nivel_involucramiento": [
+        "1.8* Nivel de involucramiento en la prestación de servicios de apoyo a NAE",
+    ],
+    "principal_necesidad": [
+        "5.2* Principal brecha del ecosistema de apoyo a NAE en el municipio",
+    ],
+    "mecanismos_coordinacion": [
+        "6.1* ¿Existen mecanismos de coordinación institucional orientados al apoyo a NAE y estructuras de apoyo?",
+    ],
+}
+
+DYNAMIC_SCALAR_PREFIXES = {
+    "municipio": [
+        "1.2* Municipio donde se ubica la entidad o estructura de apoyo",
     ],
 }
 
@@ -251,6 +299,18 @@ def _with_raw_scalar_fallbacks(row: Dict[str, Any], raw_payload: Dict[str, Any])
             if value:
                 enriched[field_name] = value
                 break
+    for field_name, prefixes in DYNAMIC_SCALAR_PREFIXES.items():
+        if enriched.get(field_name):
+            continue
+        for prefix in prefixes:
+            for key, raw_value in raw_payload.items():
+                if key.startswith(prefix):
+                    value = _scalar_value(raw_value)
+                    if value:
+                        enriched[field_name] = value
+                        break
+            if enriched.get(field_name):
+                break
     return enriched
 
 
@@ -292,6 +352,245 @@ def _insert_child_values(db, operational_respuesta_id: int, table_name: str, col
                 "value": value,
             },
         )
+
+
+def _upsert_mapeo_detail(db, operational_respuesta_id: int, raw_payload: Dict[str, Any]) -> None:
+    values = extract_scalar_fields(raw_payload)
+    columns = list(MAPEO_SCALAR_FIELDS.keys())
+    insert_columns = ["operational_respuesta_id", *columns, "created_at", "updated_at"]
+    value_tokens = [":operational_respuesta_id", *[f":{column}" for column in columns], "NOW()", "NOW()"]
+    update_tokens = [f"{column} = EXCLUDED.{column}" for column in columns]
+    query = f"""
+        INSERT INTO operational.respuestas_mapeo_entidad (
+            {", ".join(insert_columns)}
+        )
+        VALUES (
+            {", ".join(value_tokens)}
+        )
+        ON CONFLICT (operational_respuesta_id)
+        DO UPDATE SET
+            {", ".join(update_tokens)},
+            updated_at = NOW()
+    """
+    db.execute(
+        text(query),
+        {
+            "operational_respuesta_id": operational_respuesta_id,
+            **values,
+        },
+    )
+
+
+def _replace_mapeo_list_values(
+    db,
+    operational_respuesta_id: int,
+    table_name: str,
+    column_name: str,
+    values: List[str],
+) -> None:
+    db.execute(
+        text(f"""
+            DELETE FROM operational.{table_name}
+            WHERE operational_respuesta_id = :operational_respuesta_id
+        """),
+        {"operational_respuesta_id": operational_respuesta_id},
+    )
+    for value in values:
+        db.execute(
+            text(f"""
+                INSERT INTO operational.{table_name} (
+                    operational_respuesta_id,
+                    {column_name}
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :value
+                )
+                ON CONFLICT (operational_respuesta_id, {column_name})
+                DO UPDATE SET {column_name} = EXCLUDED.{column_name}
+            """),
+            {
+                "operational_respuesta_id": operational_respuesta_id,
+                "value": value,
+            },
+        )
+
+
+def _replace_mapeo_servicios(db, operational_respuesta_id: int, rows: List[Dict[str, Any]]) -> None:
+    db.execute(
+        text("""
+            DELETE FROM operational.respuestas_mapeo_servicios
+            WHERE operational_respuesta_id = :operational_respuesta_id
+        """),
+        {"operational_respuesta_id": operational_respuesta_id},
+    )
+    for row in rows:
+        db.execute(
+            text("""
+                INSERT INTO operational.respuestas_mapeo_servicios (
+                    operational_respuesta_id,
+                    servicio,
+                    ofrece_actualmente,
+                    requiere_fortalecer
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :servicio,
+                    :ofrece_actualmente,
+                    :requiere_fortalecer
+                )
+                ON CONFLICT (operational_respuesta_id, servicio)
+                DO UPDATE SET
+                    ofrece_actualmente = EXCLUDED.ofrece_actualmente,
+                    requiere_fortalecer = EXCLUDED.requiere_fortalecer
+            """),
+            {"operational_respuesta_id": operational_respuesta_id, **row},
+        )
+
+
+def _replace_mapeo_espacios(db, operational_respuesta_id: int, rows: List[Dict[str, Any]]) -> None:
+    db.execute(
+        text("""
+            DELETE FROM operational.respuestas_mapeo_espacios
+            WHERE operational_respuesta_id = :operational_respuesta_id
+        """),
+        {"operational_respuesta_id": operational_respuesta_id},
+    )
+    for row in rows:
+        db.execute(
+            text("""
+                INSERT INTO operational.respuestas_mapeo_espacios (
+                    operational_respuesta_id,
+                    orden,
+                    espacio,
+                    direccion_lugar,
+                    aforo_aprox,
+                    conectividad_tipo,
+                    energia_alternativa,
+                    aire_acondicionado,
+                    uso_posible
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :orden,
+                    :espacio,
+                    :direccion_lugar,
+                    :aforo_aprox,
+                    :conectividad_tipo,
+                    :energia_alternativa,
+                    :aire_acondicionado,
+                    :uso_posible
+                )
+                ON CONFLICT (operational_respuesta_id, orden)
+                DO UPDATE SET
+                    espacio = EXCLUDED.espacio,
+                    direccion_lugar = EXCLUDED.direccion_lugar,
+                    aforo_aprox = EXCLUDED.aforo_aprox,
+                    conectividad_tipo = EXCLUDED.conectividad_tipo,
+                    energia_alternativa = EXCLUDED.energia_alternativa,
+                    aire_acondicionado = EXCLUDED.aire_acondicionado,
+                    uso_posible = EXCLUDED.uso_posible
+            """),
+            {"operational_respuesta_id": operational_respuesta_id, **row},
+        )
+
+
+def _replace_mapeo_perfiles(db, operational_respuesta_id: int, rows: List[Dict[str, Any]]) -> None:
+    db.execute(
+        text("""
+            DELETE FROM operational.respuestas_mapeo_perfiles
+            WHERE operational_respuesta_id = :operational_respuesta_id
+        """),
+        {"operational_respuesta_id": operational_respuesta_id},
+    )
+    for row in rows:
+        db.execute(
+            text("""
+                INSERT INTO operational.respuestas_mapeo_perfiles (
+                    operational_respuesta_id,
+                    orden,
+                    perfil
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :orden,
+                    :perfil
+                )
+                ON CONFLICT (operational_respuesta_id, orden)
+                DO UPDATE SET perfil = EXCLUDED.perfil
+            """),
+            {"operational_respuesta_id": operational_respuesta_id, **row},
+        )
+
+
+def _replace_mapeo_recomendaciones(db, operational_respuesta_id: int, rows: List[Dict[str, Any]]) -> None:
+    db.execute(
+        text("""
+            DELETE FROM operational.respuestas_mapeo_recomendaciones
+            WHERE operational_respuesta_id = :operational_respuesta_id
+        """),
+        {"operational_respuesta_id": operational_respuesta_id},
+    )
+    for row in rows:
+        db.execute(
+            text("""
+                INSERT INTO operational.respuestas_mapeo_recomendaciones (
+                    operational_respuesta_id,
+                    orden,
+                    nombre_estructura,
+                    tipo_actor,
+                    servicios,
+                    municipio_territorio,
+                    contacto
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :orden,
+                    :nombre_estructura,
+                    :tipo_actor,
+                    :servicios,
+                    :municipio_territorio,
+                    :contacto
+                )
+                ON CONFLICT (operational_respuesta_id, orden)
+                DO UPDATE SET
+                    nombre_estructura = EXCLUDED.nombre_estructura,
+                    tipo_actor = EXCLUDED.tipo_actor,
+                    servicios = EXCLUDED.servicios,
+                    municipio_territorio = EXCLUDED.municipio_territorio,
+                    contacto = EXCLUDED.contacto
+            """),
+            {"operational_respuesta_id": operational_respuesta_id, **row},
+        )
+
+
+def _upsert_mapeo_children(db, operational_respuesta_id: int, raw_payload: Dict[str, Any]) -> None:
+    named_lists = extract_named_lists(raw_payload)
+    _replace_mapeo_list_values(
+        db,
+        operational_respuesta_id,
+        "respuestas_mapeo_tipos_nae",
+        "tipo_nae",
+        named_lists["tipos_nae"],
+    )
+    _replace_mapeo_list_values(
+        db,
+        operational_respuesta_id,
+        "respuestas_mapeo_capacidades_tecnicas",
+        "capacidad_tecnica",
+        named_lists["capacidades_tecnicas"],
+    )
+    _replace_mapeo_list_values(
+        db,
+        operational_respuesta_id,
+        "respuestas_mapeo_necesidades_fortalecimiento",
+        "necesidad_fortalecimiento",
+        named_lists["necesidades_fortalecimiento"],
+    )
+    _replace_mapeo_servicios(db, operational_respuesta_id, extract_servicios(raw_payload))
+    _replace_mapeo_espacios(db, operational_respuesta_id, extract_espacios(raw_payload))
+    _replace_mapeo_perfiles(db, operational_respuesta_id, extract_perfiles(raw_payload))
+    _replace_mapeo_recomendaciones(db, operational_respuesta_id, extract_recomendaciones(raw_payload))
 
 
 def process_staging_to_operational(limit: int = 100, only_pending: bool = False) -> Dict[str, Any]:
@@ -426,6 +725,10 @@ def process_staging_to_operational(limit: int = 100, only_pending: bool = False)
                     _insert_child_values(db, operational_id, table_name, "institucion_participante", values)
                 elif table_name == "respuestas_limitaciones":
                     _insert_child_values(db, operational_id, table_name, "limitacion", values)
+
+            if row_data.get("version_encuesta") == "mapeo_estructuras_v1":
+                _upsert_mapeo_detail(db, operational_id, raw_payload)
+                _upsert_mapeo_children(db, operational_id, raw_payload)
 
             stats["cargada"] += 1
             db.execute(

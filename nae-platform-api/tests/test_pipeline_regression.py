@@ -88,6 +88,34 @@ SAMPLE_PAYLOAD = {
     "5.4 Principales limitaciones": ["Falta de coordinación", "Limitaciones financieras"],
 }
 
+MAPEO_PAYLOAD = {
+    "0.1* Entidad a la que pertenece": "CENTRO DE APOYO NAE",
+    "0.2* Rol principal en la entidad": "Dirección / coordinación",
+    "0.3* Municipio sobre el que responde": "Municipio donde la entidad presta servicios",
+    "0.4* Nivel de conocimiento sobre los NAE en el municipio": "Alto",
+    "0.5* Datos de contacto directo para el mapa y el directorio": "Contacto institucional",
+    "1.1* Provincia": "La Habana",
+    "1.2* Municipio donde se ubica la entidad o estructura de apoyo — La Habana": "Plaza de la Revolución",
+    "1.4* Cobertura principal de actuación": "Municipal",
+    "1.6* Tipo de entidad o estructura de apoyo": "Centro de formación",
+    "1.7* ¿La entidad presta actualmente servicios de apoyo a NAE?": "Sí",
+    "1.8* Nivel de involucramiento en la prestación de servicios de apoyo a NAE": "Alto",
+    "5.1* Principales necesidades de los NAE en el municipio o territorio atendido": [
+        "Gestión empresarial",
+        "Acceso a financiamiento",
+    ],
+    "5.2* Principal brecha del ecosistema de apoyo a NAE en el municipio": "Falta de articulación",
+    "6.1* ¿Existen mecanismos de coordinación institucional orientados al apoyo a NAE y estructuras de apoyo?": "Sí, funcionan sistemáticamente",
+    "6.2* Actores con los que coordina o podría coordinar su entidad para apoyar a los NAE": [
+        "Gobierno municipal",
+        "Universidad",
+    ],
+    "7.1* Principales limitaciones que enfrenta la entidad para brindar servicios de apoyo a NAE": [
+        "Limitaciones financieras",
+        "Conectividad insuficiente",
+    ],
+}
+
 
 def test_validate_payload_infers_version_and_accepts_realistic_payload():
     result = staging_pipeline.validate_payload(SAMPLE_PAYLOAD)
@@ -96,6 +124,18 @@ def test_validate_payload_infers_version_and_accepts_realistic_payload():
     assert result.normalized["version_encuesta"] == "1.1"
     assert result.normalized["provincia"] == "La Habana"
     assert result.normalized["nivel_instruccion"] == "Universitario"
+    assert not result.errors
+
+
+def test_validate_payload_accepts_mapeo_form_with_dynamic_municipio_title():
+    result = staging_pipeline.validate_payload(MAPEO_PAYLOAD)
+
+    assert result.state == "validada"
+    assert result.normalized["version_encuesta"] == "mapeo_estructuras_v1"
+    assert result.normalized["nombre_institucion"] == "CENTRO DE APOYO NAE"
+    assert result.normalized["municipio"] == "Plaza de la Revolución"
+    assert result.normalized["tipo_institucion"] == "Centro de formación"
+    assert result.normalized["principal_necesidad"] == "Falta de articulación"
     assert not result.errors
 
 
@@ -255,6 +295,67 @@ def test_process_staging_to_operational_splits_multiselect_values(monkeypatch):
     assert upsert_rows[0]["porcentaje_mujeres_directivas"] == "31–50%"
     assert upsert_rows[0]["programas_mujeres_emprendedoras"] == "Sí"
     assert upsert_rows[0]["descripcion_programa_mujeres"] == "Programa piloto"
+
+
+def test_process_staging_to_operational_maps_mapeo_multiselects(monkeypatch):
+    raw_payload = json.dumps(MAPEO_PAYLOAD, ensure_ascii=False)
+    fake_db = FakeDB(
+        [
+            FakeResult(scalar_one_value=22),
+            FakeResult(rows=[
+                {
+                    "id": 8,
+                    "raw_respuesta_id": 6,
+                    "id_respuesta_origen": "mapeo-1",
+                    "formulario_origen": "Formulario V1 · Mapeo de estructuras de apoyo a los NAE",
+                    "fecha_respuesta": "2026-07-25T10:00:00",
+                    "raw_payload": raw_payload,
+                    "consentimiento": None,
+                    "version_encuesta": "mapeo_estructuras_v1",
+                    "genero": None,
+                    "nivel_conocimiento_municipio": "Alto",
+                    "nivel_instruccion": None,
+                    "provincia": "La Habana",
+                    "municipio": "Plaza de la Revolución",
+                    "ambito_actuacion": "Municipal",
+                    "tipo_institucion": "Centro de formación",
+                    "nombre_institucion": "CENTRO DE APOYO NAE",
+                    "nivel_involucramiento": "Alto",
+                    "nivel_capacitacion_formadores": None,
+                    "mayoria_titulares_emprendimientos": None,
+                    "porcentaje_mujeres_directivas": None,
+                    "programas_mujeres_emprendedoras": None,
+                    "descripcion_programa_mujeres": None,
+                    "principal_necesidad": "Falta de articulación",
+                    "nivel_interes_gobierno": None,
+                    "mecanismos_coordinacion": "Sí, funcionan sistemáticamente",
+                    "estado_validacion": "validada",
+                }
+            ]),
+            FakeResult(),
+            FakeResult(),
+        ]
+    )
+    captured = []
+
+    monkeypatch.setattr(operational_pipeline, "SessionLocal", lambda: fake_db)
+    monkeypatch.setattr(operational_pipeline, "_resolve_provincia", lambda db, provincia: 101)
+    monkeypatch.setattr(operational_pipeline, "_resolve_municipio", lambda db, provincia_id, municipio: 202)
+    monkeypatch.setattr(operational_pipeline, "_upsert_operational_response", lambda db, row, provincia_id, municipio_id: 303)
+    monkeypatch.setattr(operational_pipeline, "_upsert_mapeo_detail", lambda db, operational_respuesta_id, raw_payload: None)
+    monkeypatch.setattr(operational_pipeline, "_upsert_mapeo_children", lambda db, operational_respuesta_id, raw_payload: None)
+    monkeypatch.setattr(
+        operational_pipeline,
+        "_insert_child_values",
+        lambda db, operational_respuesta_id, table_name, column_name, values: captured.append((table_name, column_name, values)),
+    )
+
+    result = operational_pipeline.process_staging_to_operational(limit=10)
+
+    assert result["stats"]["cargada"] == 1
+    assert ("respuestas_temas_formacion", "tema_formacion", ["Gestión empresarial", "Acceso a financiamiento"]) in captured
+    assert ("respuestas_instituciones_participantes", "institucion_participante", ["Gobierno municipal", "Universidad"]) in captured
+    assert ("respuestas_limitaciones", "limitacion", ["Limitaciones financieras", "Conectividad insuficiente"]) in captured
 
 
 def test_process_operational_to_analytics_maps_dimensions(monkeypatch):

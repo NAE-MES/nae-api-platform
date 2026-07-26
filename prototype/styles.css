@@ -27,7 +27,7 @@ body {
   background: var(--surface);
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
   letter-spacing: 0;
 }
@@ -100,13 +100,13 @@ a {
 }
 
 .nav-links a {
-  min-height: 38px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   border-radius: 6px;
   padding: 0 12px;
   color: #354454;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -124,7 +124,7 @@ a {
 .page {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 36px 24px 56px;
+  padding: 30px 24px 52px;
 }
 
 .page-header {
@@ -132,7 +132,7 @@ a {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 28px;
   align-items: end;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 
 .eyebrow {
@@ -155,26 +155,26 @@ h1 {
   max-width: 780px;
   margin-bottom: 10px;
   color: var(--nae-navy);
-  font-size: 36px;
-  line-height: 1.12;
+  font-size: 31px;
+  line-height: 1.16;
 }
 
 h2 {
   color: var(--nae-navy);
-  font-size: 22px;
+  font-size: 19px;
   line-height: 1.2;
 }
 
 h3 {
   color: #263746;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .lead {
   max-width: 760px;
   margin-bottom: 0;
   color: #435466;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .actions {
@@ -185,14 +185,14 @@ h3 {
 }
 
 .button {
-  min-height: 42px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 0 16px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -222,8 +222,17 @@ h3 {
 
 .section-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.objective-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--nae-teal);
 }
 
 .card {
@@ -234,7 +243,7 @@ h3 {
 }
 
 .card.pad {
-  padding: 22px;
+  padding: 18px;
 }
 
 .card h2,
@@ -245,6 +254,31 @@ h3 {
 .card p,
 .list-clean {
   color: #4b5b6b;
+}
+
+.section-card {
+  min-height: 190px;
+}
+
+.section-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: var(--soft-blue);
+  color: var(--nae-navy);
+}
+
+.section-icon svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .list-clean {
@@ -289,7 +323,7 @@ h3 {
   display: block;
   margin-top: 4px;
   color: var(--nae-navy);
-  font-size: 28px;
+  font-size: 25px;
   line-height: 1;
 }
 
@@ -339,7 +373,7 @@ table {
   width: 100%;
   min-width: 680px;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 th,
@@ -389,28 +423,38 @@ th {
   background: linear-gradient(180deg, #e7f4fb 0%, #f8fbfd 100%);
 }
 
-.island {
+.cuba-svg {
   position: absolute;
-  left: 8%;
-  top: 26%;
-  width: 78%;
-  height: 33%;
-  border: 2px solid #7eb6ce;
-  border-radius: 56% 44% 58% 42% / 54% 42% 58% 46%;
-  background: #dff2e9;
-  transform: rotate(-10deg);
+  left: 4%;
+  top: 13%;
+  width: 92%;
+  height: 66%;
 }
 
-.island::after {
-  content: "";
-  position: absolute;
-  right: -64px;
-  top: 52px;
-  width: 100px;
-  height: 48px;
-  border: 2px solid #7eb6ce;
-  border-radius: 50%;
-  background: #dff2e9;
+.sea-line {
+  fill: none;
+  stroke: rgba(15, 111, 166, 0.18);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.cuba-shape,
+.isle {
+  fill: #dff2e9;
+  stroke: #5a9dbb;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.isle {
+  fill: #e9f7f1;
+}
+
+.province-line {
+  fill: none;
+  stroke: rgba(0, 50, 71, 0.22);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .pin {
@@ -423,11 +467,11 @@ th {
   box-shadow: 0 4px 14px rgba(0, 50, 71, 0.28);
 }
 
-.pin.one { left: 24%; top: 45%; }
-.pin.two { left: 39%; top: 40%; background: var(--nae-teal); }
-.pin.three { left: 57%; top: 47%; }
-.pin.four { left: 72%; top: 43%; background: #d65b45; }
-.pin.five { left: 84%; top: 53%; background: var(--warning); }
+.pin.one { left: 23%; top: 44%; }
+.pin.two { left: 39%; top: 43%; background: var(--nae-teal); }
+.pin.three { left: 56%; top: 39%; }
+.pin.four { left: 71%; top: 38%; background: #d65b45; }
+.pin.five { left: 86%; top: 42%; background: var(--warning); }
 
 .map-caption {
   position: absolute;
@@ -505,6 +549,7 @@ th {
 
   .nav-inner,
   .page-header,
+  .objective-panel,
   .layout-2,
   .split-panel,
   .map-shell {
@@ -531,7 +576,7 @@ th {
   }
 
   h1 {
-    font-size: 30px;
+    font-size: 27px;
   }
 }
 
@@ -569,6 +614,6 @@ th {
   }
 
   h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
 }

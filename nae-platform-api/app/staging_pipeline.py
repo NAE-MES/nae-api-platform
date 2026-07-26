@@ -33,6 +33,7 @@ ALLOWED_PROVINCES = {
 
 PIPELINE_NAME = "raw_to_staging"
 SURVEY_VERSION_11 = "1.1"
+SURVEY_VERSION_MAPEO = "mapeo_estructuras_v1"
 
 CONSENT_QUESTION = (
     "¿Acepta participar voluntariamente en esta encuesta y autoriza el uso de la "
@@ -45,6 +46,7 @@ FIELD_MAP = {
     "0.5 Nivel de conocimiento sobre la realidad del municipio": "nivel_conocimiento_municipio",
     "0.4 Nivel de instrucción terminado": "nivel_instruccion",
     "1.1 Provincia": "provincia",
+    "1.1* Provincia": "provincia",
     "1.2 Municipio": "municipio",
     "1.3 Ámbito principal de actuación de la entidad": "ambito_actuacion",
     "1.4 Tipo de institución que representa": "tipo_institucion",
@@ -64,6 +66,17 @@ FIELD_MAP = {
     "4.1 Nivel de interés de los actores de gobierno en formación sobre NAE": "nivel_interes_gobierno",
     "4.1 Conoce la existencia de mecanismos de coordinación institucional": "mecanismos_coordinacion",
     "5.1 Existencia de mecanismos de coordinación institucional": "mecanismos_coordinacion",
+    "0.1* Entidad a la que pertenece": "nombre_institucion",
+    "0.4* Nivel de conocimiento sobre los NAE en el municipio": "nivel_conocimiento_municipio",
+    "1.4* Cobertura principal de actuación": "ambito_actuacion",
+    "1.6* Tipo de entidad o estructura de apoyo": "tipo_institucion",
+    "1.8* Nivel de involucramiento en la prestación de servicios de apoyo a NAE": "nivel_involucramiento",
+    "5.2* Principal brecha del ecosistema de apoyo a NAE en el municipio": "principal_necesidad",
+    "6.1* ¿Existen mecanismos de coordinación institucional orientados al apoyo a NAE y estructuras de apoyo?": "mecanismos_coordinacion",
+}
+
+MAPEO_DYNAMIC_FIELD_PREFIXES = {
+    "1.2* Municipio donde se ubica la entidad o estructura de apoyo": "municipio",
 }
 
 RAW_FIELD_ALIASES: Dict[str, List[str]] = {}
@@ -81,6 +94,18 @@ BASE_REQUIRED_FIELDS = {
     "nivel_capacitacion_formadores",
     "principal_necesidad",
     "nivel_interes_gobierno",
+    "mecanismos_coordinacion",
+}
+
+MAPEO_REQUIRED_FIELDS = {
+    "provincia",
+    "municipio",
+    "ambito_actuacion",
+    "tipo_institucion",
+    "nombre_institucion",
+    "nivel_involucramiento",
+    "nivel_conocimiento_municipio",
+    "principal_necesidad",
     "mecanismos_coordinacion",
 }
 
@@ -127,7 +152,30 @@ def _raw_value_for_field(payload: Dict[str, Any], field_name: str) -> Any:
     for raw_question in RAW_FIELD_ALIASES.get(field_name, []):
         if raw_question in payload:
             return payload.get(raw_question)
+    for raw_prefix, normalized_field in MAPEO_DYNAMIC_FIELD_PREFIXES.items():
+        if normalized_field != field_name:
+            continue
+        for payload_key, value in payload.items():
+            if payload_key.startswith(raw_prefix):
+                return value
     return payload.get(field_name)
+
+
+def _is_mapeo_payload(payload: Dict[str, Any]) -> bool:
+    if payload.get("version_encuesta") == SURVEY_VERSION_MAPEO:
+        return True
+    return any(
+        key in payload
+        for key in (
+            "0.1* Entidad a la que pertenece",
+            "0.4* Nivel de conocimiento sobre los NAE en el municipio",
+            "1.6* Tipo de entidad o estructura de apoyo",
+            "6.1* ¿Existen mecanismos de coordinación institucional orientados al apoyo a NAE y estructuras de apoyo?",
+        )
+    ) or any(
+        key.startswith("1.2* Municipio donde se ubica la entidad o estructura de apoyo")
+        for key in payload
+    )
 
 
 def _extract_normalized_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -136,9 +184,18 @@ def _extract_normalized_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
         value = _scalar_value(payload.get(question))
         if value is not None or field_name not in normalized:
             normalized[field_name] = value
+    for raw_prefix, field_name in MAPEO_DYNAMIC_FIELD_PREFIXES.items():
+        for payload_key, payload_value in payload.items():
+            if payload_key.startswith(raw_prefix):
+                value = _scalar_value(payload_value)
+                if value is not None or field_name not in normalized:
+                    normalized[field_name] = value
+                break
     normalized["version_encuesta"] = _scalar_value(payload.get("version_encuesta"))
     if not normalized["version_encuesta"]:
-        if normalized.get("nivel_instruccion"):
+        if _is_mapeo_payload(payload):
+            normalized["version_encuesta"] = SURVEY_VERSION_MAPEO
+        elif normalized.get("nivel_instruccion"):
             normalized["version_encuesta"] = SURVEY_VERSION_11
         elif normalized.get("nivel_conocimiento_municipio"):
             normalized["version_encuesta"] = "1.0"
@@ -149,8 +206,10 @@ def validate_payload(payload: Dict[str, Any]) -> ValidationResult:
     normalized = _extract_normalized_fields(payload)
     errors: List[Dict[str, str]] = []
     observaciones: List[str] = []
+    is_mapeo_payload = _is_mapeo_payload(payload)
 
-    for field_name in BASE_REQUIRED_FIELDS:
+    required_fields = MAPEO_REQUIRED_FIELDS if is_mapeo_payload else BASE_REQUIRED_FIELDS
+    for field_name in required_fields:
         if not normalized.get(field_name):
             errors.append(
                 {
@@ -160,7 +219,7 @@ def validate_payload(payload: Dict[str, Any]) -> ValidationResult:
                 }
             )
 
-    if not normalized.get("nivel_instruccion") and not normalized.get("nivel_conocimiento_municipio"):
+    if not is_mapeo_payload and not normalized.get("nivel_instruccion") and not normalized.get("nivel_conocimiento_municipio"):
         errors.append(
             {
                 "campo": "nivel_instruccion",

@@ -1,0 +1,194 @@
+function myFunction() {
+  const form = FormApp.create('Propuesta de ENCUESTA FINAL SOBRE ESPACIOS DE INTERCAMBIO ENTRE NAE Y OTROS ACTORES – VERSION GOOGLE FORMS');
+
+  form.setDescription(
+    'Versión 0\n\n' +
+    'En el marco del proyecto “Apoyo a Nuevos Actores Económicos para una diversificación económica, innovativa y sostenible", nos interesa potenciar espacios de diálogos público-privados donde los nuevos actores económicos sean protagonistas.\n\n' +
+    'Para ello, se ha diseñado la presente encuesta con el objetivo de mapear los eventos, encuentros, intercambios, espacios y otras iniciativas donde los nuevos actores económicos interactúan entre sí y con instituciones estatales, academia, sociedad civil y otros actores, especialmente abordando temáticas de desarrollo empresarial.\n\n' +
+    'Este mapeo está dirigido a cualquier persona, institución o negocio que desarrolle espacios de este tipo.\n\n' +
+    'Tiempo estimado de llenado: 7-10 minutos.\n\n' +
+    'Con su participación en este auto mapeo, usted autoriza a guardar y utilizar sus datos como parte de la base de datos de actores del proyecto NAE y a recibir información sobre el mismo (Datos: Nombre de organización, Ubicación geográfica o provincia, nombre y tipo de eventos).\n\n' +
+    '¡Agradecemos mucho su tiempo y contribución a este importante diagnóstico nacional!\n\n' +
+    'Notas importantes:\n' +
+    '- Los campos marcados con (*) son obligatorios\n' +
+    '- Al finalizar su formulario, tendrá la opción de recibir la información de sus respuestas a este auto mapeo.\n\n' +
+    'Si tiene alguna duda durante la cumplimentación de este formulario de automapeo, puede escribir su consulta a: dirección de email que definir'
+  );
+
+  form.setCollectEmail(false);
+  form.setAllowResponseEdits(false);
+  form.setShowLinkToRespondAgain(false);
+  form.setConfirmationMessage('¡Agradecemos mucho su tiempo y contribución a este importante diagnóstico nacional!');
+
+  form.addPageBreakItem().setTitle('Bloque 0 – Contexto del informante');
+
+  form.addMultipleChoiceItem()
+    .setTitle('0.1 Municipio sobre el que responde esta encuesta')
+    .setChoiceValues(['Municipio donde trabajo habitualmente', 'Municipio donde resido'])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('0.2 Rol principal en la entidad')
+    .setChoiceValues(['Dirección / coordinación', 'Técnico/a', 'Docente / formador/a', 'Investigador/a'])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('0.3 Género de la persona que responde')
+    .setChoiceValues(['Mujer', 'Hombre', 'Persona trans', 'Otro', 'Prefiere no responder'])
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('0.4 Nivel de instrucción terminado')
+    .setChoiceValues(['9 no grado', 'Técnico medio', '12 grado', 'Universitario'])
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('0.5 Nivel de conocimiento sobre la realidad del municipio')
+    .setChoiceValues(['Alto', 'Medio', 'Bajo'])
+    .setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 1 – Identificación territorial e institucional');
+
+  form.addListItem()
+    .setTitle('1.1 Provincia')
+    .setChoiceValues([
+      'Pinar del Río', 'Artemisa', 'La Habana', 'Mayabeque', 'Matanzas',
+      'Villa Clara', 'Cienfuegos', 'Sancti Spíritus', 'Ciego de Ávila',
+      'Camagüey', 'Las Tunas', 'Holguín', 'Granma', 'Santiago de Cuba',
+      'Guantánamo', 'Isla de la Juventud'
+    ])
+    .setRequired(true);
+
+  form.addListItem()
+    .setTitle('1.2 Municipio')
+    .setChoiceValues([
+      'Sandino — Pinar del Río', 'Mantua — Pinar del Río', 'Minas de Matahambre — Pinar del Río', 'Viñales — Pinar del Río', 'La Palma — Pinar del Río', 'Los Palacios — Pinar del Río', 'Consolación del Sur — Pinar del Río', 'Pinar del Río — Pinar del Río', 'San Luis — Pinar del Río', 'San Juan y Martínez — Pinar del Río', 'Guane — Pinar del Río',
+      'Bahía Honda — Artemisa', 'Mariel — Artemisa', 'Guanajay — Artemisa', 'Caimito — Artemisa', 'Bauta — Artemisa', 'San Antonio de los Baños — Artemisa', 'Güira de Melena — Artemisa', 'Alquízar — Artemisa', 'Artemisa — Artemisa', 'Candelaria — Artemisa', 'San Cristóbal — Artemisa',
+      'Playa — La Habana', 'Plaza de la Revolución — La Habana', 'Centro Habana — La Habana', 'La Habana Vieja — La Habana', 'Regla — La Habana', 'La Habana del Este — La Habana', 'Guanabacoa — La Habana', 'San Miguel del Padrón — La Habana', 'Diez de Octubre — La Habana', 'Cerro — La Habana', 'Marianao — La Habana', 'La Lisa — La Habana', 'Boyeros — La Habana', 'Arroyo Naranjo — La Habana', 'Cotorro — La Habana',
+      'Bejucal — Mayabeque', 'San José de las Lajas — Mayabeque', 'Jaruco — Mayabeque', 'Santa Cruz del Norte — Mayabeque', 'Madruga — Mayabeque', 'Nueva Paz — Mayabeque', 'San Nicolás — Mayabeque', 'Güines — Mayabeque', 'Melena del Sur — Mayabeque', 'Batabanó — Mayabeque', 'Quivicán — Mayabeque',
+      'Matanzas — Matanzas', 'Cárdenas — Matanzas', 'Martí — Matanzas', 'Colón — Matanzas', 'Perico — Matanzas', 'Jovellanos — Matanzas', 'Pedro Betancourt — Matanzas', 'Limonar — Matanzas', 'Unión de Reyes — Matanzas', 'Ciénaga de Zapata — Matanzas', 'Jagüey Grande — Matanzas', 'Calimete — Matanzas', 'Los Arabos — Matanzas',
+      'Corralillo — Villa Clara', 'Quemado de Güines — Villa Clara', 'Sagua la Grande — Villa Clara', 'Encrucijada — Villa Clara', 'Camajuaní — Villa Clara', 'Caibarién — Villa Clara', 'Remedios — Villa Clara', 'Placetas — Villa Clara', 'Santa Clara — Villa Clara', 'Cifuentes — Villa Clara', 'Santo Domingo — Villa Clara', 'Ranchuelo — Villa Clara', 'Manicaragua — Villa Clara',
+      'Aguada de Pasajeros — Cienfuegos', 'Rodas — Cienfuegos', 'Palmira — Cienfuegos', 'Lajas — Cienfuegos', 'Cruces — Cienfuegos', 'Cumanayagua — Cienfuegos', 'Cienfuegos — Cienfuegos', 'Abreus — Cienfuegos',
+      'Yaguajay — Sancti Spíritus', 'Jatibonico — Sancti Spíritus', 'Taguasco — Sancti Spíritus', 'Cabaiguán — Sancti Spíritus', 'Fomento — Sancti Spíritus', 'Trinidad — Sancti Spíritus', 'Sancti Spíritus — Sancti Spíritus', 'La Sierpe — Sancti Spíritus',
+      'Chambas — Ciego de Ávila', 'Morón — Ciego de Ávila', 'Bolivia — Ciego de Ávila', 'Primero de Enero — Ciego de Ávila', 'Ciro Redondo — Ciego de Ávila', 'Florencia — Ciego de Ávila', 'Majagua — Ciego de Ávila', 'Ciego de Ávila — Ciego de Ávila', 'Venezuela — Ciego de Ávila', 'Baraguá — Ciego de Ávila',
+      'Carlos Manuel de Céspedes — Camagüey', 'Esmeralda — Camagüey', 'Sierra de Cubitas — Camagüey', 'Minas — Camagüey', 'Nuevitas — Camagüey', 'Guáimaro — Camagüey', 'Sibanicú — Camagüey', 'Camagüey — Camagüey', 'Florida — Camagüey', 'Vertientes — Camagüey', 'Jimaguayú — Camagüey', 'Najasa — Camagüey', 'Santa Cruz del Sur — Camagüey',
+      'Manatí — Las Tunas', 'Puerto Padre — Las Tunas', 'Jesús Menéndez — Las Tunas', 'Majibacoa — Las Tunas', 'Las Tunas — Las Tunas', 'Jobabo — Las Tunas', 'Colombia — Las Tunas', 'Amancio — Las Tunas',
+      'Gibara — Holguín', 'Rafael Freyre — Holguín', 'Banes — Holguín', 'Antilla — Holguín', 'Báguanos — Holguín', 'Holguín — Holguín', 'Calixto García — Holguín', 'Cacocum — Holguín', 'Urbano Noris — Holguín', 'Cueto — Holguín', 'Mayarí — Holguín', 'Frank País — Holguín', 'Sagua de Tánamo — Holguín', 'Moa — Holguín',
+      'Río Cauto — Granma', 'Cauto Cristo — Granma', 'Jiguaní — Granma', 'Bayamo — Granma', 'Yara — Granma', 'Manzanillo — Granma', 'Campechuela — Granma', 'Media Luna — Granma', 'Niquero — Granma', 'Pilón — Granma', 'Bartolomé Masó — Granma', 'Buey Arriba — Granma', 'Guisa — Granma',
+      'Contramaestre — Santiago de Cuba', 'Mella — Santiago de Cuba', 'San Luis — Santiago de Cuba', 'Segundo Frente — Santiago de Cuba', 'Songo - La Maya — Santiago de Cuba', 'Santiago de Cuba — Santiago de Cuba', 'Palma Soriano — Santiago de Cuba', 'Tercer Frente — Santiago de Cuba', 'Guamá — Santiago de Cuba',
+      'El Salvador — Guantánamo', 'Manuel Tames — Guantánamo', 'Yateras — Guantánamo', 'Baracoa — Guantánamo', 'Maisí — Guantánamo', 'Imías — Guantánamo', 'San Antonio del Sur — Guantánamo', 'Caimanera — Guantánamo', 'Guantánamo — Guantánamo', 'Niceto Pérez — Guantánamo',
+      'Isla de la Juventud — Isla de la Juventud'
+    ])
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('1.3 Ámbito principal de actuación de la entidad')
+    .setChoiceValues(['Municipal', 'Provincial', 'Nacional'])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('1.4 Tipo de institución que representa')
+    .setChoiceValues([
+      'Gobierno municipal',
+      'Gobierno provincial',
+      'Dirección de Desarrollo Municipal (DDM)',
+      'Dirección de Desarrollo Territorial DDT',
+      'Centro Universitario Municipal (CUM)',
+      'Universidad o centro académico',
+      'Centro de estudios o investigación',
+      'Centro de capacitación',
+      'Entidad tecnológica (Joven Club u otras)',
+      'Organización empresarial o asociación económica',
+      'Proyecto de Desarrollo Local (PDL)',
+      'Dirección de Trabajo y Seguridad Social Provincial y Municipal'
+    ])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addTextItem().setTitle('1.5 Nombre oficial de la institución').setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('1.6 Nivel de involucramiento en actividades de formación sobre NAE')
+    .setChoiceValues(['Muy alto', 'Medio', 'Bajo', 'Nulo'])
+    .setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 2 – Infraestructura y recursos');
+
+  form.addMultipleChoiceItem().setTitle('2.1 Existen espacios con computadoras y conectividad para acceso público').setChoiceValues(['Sí, varios con buena conectividad', 'Sí, algunos con conectividad limitada', 'Solo uno o muy pocos', 'No existen', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.2 Existe disponibilidad de locales para formación').setChoiceValues(['Varios adecuados', 'Existen, pero requieren mejoras', 'Pocos con limitaciones', 'No existen', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.3 Considera que existe autonomía energética para la formación').setChoiceValues(['Sí, con sistemas alternativos', 'Parcial o limitada', 'Sí, no suele haber interrupciones', 'No', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.4 Recursos tecnológicos para formación').setChoiceValues(['Alta', 'Media', 'Baja', 'Nula']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('2.5 Considera que existen condiciones para desarrollar formación de forma regular').setChoiceValues(['Sí', 'Con limitaciones', 'No']).setRequired(true);
+
+  form.addPageBreakItem().setTitle('Sección 3 – Capacidades y necesidades formativas');
+
+  form.addMultipleChoiceItem().setTitle('3.1 Nivel de capacitación de formadores locales').setChoiceValues(['Muy capacitados', 'Medianamente capacitados', 'Poco capacitados', 'No capacitados']).setRequired(true);
+
+  form.addCheckboxItem()
+    .setTitle('3.2 Temas prioritarios de formación que necesita')
+    .setChoiceValues([
+      'Normativa jurídica de los NAE',
+      'Gestión empresarial',
+      'Gestión contable y financiera',
+      'Creación y desarrollo de NAE',
+      'Innovación, marketing y digitalización',
+      'Cooperación y encadenamientos productivos',
+      'Competencias digitales',
+      'Comunicación organizacional',
+      'Economía circular',
+      'Economía social y solidaria',
+      'Políticas públicas y desarrollo local',
+      'Regulación técnica sectorial',
+      'Género y NAE'
+    ])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('3.3 Principal necesidad del municipio')
+    .setChoiceValues(['Infraestructura', 'Formación de formadores', 'Coordinación institucional', 'Recursos financieros'])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('3.4 Nivel de interés de los actores de gobierno en formación sobre NAE').setChoiceValues(['Muy alto', 'Medio', 'Bajo', 'Nulo', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('3.5 Según Ud. ha observado, la mayoría de las personas dueñas o titulares de emprendimientos son:').setChoiceValues(['Hombres', 'Mujeres', 'Personas trans']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('3.6 Según su percepción, el porcentaje aproximado de mujeres en otros cargos directivos está entre:').setChoiceValues(['0–10%', '11–30%', '31–50%', '51–70%', '71–100%', 'No sabe']).setRequired(true);
+
+  const q37 = form.addMultipleChoiceItem()
+    .setTitle('3.7 En su municipio, conoce si se han desarrollado programas dirigidos a mujeres emprendedoras')
+    .setRequired(true);
+
+  const pageDescripcion = form.addPageBreakItem().setTitle('Si responde “Sí”');
+  form.addTextItem().setTitle('Describa brevemente').setRequired(false);
+
+  const pageSeccion4 = form.addPageBreakItem().setTitle('Sección 4 – Articulación y limitaciones');
+
+  q37.setChoices([
+    q37.createChoice('Sí', pageDescripcion),
+    q37.createChoice('No', pageSeccion4),
+    q37.createChoice('No sabe', pageSeccion4)
+  ]);
+
+  form.addMultipleChoiceItem().setTitle('4.1 Conoce la existencia de mecanismos de coordinación institucional').setChoiceValues(['Sí, funcionan sistemáticamente', 'Existen con poca coordinación', 'Se han intentado crear', 'No existen', 'No sabe']).setRequired(true);
+  form.addMultipleChoiceItem().setTitle('4.2 Grado de articulación institucional en formación económica').setChoiceValues(['Alto', 'Medio', 'Bajo', 'Nulo', 'No sabe']).setRequired(true);
+
+  form.addCheckboxItem()
+    .setTitle('4.3 Instituciones que participan en actividades formativas')
+    .setChoiceValues(['Gobierno municipal', 'Universidad', 'Centros de investigación', 'Centros de capacitación', 'Entidades tecnológicas', 'Organizaciones empresariales', 'Organismos provinciales', 'ANEC', 'FMC'])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addCheckboxItem()
+    .setTitle('4.4 Principales limitaciones que existen para desarrollar actividades formativas')
+    .setChoiceValues(['Infraestructura insuficiente', 'Falta de formadores', 'Falta de coordinación', 'Limitaciones financieras', 'Baja motivación'])
+    .showOtherOption(true)
+    .setRequired(true);
+
+  form.addMultipleChoiceItem().setTitle('4.5 Nivel de disposición tiene para participar en formación').setChoiceValues(['Muy dispuesto', 'Medianamente dispuesto', 'Poco dispuesto', 'No dispuesto']).setRequired(true);
+
+  Logger.log('Formulario creado para editar: ' + form.getEditUrl());
+  Logger.log('Formulario para responder: ' + form.getPublishedUrl());
+}
