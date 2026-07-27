@@ -43,7 +43,7 @@ python3 scripts/geocode_pending_entities.py --limit 20 --apply
 sudo systemctl restart nae-api
 ```
 
-El script usa Nominatim/OpenStreetMap con baja frecuencia entre consultas. No debe ejecutarse como carga masiva agresiva. Para más volumen se debe usar un proveedor contratado, una instancia propia de Nominatim o una fuente institucional.
+El script procesa primero Plus Codes de Google Maps, por ejemplo `C4W4+F4X, Santa Clara, Cuba`, sin consultar internet. Para códigos cortos usa provincia/municipio como referencia. Si no encuentra Plus Code, usa Nominatim/OpenStreetMap con baja frecuencia entre consultas. No debe ejecutarse como carga masiva agresiva. Para más volumen se debe usar un proveedor contratado, una instancia propia de Nominatim o una fuente institucional.
 
 Parámetros útiles:
 
@@ -132,3 +132,4 @@ DO UPDATE SET
 ## Próxima mejora recomendada
 
 Crear una vista administrativa para revisar entidades pendientes, buscar coordenadas y aprobarlas sin ejecutar SQL manual. Esa vista debe escribir en `operational.geocodificacion_entidades`.
+

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -19,10 +20,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
+from app.cuba_geo import get_coordinates  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+PLUS_CODE_ALPHABET = "23456789CFGHJMPQRVWX"
+PLUS_CODE_SEPARATOR = "+"
+PLUS_CODE_SEPARATOR_POSITION = 8
+PAIR_RESOLUTIONS = (20.0, 1.0, 0.05, 0.0025, 0.000125)
+PLUS_CODE_PATTERN = re.compile(r"\b([23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{2,})\b", re.IGNORECASE)
 
 
 @dataclass
@@ -42,6 +49,7 @@ class GeocodeResult:
     status: str
     display_name: str | None
     raw: dict[str, Any] | None
+    source: str = "nominatim"
 
 
 def compact(value: str | None) -> str:
@@ -57,6 +65,107 @@ def build_query(entity: PendingEntity) -> str:
         "Cuba",
     ]
     return ", ".join(part for part in (compact(item) for item in parts) if part)
+
+
+def extract_plus_code(value: str | None) -> str | None:
+    match = PLUS_CODE_PATTERN.search(compact(value).upper())
+    return match.group(1) if match else None
+
+
+def encode_plus_code(lat: float, lng: float, code_length: int = 10) -> str:
+    lat = min(90.0, max(-90.0, lat)) + 90.0
+    lng = (lng + 180.0) % 360.0
+    code = []
+    for resolution in PAIR_RESOLUTIONS:
+        lat_digit = int(lat / resolution)
+        lng_digit = int(lng / resolution)
+        code.append(PLUS_CODE_ALPHABET[lat_digit])
+        code.append(PLUS_CODE_ALPHABET[lng_digit])
+        lat -= lat_digit * resolution
+        lng -= lng_digit * resolution
+        if len(code) >= code_length:
+            break
+    joined = "".join(code[:code_length])
+    return f"{joined[:PLUS_CODE_SEPARATOR_POSITION]}+{joined[PLUS_CODE_SEPARATOR_POSITION:]}"
+
+
+def decode_full_plus_code(code: str) -> tuple[float, float]:
+    clean = code.upper().replace(PLUS_CODE_SEPARATOR, "")
+    if len(clean) < 10:
+        clean = clean.ljust(10, "2")
+
+    lat = -90.0
+    lng = -180.0
+    last_resolution = PAIR_RESOLUTIONS[0]
+    for pair_index, resolution in enumerate(PAIR_RESOLUTIONS):
+        lat_char = clean[pair_index * 2]
+        lng_char = clean[(pair_index * 2) + 1]
+        lat += PLUS_CODE_ALPHABET.index(lat_char) * resolution
+        lng += PLUS_CODE_ALPHABET.index(lng_char) * resolution
+        last_resolution = resolution
+
+    return lat + (last_resolution / 2), lng + (last_resolution / 2)
+
+
+def recover_plus_code(short_code: str, reference_lat: float, reference_lng: float) -> str:
+    code = short_code.upper()
+    separator_position = code.index(PLUS_CODE_SEPARATOR)
+    if separator_position >= PLUS_CODE_SEPARATOR_POSITION:
+        return code
+
+    padding_length = PLUS_CODE_SEPARATOR_POSITION - separator_position
+    reference_code = encode_plus_code(reference_lat, reference_lng)
+    recovered = reference_code[:padding_length] + code
+
+    lat, lng = decode_full_plus_code(recovered)
+    resolution = 20 ** (2 - (padding_length / 2))
+    area_to_edge = resolution / 2
+
+    if reference_lat + area_to_edge < lat and lat - resolution >= -90:
+        lat -= resolution
+    elif reference_lat - area_to_edge > lat and lat + resolution <= 90:
+        lat += resolution
+
+    if reference_lng + area_to_edge < lng:
+        lng -= resolution
+    elif reference_lng - area_to_edge > lng:
+        lng += resolution
+
+    return encode_plus_code(lat, lng)
+
+
+def geocode_plus_code(entity: PendingEntity) -> GeocodeResult | None:
+    plus_code = extract_plus_code(entity.direccion_fisica)
+    if not plus_code:
+        return None
+
+    reference = get_coordinates(entity.provincia, entity.municipio)
+    if not reference:
+        return GeocodeResult(
+            lat=None,
+            lng=None,
+            confidence=0,
+            status="pendiente_revision",
+            display_name=f"Plus Code sin municipio de referencia: {plus_code}",
+            raw={"plus_code": plus_code},
+            source="plus_code",
+        )
+
+    recovered = recover_plus_code(plus_code, reference["lat"], reference["lng"])
+    lat, lng = decode_full_plus_code(recovered)
+    return GeocodeResult(
+        lat=round(lat, 7),
+        lng=round(lng, 7),
+        confidence=1.0,
+        status="geocodificada",
+        display_name=f"Plus Code {plus_code} recuperado como {recovered}",
+        raw={
+            "plus_code": plus_code,
+            "recovered_plus_code": recovered,
+            "reference": reference,
+        },
+        source="plus_code",
+    )
 
 
 def score_result(result: dict[str, Any], entity: PendingEntity) -> float:
@@ -121,6 +230,13 @@ def geocode_nominatim(entity: PendingEntity, user_agent: str, timeout: int = 30)
         display_name=best.get("display_name"),
         raw=best,
     )
+
+
+def geocode_entity(entity: PendingEntity, user_agent: str) -> GeocodeResult:
+    plus_code_result = geocode_plus_code(entity)
+    if plus_code_result is not None:
+        return plus_code_result
+    return geocode_nominatim(entity, user_agent=user_agent)
 
 
 def fetch_pending_entities(limit: int) -> list[PendingEntity]:
@@ -198,12 +314,12 @@ def save_result(entity: PendingEntity, result: GeocodeResult, min_confidence: fl
                     :municipio,
                     :lat,
                     :lng,
-                    'nominatim',
+                    :fuente,
                     :confianza,
                     :estado,
                     :observacion,
                     CASE WHEN :estado = 'geocodificada' THEN NOW() ELSE NULL END,
-                    CASE WHEN :estado = 'geocodificada' THEN 'geocoder_nominatim' ELSE NULL END
+                    CASE WHEN :estado = 'geocodificada' THEN :validado_por ELSE NULL END
                 )
                 ON CONFLICT (operational_respuesta_id)
                 DO UPDATE SET
@@ -228,9 +344,11 @@ def save_result(entity: PendingEntity, result: GeocodeResult, min_confidence: fl
                 "municipio": entity.municipio,
                 "lat": result.lat,
                 "lng": result.lng,
+                "fuente": result.source,
                 "confianza": result.confidence,
                 "estado": estado,
                 "observacion": observacion,
+                "validado_por": f"geocoder_{result.source}",
                 "raw_payload": raw_payload,
             },
         )
@@ -278,7 +396,7 @@ def main() -> int:
         print(f"Query: {query}")
 
         try:
-            result = geocode_nominatim(entity, user_agent=args.user_agent)
+            result = geocode_entity(entity, user_agent=args.user_agent)
         except HTTPError as exc:
             print(f"HTTP error {exc.code}: {exc.reason}")
             continue
@@ -289,6 +407,7 @@ def main() -> int:
             print(f"Error inesperado: {exc}")
             continue
 
+        print(f"Fuente: {result.source}")
         print(f"Resultado: lat={result.lat} lng={result.lng} confianza={result.confidence}")
         print(f"Nombre: {result.display_name or 'Sin resultado'}")
 
@@ -298,7 +417,7 @@ def main() -> int:
         else:
             print("No guardado. Use --apply para escribir en BD.")
 
-        if index < len(entities):
+        if index < len(entities) and result.source == "nominatim":
             time.sleep(args.delay)
 
     return 0

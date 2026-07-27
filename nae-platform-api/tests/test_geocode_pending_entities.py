@@ -41,3 +41,25 @@ def test_score_result_rewards_expected_location():
     }
 
     assert geocoder.score_result(result, entity) >= 0.85
+
+def test_extract_plus_code_from_google_address():
+    assert geocoder.extract_plus_code("C4W4+F4X, Santa Clara, Cuba") == "C4W4+F4X"
+
+
+def test_geocode_plus_code_uses_municipality_reference():
+    entity = geocoder.PendingEntity(
+        operational_respuesta_id=3,
+        entidad="Universidad Central Marta Abreu de Las Villas",
+        direccion_fisica="C4W4+F4X, Santa Clara, Cuba",
+        provincia="Villa Clara",
+        municipio="Santa Clara",
+    )
+
+    result = geocoder.geocode_plus_code(entity)
+
+    assert result is not None
+    assert result.source == "plus_code"
+    assert result.confidence == 1.0
+    assert abs(result.lat - 22.446234) < 0.001
+    assert abs(result.lng - -79.894646) < 0.001
+
