@@ -1363,6 +1363,32 @@ def get_support_entities(
     where_clause = " AND ".join(clauses)
     db = SessionLocal()
     try:
+        has_geocoding_table = db.execute(
+            text("SELECT to_regclass('operational.geocodificacion_entidades') IS NOT NULL")
+        ).scalar()
+        geocoding_select = """
+                       g.lat AS geocoding_lat,
+                       g.lng AS geocoding_lng,
+                       g.fuente AS geocoding_fuente,
+                       g.confianza AS geocoding_confianza,
+                       g.estado AS geocoding_estado,
+                       g.fecha_validacion AS geocoding_fecha_validacion,
+        """ if has_geocoding_table else """
+                       NULL::numeric AS geocoding_lat,
+                       NULL::numeric AS geocoding_lng,
+                       NULL::text AS geocoding_fuente,
+                       NULL::numeric AS geocoding_confianza,
+                       NULL::text AS geocoding_estado,
+                       NULL::timestamp AS geocoding_fecha_validacion,
+        """
+        geocoding_join = """
+                LEFT JOIN operational.geocodificacion_entidades g
+                    ON g.operational_respuesta_id = op.id
+                   AND g.estado IN ('geocodificada', 'validada')
+                   AND g.lat IS NOT NULL
+                   AND g.lng IS NOT NULL
+        """ if has_geocoding_table else ""
+
         rows = db.execute(
             text(f"""
                 SELECT op.id AS operational_respuesta_id,
@@ -1386,6 +1412,7 @@ def get_support_entities(
                        m.capacidad_ampliar_cobertura,
                        m.condiciones_conectividad,
                        m.autonomia_energetica,
+                       {geocoding_select}
                        (
                          SELECT STRING_AGG(s.servicio, ', ' ORDER BY s.servicio)
                          FROM operational.respuestas_mapeo_servicios s
@@ -1396,6 +1423,7 @@ def get_support_entities(
                 JOIN operational.provincias p ON p.id = op.provincia_id
                 JOIN operational.municipios mu ON mu.id = op.municipio_id
                 LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                {geocoding_join}
                 WHERE {where_clause}
                 ORDER BY p.nombre, mu.nombre, entidad_nombre
                 LIMIT :limit
@@ -1445,11 +1473,32 @@ def get_support_entities(
 
 
 def _with_coordinates(row: Dict[str, Any]) -> Dict[str, Any]:
+    if row.get("geocoding_lat") is not None and row.get("geocoding_lng") is not None:
+        row.update({
+            "lat": float(row["geocoding_lat"]),
+            "lng": float(row["geocoding_lng"]),
+            "coordinate_source": row.get("geocoding_fuente") or "geocodificacion",
+            "coordinate_status": row.get("geocoding_estado") or "geocodificada",
+            "coordinate_confidence": row.get("geocoding_confianza"),
+        })
+        return row
+
     coordinates = get_coordinates(row.get("provincia"), row.get("municipio"))
     if coordinates:
         row.update(coordinates)
+        row.update({
+            "coordinate_source": "municipio",
+            "coordinate_status": "estimada",
+            "coordinate_confidence": None,
+        })
     else:
-        row.update({"lat": None, "lng": None})
+        row.update({
+            "lat": None,
+            "lng": None,
+            "coordinate_source": None,
+            "coordinate_status": "sin_coordenada",
+            "coordinate_confidence": None,
+        })
     return row
 
 
@@ -1477,6 +1526,9 @@ def build_support_entities_csv(data: Dict[str, Any]) -> str:
         "servicios",
         "lat",
         "lng",
+        "coordinate_source",
+        "coordinate_status",
+        "coordinate_confidence",
         "estado_validacion",
     ]
     writer = csv.DictWriter(output, fieldnames=headers)
@@ -1707,7 +1759,9 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
             "services": row.get("servicios") or "Sin servicios registrados",
             "lat": float(lat),
             "lng": float(lng),
-            "source": "municipio",
+            "source": row.get("coordinate_source") or "municipio",
+            "status": row.get("coordinate_status") or "estimada",
+            "confidence": str(row.get("coordinate_confidence") or ""),
         })
     map_entities_json = json.dumps(map_entities, ensure_ascii=False).replace("</", "<\\/")
 
