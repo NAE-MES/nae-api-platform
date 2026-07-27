@@ -7,6 +7,7 @@ from html import escape
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 
 from app.database import SessionLocal
 
@@ -1328,6 +1329,8 @@ def get_support_entities(
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    q: Optional[str] = None,
 ) -> Dict[str, Any]:
     clauses = ["COALESCE(op.version_encuesta, '') = 'mapeo_estructuras_v1'"]
     params: Dict[str, Any] = {"limit": limit}
@@ -1337,6 +1340,22 @@ def get_support_entities(
     if municipio:
         clauses.append("mu.nombre = :municipio")
         params["municipio"] = municipio
+    if tipo:
+        clauses.append("COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) = :tipo")
+        params["tipo"] = tipo
+    if q:
+        clauses.append("""
+            (
+                COALESCE(m.entidad_nombre, op.nombre_institucion, '') ILIKE :q
+                OR COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion, '') ILIKE :q
+                OR COALESCE(m.direccion_fisica, '') ILIKE :q
+                OR COALESCE(m.persona_contacto_cargo, '') ILIKE :q
+                OR COALESCE(m.territorios_servicio, '') ILIKE :q
+                OR COALESCE(mu.nombre, '') ILIKE :q
+                OR COALESCE(p.nombre, '') ILIKE :q
+            )
+        """)
+        params["q"] = f"%{q}%"
 
     where_clause = " AND ".join(clauses)
     db = SessionLocal()
@@ -1364,6 +1383,11 @@ def get_support_entities(
                        m.capacidad_ampliar_cobertura,
                        m.condiciones_conectividad,
                        m.autonomia_energetica,
+                       (
+                         SELECT STRING_AGG(s.servicio, ', ' ORDER BY s.servicio)
+                         FROM operational.respuestas_mapeo_servicios s
+                         WHERE s.operational_respuesta_id = op.id
+                       ) AS servicios,
                        op.estado_validacion
                 FROM operational.respuestas_encuesta op
                 JOIN operational.provincias p ON p.id = op.provincia_id
@@ -1376,14 +1400,42 @@ def get_support_entities(
             params,
         ).mappings().all()
 
+        lookups = db.execute(
+            text("""
+                SELECT DISTINCT p.nombre AS provincia,
+                       mu.nombre AS municipio,
+                       COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) AS tipo
+                FROM operational.respuestas_encuesta op
+                JOIN operational.provincias p ON p.id = op.provincia_id
+                JOIN operational.municipios mu ON mu.id = op.municipio_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                WHERE COALESCE(op.version_encuesta, '') = 'mapeo_estructuras_v1'
+            """)
+        ).mappings().all()
+
         return {
+            "lookups": {
+                "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}),
+                "municipios": sorted({row["municipio"] for row in lookups if row["municipio"]}),
+                "tipos": sorted({row["tipo"] for row in lookups if row["tipo"]}),
+            },
             "filters": {
                 "provincia": provincia,
                 "municipio": municipio,
+                "tipo": tipo,
+                "q": q,
                 "limit": limit,
             },
             "total": len(rows),
             "entidades": [dict(row) for row in rows],
+        }
+    except ProgrammingError:
+        db.rollback()
+        return {
+            "lookups": {"provincias": [], "municipios": [], "tipos": []},
+            "filters": {"provincia": provincia, "municipio": municipio, "tipo": tipo, "q": q, "limit": limit},
+            "total": 0,
+            "entidades": [],
         }
     finally:
         db.close()
@@ -1410,6 +1462,7 @@ def build_support_entities_csv(data: Dict[str, Any]) -> str:
         "capacidad_ampliar_cobertura",
         "condiciones_conectividad",
         "autonomia_energetica",
+        "servicios",
         "estado_validacion",
     ]
     writer = csv.DictWriter(output, fieldnames=headers)
@@ -1417,3 +1470,170 @@ def build_support_entities_csv(data: Dict[str, Any]) -> str:
     for row in data.get("entidades", []):
         writer.writerow({key: row.get(key) for key in headers})
     return output.getvalue()
+
+
+def render_support_entities_html(data: Dict[str, Any]) -> str:
+    lookups = data.get("lookups", {})
+    selected = data.get("filters", {})
+    export_params = {
+        key: value
+        for key, value in {
+            "provincia": selected.get("provincia"),
+            "municipio": selected.get("municipio"),
+            "tipo": selected.get("tipo"),
+            "q": selected.get("q"),
+            "limit": selected.get("limit") or 200,
+        }.items()
+        if value not in (None, "")
+    }
+    export_url = "/api/v1/entidades-apoyo.csv"
+    if export_params:
+        export_url = f"{export_url}?{urlencode(export_params)}"
+
+    def option_list(values: List[str], selected_value: Optional[str]) -> str:
+        options = ['<option value="">Todos</option>']
+        for value in values:
+            mark = " selected" if value == selected_value else ""
+            options.append(f"<option value='{escape(value)}'{mark}>{escape(value)}</option>")
+        return "".join(options)
+
+    def entity_cards() -> str:
+        rows = data.get("entidades", [])
+        if not rows:
+            return "<div class='empty-state'>No hay entidades para los filtros seleccionados.</div>"
+        cards = []
+        for row in rows:
+            title = escape(str(row.get("entidad_nombre") or "Sin nombre"))
+            tipo = escape(str(row.get("tipo_estructura_apoyo") or "Sin tipo"))
+            location = escape(f"{row.get('provincia') or ''} / {row.get('municipio') or ''}")
+            cobertura = escape(str(row.get("cobertura_principal") or "Sin dato"))
+            contacto = escape(str(row.get("persona_contacto_cargo") or "Sin dato"))
+            telefonos = escape(str(row.get("telefonos") or "Sin dato"))
+            correo = escape(str(row.get("correo_electronico") or "Sin dato"))
+            direccion = escape(str(row.get("direccion_fisica") or "Sin dato"))
+            servicios = escape(str(row.get("servicios") or "Sin servicios registrados"))
+            cards.append(f"""
+              <article class="entity-card">
+                <div class="entity-head">
+                  <div>
+                    <h3>{title}</h3>
+                    <p>{location}</p>
+                  </div>
+                  <span>{tipo}</span>
+                </div>
+                <dl>
+                  <div><dt>Cobertura</dt><dd>{cobertura}</dd></div>
+                  <div><dt>Contacto</dt><dd>{contacto}</dd></div>
+                  <div><dt>Teléfono</dt><dd>{telefonos}</dd></div>
+                  <div><dt>Correo</dt><dd>{correo}</dd></div>
+                  <div><dt>Dirección</dt><dd>{direccion}</dd></div>
+                  <div class="wide"><dt>Servicios</dt><dd>{servicios}</dd></div>
+                </dl>
+              </article>
+            """)
+        return "".join(cards)
+
+    return f"""
+    <!doctype html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>NAE Platform - Mapa de apoyo</title>
+      <style>
+        :root {{
+          --bg:#f4f6f9; --panel:#fff; --line:#d8dee8; --text:#172033; --muted:#66758a;
+          --accent:#185abc; --accent-deep:#0b376d; --accent-soft:#e8f1ff; --ok:#18794e;
+        }}
+        * {{ box-sizing:border-box; }}
+        body {{ margin:0; font-family:Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text); line-height:1.45; }}
+        header {{ background:var(--accent-deep); color:#fff; border-bottom:1px solid #06284f; }}
+        .shell {{ width:min(1280px, 100%); margin:0 auto; padding:0 22px; }}
+        .topbar {{ min-height:70px; display:flex; justify-content:space-between; align-items:center; gap:16px; }}
+        .brand strong {{ display:block; font-size:19px; }}
+        .brand span {{ display:block; color:#c9d9ef; font-size:13px; margin-top:2px; }}
+        .nav {{ display:flex; gap:10px; flex-wrap:wrap; }}
+        .nav a {{ color:#eaf2ff; text-decoration:none; border:1px solid rgba(255,255,255,.22); border-radius:8px; padding:8px 10px; font-size:13px; }}
+        .nav a.active {{ background:#fff; color:var(--accent-deep); }}
+        main {{ padding:24px 0 36px; }}
+        .hero {{ display:grid; gap:18px; grid-template-columns:minmax(0, 1.1fr) minmax(360px, .9fr); align-items:stretch; margin-bottom:16px; }}
+        .intro, .map-panel, .filters, .entity-card, .summary-card {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:0 1px 2px rgba(15,23,42,.04); }}
+        .intro {{ padding:20px; display:grid; gap:8px; }}
+        .eyebrow {{ margin:0; color:var(--accent); font-weight:700; font-size:12px; text-transform:uppercase; }}
+        h1 {{ margin:0; font-size:30px; line-height:1.12; letter-spacing:0; }}
+        .lead {{ margin:0; color:var(--muted); font-size:15px; max-width:760px; }}
+        .summary {{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin-top:10px; }}
+        .summary-card {{ padding:12px; }}
+        .summary-card span {{ display:block; color:var(--muted); font-size:12px; }}
+        .summary-card strong {{ display:block; margin-top:4px; font-size:24px; }}
+        .map-panel {{ min-height:300px; padding:18px; position:relative; overflow:hidden; }}
+        .cuba-svg {{ width:100%; height:260px; display:block; }}
+        .cuba-shape {{ fill:#dbeafe; stroke:#185abc; stroke-width:3; }}
+        .province-line, .sea-line {{ fill:none; stroke:#7aa3e5; stroke-width:2; opacity:.7; }}
+        .pin {{ position:absolute; width:12px; height:12px; border-radius:999px; background:var(--ok); border:2px solid #fff; box-shadow:0 0 0 4px rgba(24,121,78,.18); }}
+        .pin.p1 {{ left:31%; top:48%; }} .pin.p2 {{ left:48%; top:43%; }} .pin.p3 {{ left:67%; top:39%; }} .pin.p4 {{ left:79%; top:35%; }}
+        .filters {{ padding:14px; display:grid; grid-template-columns:repeat(5, minmax(0,1fr)) auto; gap:10px; align-items:end; margin-bottom:16px; }}
+        label {{ display:grid; gap:5px; color:#46566f; font-size:11px; font-weight:700; text-transform:uppercase; }}
+        select, input {{ min-height:38px; width:100%; border:1px solid #b8c2d1; border-radius:8px; background:#fff; color:var(--text); padding:8px 10px; font-size:13px; }}
+        button, .button {{ min-height:38px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; padding:0 12px; border:1px solid #b8c2d1; background:var(--accent); color:#fff; text-decoration:none; font-weight:700; font-size:13px; cursor:pointer; }}
+        .button.secondary {{ background:#fff; color:var(--text); }}
+        .filter-actions {{ display:flex; gap:8px; }}
+        .entities {{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px; }}
+        .entity-card {{ padding:16px; display:grid; gap:14px; }}
+        .entity-head {{ display:flex; justify-content:space-between; gap:14px; align-items:start; }}
+        .entity-head h3 {{ margin:0; font-size:18px; line-height:1.2; }}
+        .entity-head p {{ margin:5px 0 0; color:var(--muted); font-size:13px; }}
+        .entity-head span {{ flex:0 0 auto; max-width:210px; border-radius:999px; background:var(--accent-soft); color:var(--accent-deep); padding:6px 9px; font-size:12px; font-weight:700; text-align:right; }}
+        dl {{ margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }}
+        dl div.wide {{ grid-column:1 / -1; }}
+        dt {{ color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; }}
+        dd {{ margin:3px 0 0; font-size:13px; word-break:break-word; }}
+        .empty-state {{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:18px; color:var(--muted); }}
+        @media (max-width: 980px) {{ .hero, .entities, .filters {{ grid-template-columns:1fr; }} .filter-actions {{ justify-content:flex-start; }} }}
+      </style>
+    </head>
+    <body>
+      <header>
+        <div class="shell topbar">
+          <div class="brand"><strong>NAE Platform</strong><span>Mapeo de estructuras de apoyo a los nuevos actores económicos</span></div>
+          <nav class="nav"><a href="/mapa-apoyo" class="active">Mapa de apoyo</a><a href="/">Analítica</a><a href="/api/v1/entidades-apoyo">API</a></nav>
+        </div>
+      </header>
+      <main class="shell">
+        <section class="hero">
+          <div class="intro">
+            <p class="eyebrow">Consulta pública</p>
+            <h1>Mapa de estructuras de apoyo a los NAE</h1>
+            <p class="lead">Directorio territorial de entidades, capacidades y contactos identificados mediante la encuesta nacional de mapeo.</p>
+            <div class="summary">
+              <div class="summary-card"><span>Entidades visibles</span><strong>{data.get('total', 0)}</strong></div>
+              <div class="summary-card"><span>Provincias</span><strong>{len(lookups.get('provincias', []))}</strong></div>
+              <div class="summary-card"><span>Tipos</span><strong>{len(lookups.get('tipos', []))}</strong></div>
+            </div>
+          </div>
+          <div class="map-panel">
+            <svg class="cuba-svg" viewBox="0 0 900 420" role="img" aria-label="Mapa aproximado de Cuba">
+              <path class="sea-line" d="M65 235 C160 165 260 160 370 165 C520 171 650 120 815 155" />
+              <path class="cuba-shape" d="M70 236 C100 214 132 198 168 188 C208 177 254 177 303 184 C349 190 390 187 428 172 C462 159 496 143 532 139 C569 135 604 149 638 151 C676 153 713 132 756 128 C790 125 825 136 845 158 C817 170 783 174 746 173 C707 172 674 183 641 196 C603 211 560 211 519 202 C482 194 449 198 414 213 C377 229 338 236 294 232 C246 228 210 234 174 251 C136 268 100 264 70 236Z" />
+              <path class="province-line" d="M202 187 C210 205 210 223 205 242" />
+              <path class="province-line" d="M328 187 C335 201 333 218 326 232" />
+              <path class="province-line" d="M454 162 C462 176 462 191 454 207" />
+              <path class="province-line" d="M588 145 C594 162 593 181 584 200" />
+              <path class="province-line" d="M720 143 C724 154 723 166 718 177" />
+            </svg>
+            <span class="pin p1"></span><span class="pin p2"></span><span class="pin p3"></span><span class="pin p4"></span>
+          </div>
+        </section>
+        <form class="filters" method="get" action="/mapa-apoyo">
+          <label>Provincia<select name="provincia">{option_list(lookups.get('provincias', []), selected.get('provincia'))}</select></label>
+          <label>Municipio<select name="municipio">{option_list(lookups.get('municipios', []), selected.get('municipio'))}</select></label>
+          <label>Tipo<select name="tipo">{option_list(lookups.get('tipos', []), selected.get('tipo'))}</select></label>
+          <label>Búsqueda<input name="q" value="{escape(str(selected.get('q') or ''))}" placeholder="Entidad, contacto, territorio" /></label>
+          <label>Límite<input type="number" min="1" max="1000" name="limit" value="{escape(str(selected.get('limit') or 200))}" /></label>
+          <div class="filter-actions"><button type="submit">Aplicar</button><a class="button secondary" href="/mapa-apoyo">Limpiar</a><a class="button secondary" href="{escape(export_url)}">CSV</a></div>
+        </form>
+        <section class="entities">{entity_cards()}</section>
+      </main>
+    </body>
+    </html>
+    """

@@ -19,6 +19,7 @@ from app.reporting import (
     get_support_entities,
     render_dashboard_html,
     render_response_detail_html,
+    render_support_entities_html,
 )
 from app.staging_pipeline import process_raw_to_staging
 from app.operational_pipeline import process_staging_to_operational
@@ -104,10 +105,12 @@ def entidades_apoyo(
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    q: Optional[str] = None,
 ):
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
-    return get_support_entities(limit=limit, provincia=provincia, municipio=municipio)
+    return get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
 
 
 @app.get("/api/v1/entidades-apoyo.csv")
@@ -115,10 +118,12 @@ def entidades_apoyo_csv(
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    q: Optional[str] = None,
 ):
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
-    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio)
+    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
     csv_content = build_support_entities_csv(data)
     return Response(
         content=csv_content,
@@ -126,6 +131,20 @@ def entidades_apoyo_csv(
         headers={"Content-Disposition": 'attachment; filename="nae_entidades_apoyo.csv"'},
     )
 
+
+
+@app.get("/mapa-apoyo", response_class=HTMLResponse)
+def mapa_apoyo(
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    q: Optional[str] = None,
+):
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
+    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
+    return render_support_entities_html(data)
 
 @app.get("/api/v1/respuestas/{respuesta_id}")
 def detalle_respuesta_api(respuesta_id: int):
