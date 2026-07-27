@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
+from app.cuba_geo import get_coordinates
 from app.database import SessionLocal
 
 
@@ -859,6 +860,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
     """
 
 
+
 def render_dashboard_html(data: Dict[str, Any]) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
@@ -1427,7 +1429,7 @@ def get_support_entities(
                 "limit": limit,
             },
             "total": len(rows),
-            "entidades": [dict(row) for row in rows],
+            "entidades": [_with_coordinates(dict(row)) for row in rows],
         }
     except ProgrammingError:
         db.rollback()
@@ -1439,6 +1441,15 @@ def get_support_entities(
         }
     finally:
         db.close()
+
+
+def _with_coordinates(row: Dict[str, Any]) -> Dict[str, Any]:
+    coordinates = get_coordinates(row.get("provincia"), row.get("municipio"))
+    if coordinates:
+        row.update(coordinates)
+    else:
+        row.update({"lat": None, "lng": None})
+    return row
 
 
 def build_support_entities_csv(data: Dict[str, Any]) -> str:
@@ -1463,6 +1474,8 @@ def build_support_entities_csv(data: Dict[str, Any]) -> str:
         "condiciones_conectividad",
         "autonomia_energetica",
         "servicios",
+        "lat",
+        "lng",
         "estado_validacion",
     ]
     writer = csv.DictWriter(output, fieldnames=headers)
@@ -1677,6 +1690,26 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     else:
         featured_items = "<li><strong>Sin entidades visibles</strong><br />Aún no hay registros para los filtros seleccionados.</li>"
 
+    def project_pin(row: Dict[str, Any]) -> Optional[str]:
+        lat = row.get("lat")
+        lng = row.get("lng")
+        if lat is None or lng is None:
+            return None
+        min_lng, max_lng = -85.2, -73.8
+        min_lat, max_lat = 19.6, 23.5
+        left = 9 + ((float(lng) - min_lng) / (max_lng - min_lng)) * 80
+        top = 68 - ((float(lat) - min_lat) / (max_lat - min_lat)) * 46
+        left = max(4, min(92, left))
+        top = max(18, min(76, top))
+        title = escape(
+            f"{row.get('entidad_nombre') or 'Sin nombre'} - {row.get('municipio') or 'Sin municipio'}, {row.get('provincia') or 'Sin provincia'}"
+        )
+        return f'<span class="pin dynamic" style="left:{left:.2f}%; top:{top:.2f}%;" title="{title}"></span>'
+
+    dynamic_pins = "".join(pin for pin in (project_pin(row) for row in rows[:80]) if pin)
+    if not dynamic_pins:
+        dynamic_pins = '<span class="pin one"></span><span class="pin two"></span><span class="pin three"></span><span class="pin four"></span><span class="pin five"></span>'
+
     entity_cards = []
     for row in rows:
         entity_cards.append(f"""
@@ -1714,6 +1747,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .support-item p {{ margin-bottom: 6px; }}
       .map-summary {{ position: absolute; right: 18px; bottom: 18px; display: grid; gap: 8px; width: min(240px, calc(100% - 36px)); }}
       .map-summary .metric {{ padding: 12px; background: rgba(255,255,255,.94); }}
+      .pin.dynamic {{ position: absolute; width: 13px; height: 13px; border-radius: 999px; background: #0f6fa6; border: 2px solid #fff; box-shadow: 0 0 0 5px rgba(15,111,166,.18), 0 6px 14px rgba(15,23,42,.22); }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} }}
     </style>
   </head>
@@ -1768,7 +1802,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
             <path class="province-line" d="M588 145 C594 162 593 181 584 200" />
             <path class="province-line" d="M720 143 C724 154 723 166 718 177" />
           </svg>
-          <span class="pin one"></span><span class="pin two"></span><span class="pin three"></span><span class="pin four"></span><span class="pin five"></span>
+          {dynamic_pins}
           <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Registros procesados desde la encuesta aprobada de mapeo.</p></div>
         </div>
         <aside class="card pad">
@@ -1923,6 +1957,17 @@ def get_dashboard_data(
 
         def rows(sql: str, extra: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
             return [dict(row) for row in db.execute(text(sql), {**params, **(extra or {})}).mappings().all()]
+
+        respuestas_por_dia = rows(f"""
+            SELECT f.fecha_respuesta::date AS fecha, COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY f.fecha_respuesta::date
+            ORDER BY fecha ASC
+        """)
 
         por_estado = rows(f"""
             SELECT e.estado_validacion AS label, COUNT(*)::int AS total
@@ -2117,6 +2162,7 @@ def get_dashboard_data(
             "lookups": _fetch_mapeo_lookup_options(),
             "total_respuestas": int(total),
             "kpis": dict(kpis),
+            "respuestas_por_dia": respuestas_por_dia,
             "por_estado": por_estado,
             "por_provincia": por_provincia,
             "tipos_estructura": tipos_estructura,
@@ -2143,6 +2189,7 @@ def get_dashboard_data(
             "lookups": {"provincias": [], "versiones": [], "tipos": [], "servicios": []},
             "total_respuestas": 0,
             "kpis": {"provincias": 0, "municipios": 0, "tipos_estructura": 0, "con_contacto": 0, "actualizan_mapeo": 0, "amplian_cobertura": 0},
+            "respuestas_por_dia": [],
             "por_estado": [], "por_provincia": [], "tipos_estructura": [], "cobertura": [], "modalidad_atencion": [],
             "servicios_ofrecidos": [], "servicios_fortalecer": [], "tipos_nae": [], "capacidades": [], "limitaciones": [],
             "conectividad": [], "sostenibilidad": [], "actualizacion_mapa": [], "instituciones": [], "temas_formacion": [],
@@ -2188,6 +2235,26 @@ def _tile_rows(rows: List[Dict[str, Any]]) -> str:
         """
         for row in rows[:8]
     )
+
+
+def _daily_chart(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "<p class='empty'>Sin datos</p>"
+    max_total = max(int(row.get("total", 0) or 0) for row in rows) or 1
+    bars = []
+    for row in rows[-30:]:
+        total = int(row.get("total", 0) or 0)
+        height = max(10, int((total / max_total) * 120))
+        fecha = str(row.get("fecha") or "")
+        short_date = fecha[5:] if len(fecha) >= 10 else fecha
+        bars.append(f"""
+          <div class="day-column" title="{escape(fecha)}: {total} respuestas">
+            <div class="day-value">{total}</div>
+            <div class="day-track"><span class="day-bar" style="height:{height}px"></span></div>
+            <div class="day-label">{escape(short_date)}</div>
+          </div>
+        """)
+    return f"<div class='daily-chart'>{''.join(bars)}</div>"
 
 
 def render_dashboard_html(data: Dict[str, Any]) -> str:
@@ -2313,6 +2380,12 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .donut-legend {{ margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }}
         .donut-legend li {{ display: grid; grid-template-columns: 12px 36px minmax(0,1fr); gap: 8px; align-items: center; font-size: 13px; }}
         .donut-legend span {{ width: 12px; height: 12px; border-radius: 3px; }}
+        .daily-chart {{ min-height: 190px; display: flex; align-items: end; gap: 9px; overflow-x: auto; padding: 8px 4px 2px; }}
+        .day-column {{ min-width: 42px; display: grid; grid-template-rows: 18px 130px 18px; gap: 6px; align-items: end; text-align: center; color: var(--muted-strong); }}
+        .day-value {{ font-size: 11px; font-weight: 700; color: var(--accent-deep); }}
+        .day-track {{ height: 130px; display: flex; align-items: end; justify-content: center; border-bottom: 1px solid var(--line); }}
+        .day-bar {{ width: 18px; min-height: 10px; border-radius: 7px 7px 2px 2px; background: linear-gradient(180deg, #20d79f 0%, var(--accent) 100%); box-shadow: 0 6px 14px rgba(15, 111, 166, .18); }}
+        .day-label {{ font-size: 10px; color: var(--muted); white-space: nowrap; transform: rotate(-28deg); transform-origin: center top; }}
         .tile-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }}
         .tile-row {{ min-height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfdff; }}
         .tile-row strong {{ display: block; color: var(--accent-deep); font-size: 22px; line-height: 1; }}
@@ -2337,6 +2410,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         <div class="shell layout">
           {filters_html}
           {metrics}
+          <section class="card wide"><div class="card-head"><p class="section-lead">Tendencia</p><h2>Respuestas enviadas por día</h2></div><div class="card-body">{_daily_chart(data.get('respuestas_por_dia', []))}</div></section>
           <section class="grid">
             <section class="card"><div class="card-head"><p class="section-lead">Calidad</p><h2>Estado de validación</h2></div><div class="card-body">{_donut_chart(data['por_estado'])}</div></section>
             <section class="card"><div class="card-head"><p class="section-lead">Cobertura</p><h2>Tipos de estructura</h2></div><div class="card-body">{_donut_chart(data['tipos_estructura'])}</div></section>
@@ -2368,3 +2442,4 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </html>
     """
     return html
+
