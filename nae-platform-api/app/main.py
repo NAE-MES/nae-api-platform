@@ -1,10 +1,12 @@
 from datetime import datetime
 import logging
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
@@ -31,6 +33,10 @@ app = FastAPI(
     version="0.1.0"
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+app.mount("/images", StaticFiles(directory=str(PROJECT_ROOT / "images")), name="images")
+app.mount("/prototype-assets", StaticFiles(directory=str(PROJECT_ROOT / "prototype")), name="prototype-assets")
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +61,27 @@ def _run_pipeline_chain(limit: int = 100) -> None:
     }
 
 
+
+def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
+    html = (PROJECT_ROOT / "prototype" / filename).read_text(encoding="utf-8")
+    replacements = {
+        'href="styles.css"': 'href="/prototype-assets/styles.css"',
+        'src="../images/header.png"': 'src="/images/header.png"',
+        'src="../images/footer.png"': 'src="/images/footer.png"',
+        'href="index.html"': 'href="/"',
+        'href="encuesta.html"': 'href="/encuesta"',
+        'href="mapa-entidades.html"': 'href="/mapa-apoyo"',
+        'href="documentacion.html"': 'href="/documentacion"',
+        'href="login.html"': 'href="/analitica"',
+        'href="analitica.html"': 'href="/analitica"',
+        'Prototipo institucional': 'Plataforma institucional',
+        'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': 'Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.',
+        'formulario pendiente de confirmación final': 'formulario aprobado',
+        'href="#"': 'href="/mapa-apoyo"' if filename == "encuesta.html" else 'href="#"',
+    }
+    for old, new in replacements.items():
+        html = html.replace(old, new)
+    return HTMLResponse(html)
 @app.get("/api/v1/salud")
 def salud():
     return {"status": "ok"}
@@ -155,7 +182,22 @@ def detalle_respuesta_api(respuesta_id: int):
 
 
 @app.get("/", response_class=HTMLResponse)
-def panel_principal(
+def inicio_publico():
+    return _render_prototype_page("index.html", "/")
+
+
+@app.get("/encuesta", response_class=HTMLResponse)
+def encuesta_publica():
+    return _render_prototype_page("encuesta.html", "/encuesta")
+
+
+@app.get("/documentacion", response_class=HTMLResponse)
+def documentacion_publica():
+    return _render_prototype_page("documentacion.html", "/documentacion")
+
+
+@app.get("/analitica", response_class=HTMLResponse)
+def panel_analitico(
     limit: int = 10,
     provincia: Optional[str] = None,
     version_encuesta: Optional[str] = None,
@@ -172,6 +214,22 @@ def panel_principal(
     data["filters"]["limit"] = limit
     return render_dashboard_html(data)
 
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def panel_dashboard(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+):
+    return panel_analitico(
+        limit=limit,
+        provincia=provincia,
+        version_encuesta=version_encuesta,
+        genero=genero,
+        tema=tema,
+    )
 
 @app.get("/respuestas/{respuesta_id}", response_class=HTMLResponse)
 def detalle_respuesta_html(respuesta_id: int):

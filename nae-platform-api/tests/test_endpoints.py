@@ -101,7 +101,7 @@ def test_resumen_html_endpoint_uses_renderer(monkeypatch):
     monkeypatch.setattr(main, "get_dashboard_data", fake_get_dashboard_data)
     monkeypatch.setattr(main, "render_dashboard_html", lambda data: "<html>panel</html>")
 
-    response = client.get("/?limit=4")
+    response = client.get("/analitica?limit=4")
 
     assert response.status_code == 200
     assert response.text == "<html>panel</html>"

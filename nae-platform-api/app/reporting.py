@@ -1637,3 +1637,153 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     </body>
     </html>
     """
+
+def render_support_entities_html(data: Dict[str, Any]) -> str:
+    lookups = data.get("lookups", {})
+    selected = data.get("filters", {})
+    export_params = {
+        key: value
+        for key, value in {
+            "provincia": selected.get("provincia"),
+            "municipio": selected.get("municipio"),
+            "tipo": selected.get("tipo"),
+            "q": selected.get("q"),
+            "limit": selected.get("limit") or 200,
+        }.items()
+        if value not in (None, "")
+    }
+    export_url = "/api/v1/entidades-apoyo.csv"
+    if export_params:
+        export_url = f"{export_url}?{urlencode(export_params)}"
+
+    def option_list(values: List[str], selected_value: Optional[str]) -> str:
+        options = ['<option value="">Todos</option>']
+        for item in values:
+            mark = " selected" if item == selected_value else ""
+            options.append(f"<option value='{escape(str(item))}'{mark}>{escape(str(item))}</option>")
+        return "".join(options)
+
+    rows = data.get("entidades", [])
+    if rows:
+        featured_items = "".join(
+            f"""
+            <li>
+              <strong>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</strong><br />
+              {escape(str(row.get('tipo_estructura_apoyo') or 'Sin tipo'))} · {escape(str(row.get('municipio') or 'Sin municipio'))}
+            </li>
+            """
+            for row in rows[:6]
+        )
+    else:
+        featured_items = "<li><strong>Sin entidades visibles</strong><br />Aún no hay registros para los filtros seleccionados.</li>"
+
+    entity_cards = []
+    for row in rows:
+        entity_cards.append(f"""
+        <article class="doc-item support-item">
+          <div class="doc-icon">NAE</div>
+          <div>
+            <h3>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</h3>
+            <p>{escape(str(row.get('provincia') or ''))} · {escape(str(row.get('municipio') or ''))}</p>
+            <p><strong>Tipo:</strong> {escape(str(row.get('tipo_estructura_apoyo') or 'Sin dato'))}</p>
+            <p><strong>Cobertura:</strong> {escape(str(row.get('cobertura_principal') or 'Sin dato'))}</p>
+            <p><strong>Contacto:</strong> {escape(str(row.get('persona_contacto_cargo') or 'Sin dato'))}</p>
+            <p><strong>Teléfono:</strong> {escape(str(row.get('telefonos') or 'Sin dato'))}</p>
+            <p><strong>Correo:</strong> {escape(str(row.get('correo_electronico') or 'Sin dato'))}</p>
+            <p><strong>Servicios:</strong> {escape(str(row.get('servicios') or 'Sin servicios registrados'))}</p>
+          </div>
+          <a class="button secondary" href="/api/v1/entidades-apoyo.csv">CSV</a>
+        </article>
+        """)
+    if not entity_cards:
+        entity_cards.append("<article class='card pad'><h2>Sin datos</h2><p>No hay entidades para los filtros seleccionados.</p></article>")
+
+    return f"""
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NAE Platform - Mapa de apoyo</title>
+    <link rel="stylesheet" href="/prototype-assets/styles.css" />
+    <style>
+      .support-filters {{ margin-bottom: 18px; }}
+      .support-filters .toolbar {{ grid-template-columns: repeat(5, minmax(120px, 1fr)) auto; }}
+      .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
+      .support-item {{ align-items: start; }}
+      .support-item p {{ margin-bottom: 6px; }}
+      .map-summary {{ position: absolute; right: 18px; bottom: 18px; display: grid; gap: 8px; width: min(240px, calc(100% - 36px)); }}
+      .map-summary .metric {{ padding: 12px; background: rgba(255,255,255,.94); }}
+      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} }}
+    </style>
+  </head>
+  <body>
+    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+    <nav class="site-nav">
+      <div class="nav-inner">
+        <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
+        <div class="nav-links">
+          <a href="/">Inicio</a>
+          <a href="/encuesta">Encuesta</a>
+          <a class="active" href="/mapa-apoyo">Mapa de apoyo</a>
+          <a href="/documentacion">Documentación</a>
+          <a class="locked" href="/analitica">Analítica</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Consulta pública</p>
+          <h1>Mapa de estructuras de apoyo</h1>
+          <p class="lead">Visualización territorial de estructuras encuestadas y capacidades de apoyo identificadas para nuevos actores económicos.</p>
+        </div>
+        <div class="actions">
+          <a class="button secondary" href="{escape(export_url)}">Descargar CSV</a>
+        </div>
+      </header>
+
+      <section class="card pad support-filters">
+        <form class="toolbar" method="get" action="/mapa-apoyo">
+          <label class="field"><span>Provincia</span><select name="provincia">{option_list(lookups.get('provincias', []), selected.get('provincia'))}</select></label>
+          <label class="field"><span>Municipio</span><select name="municipio">{option_list(lookups.get('municipios', []), selected.get('municipio'))}</select></label>
+          <label class="field"><span>Tipo entidad</span><select name="tipo">{option_list(lookups.get('tipos', []), selected.get('tipo'))}</select></label>
+          <label class="field"><span>Búsqueda</span><input name="q" value="{escape(str(selected.get('q') or ''))}" /></label>
+          <label class="field"><span>Límite</span><input type="number" min="1" max="1000" name="limit" value="{escape(str(selected.get('limit') or 200))}" /></label>
+          <div class="actions"><button class="button primary" type="submit">Aplicar</button><a class="button secondary" href="/mapa-apoyo">Limpiar</a></div>
+        </form>
+      </section>
+
+      <section class="map-shell">
+        <div class="cuba-map">
+          <svg class="cuba-svg" viewBox="0 0 900 420" role="img" aria-label="Mapa aproximado de Cuba">
+            <path class="sea-line" d="M65 235 C160 165 260 160 370 165 C520 171 650 120 815 155" />
+            <path class="cuba-shape" d="M70 236 C100 214 132 198 168 188 C208 177 254 177 303 184 C349 190 390 187 428 172 C462 159 496 143 532 139 C569 135 604 149 638 151 C676 153 713 132 756 128 C790 125 825 136 845 158 C817 170 783 174 746 173 C707 172 674 183 641 196 C603 211 560 211 519 202 C482 194 449 198 414 213 C377 229 338 236 294 232 C246 228 210 234 174 251 C136 268 100 264 70 236Z" />
+            <path class="isle isle-west" d="M104 288 C138 276 175 279 204 298 C170 311 133 310 104 288Z" />
+            <path class="isle isle-east" d="M810 205 C834 199 858 204 878 219 C850 226 829 224 810 205Z" />
+            <path class="province-line" d="M202 187 C210 205 210 223 205 242" />
+            <path class="province-line" d="M328 187 C335 201 333 218 326 232" />
+            <path class="province-line" d="M454 162 C462 176 462 191 454 207" />
+            <path class="province-line" d="M588 145 C594 162 593 181 584 200" />
+            <path class="province-line" d="M720 143 C724 154 723 166 718 177" />
+          </svg>
+          <span class="pin one"></span><span class="pin two"></span><span class="pin three"></span><span class="pin four"></span><span class="pin five"></span>
+          <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Registros procesados desde la encuesta aprobada de mapeo.</p></div>
+        </div>
+        <aside class="card pad">
+          <h2>Estructuras destacadas</h2>
+          <ul class="list-clean">{featured_items}</ul>
+        </aside>
+      </section>
+
+      <section class="support-list">{''.join(entity_cards)}</section>
+    </main>
+
+    <footer class="footer">
+      <img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" />
+      <div class="footer-text">Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.</div>
+    </footer>
+  </body>
+</html>
+    """
