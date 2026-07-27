@@ -156,7 +156,7 @@ def _raw_value_for_field(payload: Dict[str, Any], field_name: str) -> Any:
         if normalized_field != field_name:
             continue
         for payload_key, value in payload.items():
-            if payload_key.startswith(raw_prefix):
+            if payload_key.startswith(raw_prefix) and _scalar_value(value):
                 return value
     return payload.get(field_name)
 
@@ -188,9 +188,9 @@ def _extract_normalized_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
         for payload_key, payload_value in payload.items():
             if payload_key.startswith(raw_prefix):
                 value = _scalar_value(payload_value)
-                if value is not None or field_name not in normalized:
+                if value:
                     normalized[field_name] = value
-                break
+                    break
     normalized["version_encuesta"] = _scalar_value(payload.get("version_encuesta"))
     if not normalized["version_encuesta"]:
         if _is_mapeo_payload(payload):

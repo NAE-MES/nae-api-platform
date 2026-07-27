@@ -304,7 +304,7 @@ def _with_raw_scalar_fallbacks(row: Dict[str, Any], raw_payload: Dict[str, Any])
             continue
         for prefix in prefixes:
             for key, raw_value in raw_payload.items():
-                if key.startswith(prefix):
+                if key.startswith(prefix) and _scalar_value(raw_value):
                     value = _scalar_value(raw_value)
                     if value:
                         enriched[field_name] = value
