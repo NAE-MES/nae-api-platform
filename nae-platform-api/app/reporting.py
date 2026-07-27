@@ -1755,10 +1755,11 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       #support-map {{ width: 100%; height: 560px; min-height: 420px; background: #eaf3f8; }}
       .map-legend {{ position: absolute; left: 18px; bottom: 18px; z-index: 500; display: flex; flex-wrap: wrap; gap: 8px; }}
       .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); color: #435466; font-size: 12px; font-weight: 800; }}
-      .entity-dot {{ width: 11px; height: 11px; border-radius: 999px; display: inline-block; background: #0f6fa6; box-shadow: 0 0 0 3px rgba(15,111,166,.16); }}
-      .fallback-dot {{ width: 11px; height: 11px; border-radius: 999px; display: inline-block; background: #b8871b; box-shadow: 0 0 0 3px rgba(184,135,27,.16); }}
-      .nae-marker {{ width: 18px; height: 18px; border-radius: 999px; background: #0f6fa6; border: 3px solid #fff; box-shadow: 0 7px 16px rgba(15,23,42,.28), 0 0 0 5px rgba(15,111,166,.18); }}
-      .nae-marker.fallback {{ background: #b8871b; }}
+      .entity-dot, .fallback-dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; background: #cf142b; box-shadow: 0 0 0 3px rgba(207,20,43,.16); }}
+      .fallback-dot {{ opacity: .72; }}
+      .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
+      .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
+      .nae-marker.fallback {{ opacity: .82; }}
       .leaflet-popup-content {{ margin: 12px 14px; width: min(280px, 72vw) !important; max-height: 220px; overflow-y: auto; }}
       .leaflet-popup-content strong {{ color: var(--nae-navy); font-size: 14px; }}
       .leaflet-popup-content p {{ margin: 6px 0 0; color: #435466; font-size: 12px; }}
@@ -1813,7 +1814,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
             <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
           </div>
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
-          <div class="map-legend"><span><i class="entity-dot"></i>Entidad ubicada</span><span><i class="fallback-dot"></i>Ubicación municipal</span></div>
+          <div class="map-legend"><span><i class="entity-dot"></i>Entidad ubicada</span><span><i class="fallback-dot"></i>Ubicación municipal estimada</span></div>
         </div>
         <aside class="card pad">
           <h2>Estructuras destacadas</h2>
@@ -1853,9 +1854,9 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       const markerIcon = (isFallback) => L.divIcon({{
         className: '',
         html: `<span class="nae-marker ${{isFallback ? 'fallback' : ''}}"></span>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        popupAnchor: [0, -10]
+        iconSize: [30, 38],
+        iconAnchor: [12, 24],
+        popupAnchor: [0, -28]
       }});
 
       supportEntities.forEach((entity) => {{
