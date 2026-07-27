@@ -27,6 +27,35 @@ sudo -u postgres psql -d nae -f sql/007_create_geocoding_layer.sql
 sudo systemctl restart nae-api
 ```
 
+## Ejecutar geocodificación automática inicial
+
+Primero probar sin escribir:
+
+```bash
+cd /srv/nae/nae-api-platform/nae-platform-api
+python3 scripts/geocode_pending_entities.py --limit 5
+```
+
+Si los resultados tienen sentido, ejecutar guardando:
+
+```bash
+python3 scripts/geocode_pending_entities.py --limit 20 --apply
+sudo systemctl restart nae-api
+```
+
+El script usa Nominatim/OpenStreetMap con baja frecuencia entre consultas. No debe ejecutarse como carga masiva agresiva. Para más volumen se debe usar un proveedor contratado, una instancia propia de Nominatim o una fuente institucional.
+
+Parámetros útiles:
+
+```bash
+python3 scripts/geocode_pending_entities.py --limit 50 --delay 1.5 --min-confidence 0.70 --apply
+```
+
+- `--limit`: cantidad de entidades pendientes a procesar.
+- `--delay`: segundos entre consultas.
+- `--min-confidence`: confianza mínima para dejar el resultado como `geocodificada`.
+- `--apply`: guarda en la BD; sin este parámetro solo muestra resultados.
+
 ## Consultar entidades sin coordenada exacta
 
 ```sql
