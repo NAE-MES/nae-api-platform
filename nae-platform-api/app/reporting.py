@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from io import StringIO
 from urllib.parse import urlencode
 from html import escape
@@ -9,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
-from app.cuba_geo import CUBA_GEO, get_coordinates
+from app.cuba_geo import get_coordinates
 from app.database import SessionLocal
 
 
@@ -1690,35 +1691,25 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     else:
         featured_items = "<li><strong>Sin entidades visibles</strong><br />Aún no hay registros para los filtros seleccionados.</li>"
 
-    def project_xy(lat: float, lng: float) -> tuple[float, float]:
-        min_lng, max_lng = -85.2, -73.8
-        min_lat, max_lat = 19.55, 23.45
-        x = 54 + ((float(lng) - min_lng) / (max_lng - min_lng)) * 792
-        y = 326 - ((float(lat) - min_lat) / (max_lat - min_lat)) * 248
-        return max(26, min(874, x)), max(42, min(360, y))
-
-    municipality_points = []
-    for province_name, municipalities in CUBA_GEO.items():
-        for item in municipalities:
-            x, y = project_xy(float(item["lat"]), float(item["lng"]))
-            title = escape(f"{item['nombre']}, {province_name}")
-            municipality_points.append(f'<circle class="map-town" cx="{x:.1f}" cy="{y:.1f}" r="2.6"><title>{title}</title></circle>')
-
-    entity_points = []
-    for row in rows[:120]:
+    map_entities = []
+    for row in rows:
         lat = row.get("lat")
         lng = row.get("lng")
         if lat is None or lng is None:
             continue
-        x, y = project_xy(float(lat), float(lng))
-        title = escape(
-            f"{row.get('entidad_nombre') or 'Sin nombre'} - {row.get('municipio') or 'Sin municipio'}, {row.get('provincia') or 'Sin provincia'}"
-        )
-        entity_points.append(f'<circle class="map-entity" cx="{x:.1f}" cy="{y:.1f}" r="7.5"><title>{title}</title></circle>')
-
-    municipality_layer = "".join(municipality_points)
-    entity_layer = "".join(entity_points)
-    legend_text = "Entidades encuestadas" if entity_layer else "Base municipal de Cuba"
+        map_entities.append({
+            "id": row.get("operational_respuesta_id"),
+            "name": row.get("entidad_nombre") or "Sin nombre",
+            "type": row.get("tipo_estructura_apoyo") or "Sin tipo",
+            "province": row.get("provincia") or "Sin provincia",
+            "municipality": row.get("municipio") or "Sin municipio",
+            "coverage": row.get("cobertura_principal") or "Sin dato",
+            "services": row.get("servicios") or "Sin servicios registrados",
+            "lat": float(lat),
+            "lng": float(lng),
+            "source": "municipio",
+        })
+    map_entities_json = json.dumps(map_entities, ensure_ascii=False).replace("</", "<\\/")
 
     entity_cards = []
     for row in rows:
@@ -1748,6 +1739,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NAE Platform - Mapa de apoyo</title>
+    <link rel="stylesheet" href="/prototype-assets/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/prototype-assets/styles.css" />
     <style>
       .support-filters {{ margin-bottom: 18px; }}
@@ -1755,23 +1747,23 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; }}
       .support-item p {{ margin-bottom: 6px; }}
-      .map-summary {{ position: absolute; right: 18px; bottom: 18px; display: grid; gap: 8px; width: min(240px, calc(100% - 36px)); }}
-      .map-summary .metric {{ padding: 12px; background: rgba(255,255,255,.94); }}
-      .cuba-map {{ min-height: 460px; padding: 18px; }}
-      .cuba-svg {{ width: 100%; height: min(56vw, 460px); min-height: 320px; display: block; }}
-      .map-water {{ fill: #edf6fb; stroke: #d7e4ec; stroke-width: 1; }}
-      .map-guide {{ fill: none; stroke: rgba(15,111,166,.22); stroke-width: 30; stroke-linecap: round; stroke-linejoin: round; }}
-      .map-town {{ fill: #9eb5c8; opacity: .68; }}
-      .map-town:hover {{ fill: #64748b; opacity: 1; }}
-      .map-entity {{ fill: #0f6fa6; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 7px 10px rgba(15, 23, 42, .25)); }}
-      .map-entity:hover {{ fill: #20d79f; }}
-      .map-label {{ fill: #627386; font-size: 13px; font-weight: 800; letter-spacing: 0; }}
-      .map-legend {{ position: absolute; left: 22px; bottom: 22px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 2; }}
-      .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.92); color: #435466; font-size: 12px; font-weight: 800; }}
-      .town-dot, .entity-dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; }}
-      .town-dot {{ background: #9eb5c8; }}
-      .entity-dot {{ background: #0f6fa6; box-shadow: 0 0 0 3px rgba(15,111,166,.16); }}
+      .leaflet-panel {{ position: relative; min-height: 560px; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #eaf3f8; box-shadow: var(--shadow); }}
+      #support-map {{ width: 100%; height: 560px; min-height: 420px; }}
+      .map-caption {{ position: absolute; left: 18px; top: 18px; z-index: 500; max-width: min(360px, calc(100% - 36px)); border: 1px solid rgba(217,225,232,.92); border-radius: 8px; background: rgba(255,255,255,.94); padding: 13px 14px; box-shadow: 0 10px 28px rgba(17,37,54,.12); }}
+      .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
+      .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
+      .map-legend {{ position: absolute; left: 18px; bottom: 18px; z-index: 500; display: flex; flex-wrap: wrap; gap: 8px; }}
+      .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); color: #435466; font-size: 12px; font-weight: 800; }}
+      .entity-dot {{ width: 11px; height: 11px; border-radius: 999px; display: inline-block; background: #0f6fa6; box-shadow: 0 0 0 3px rgba(15,111,166,.16); }}
+      .fallback-dot {{ width: 11px; height: 11px; border-radius: 999px; display: inline-block; background: #b8871b; box-shadow: 0 0 0 3px rgba(184,135,27,.16); }}
+      .nae-marker {{ width: 18px; height: 18px; border-radius: 999px; background: #0f6fa6; border: 3px solid #fff; box-shadow: 0 7px 16px rgba(15,23,42,.28), 0 0 0 5px rgba(15,111,166,.18); }}
+      .nae-marker.fallback {{ background: #b8871b; }}
+      .leaflet-popup-content {{ margin: 12px 14px; min-width: 230px; }}
+      .leaflet-popup-content strong {{ color: var(--nae-navy); font-size: 14px; }}
+      .leaflet-popup-content p {{ margin: 6px 0 0; color: #435466; font-size: 12px; }}
+      .leaflet-container {{ font-family: Arial, Helvetica, sans-serif; }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} }}
+      @media (max-width: 720px) {{ .leaflet-panel, #support-map {{ min-height: 460px; height: 460px; }} .map-caption {{ position: relative; left: auto; top: auto; margin: 12px; max-width: none; }} .map-legend {{ left: 12px; bottom: 12px; }} }}
     </style>
   </head>
   <body>
@@ -1813,18 +1805,10 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       </section>
 
       <section class="map-shell">
-        <div class="cuba-map">
-          <svg class="cuba-svg" viewBox="0 0 900 420" role="img" aria-label="Mapa municipal de Cuba con estructuras de apoyo identificadas">
-            <rect class="map-water" x="0" y="0" width="900" height="420" rx="16" />
-            <path class="map-guide" d="M38 330 C150 250 250 252 362 258 C488 264 596 208 724 218 C790 224 834 204 872 184" />
-            <g class="municipality-layer">{municipality_layer}</g>
-            <g class="entity-layer">{entity_layer}</g>
-            <text class="map-label west" x="72" y="374">Occidente</text>
-            <text class="map-label center" x="415" y="374">Centro</text>
-            <text class="map-label east" x="760" y="374">Oriente</text>
-          </svg>
-          <div class="map-legend"><span><i class="town-dot"></i>Municipios</span><span><i class="entity-dot"></i>{legend_text}</span></div>
-          <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Los puntos se ubican por municipio; la dirección exacta se podrá geocodificar en una fase posterior.</p></div>
+        <div class="leaflet-panel">
+          <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
+          <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Mapa interactivo con ubicación por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p></div>
+          <div class="map-legend"><span><i class="entity-dot"></i>Entidad ubicada</span><span><i class="fallback-dot"></i>Ubicación municipal</span></div>
         </div>
         <aside class="card pad">
           <h2>Estructuras destacadas</h2>
@@ -1839,6 +1823,56 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       <img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" />
       <div class="footer-text">Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.</div>
     </footer>
+    <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
+    <script>
+      const supportEntities = {map_entities_json};
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({{
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }}[char]));
+      const map = L.map('support-map', {{
+        scrollWheelZoom: false,
+        zoomControl: true
+      }}).setView([21.85, -79.55], 6);
+
+      L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap'
+      }}).addTo(map);
+
+      const bounds = [];
+      const markerLayer = L.layerGroup().addTo(map);
+      const markerIcon = (isFallback) => L.divIcon({{
+        className: '',
+        html: `<span class="nae-marker ${{isFallback ? 'fallback' : ''}}"></span>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -10]
+      }});
+
+      supportEntities.forEach((entity) => {{
+        const marker = L.marker([entity.lat, entity.lng], {{
+          icon: markerIcon(entity.source === 'municipio')
+        }}).bindPopup(`
+          <strong>${{escapeHtml(entity.name)}}</strong>
+          <p>${{escapeHtml(entity.type)}}</p>
+          <p>${{escapeHtml(entity.municipality)}}, ${{escapeHtml(entity.province)}}</p>
+          <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
+          <p><b>Servicios:</b> ${{escapeHtml(entity.services)}}</p>
+        `);
+        marker.addTo(markerLayer);
+        bounds.push([entity.lat, entity.lng]);
+      }});
+
+      if (bounds.length > 0) {{
+        map.fitBounds(bounds, {{ padding: [42, 42], maxZoom: 9 }});
+      }} else {{
+        map.setView([21.85, -79.55], 6);
+      }}
+    </script>
   </body>
 </html>
     """
