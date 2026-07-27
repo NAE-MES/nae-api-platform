@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
-from app.cuba_geo import get_coordinates
+from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 
 
@@ -1690,25 +1690,35 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     else:
         featured_items = "<li><strong>Sin entidades visibles</strong><br />Aún no hay registros para los filtros seleccionados.</li>"
 
-    def project_pin(row: Dict[str, Any]) -> Optional[str]:
+    def project_xy(lat: float, lng: float) -> tuple[float, float]:
+        min_lng, max_lng = -85.2, -73.8
+        min_lat, max_lat = 19.55, 23.45
+        x = 54 + ((float(lng) - min_lng) / (max_lng - min_lng)) * 792
+        y = 326 - ((float(lat) - min_lat) / (max_lat - min_lat)) * 248
+        return max(26, min(874, x)), max(42, min(360, y))
+
+    municipality_points = []
+    for province_name, municipalities in CUBA_GEO.items():
+        for item in municipalities:
+            x, y = project_xy(float(item["lat"]), float(item["lng"]))
+            title = escape(f"{item['nombre']}, {province_name}")
+            municipality_points.append(f'<circle class="map-town" cx="{x:.1f}" cy="{y:.1f}" r="2.6"><title>{title}</title></circle>')
+
+    entity_points = []
+    for row in rows[:120]:
         lat = row.get("lat")
         lng = row.get("lng")
         if lat is None or lng is None:
-            return None
-        min_lng, max_lng = -85.2, -73.8
-        min_lat, max_lat = 19.6, 23.5
-        left = 9 + ((float(lng) - min_lng) / (max_lng - min_lng)) * 80
-        top = 68 - ((float(lat) - min_lat) / (max_lat - min_lat)) * 46
-        left = max(4, min(92, left))
-        top = max(18, min(76, top))
+            continue
+        x, y = project_xy(float(lat), float(lng))
         title = escape(
             f"{row.get('entidad_nombre') or 'Sin nombre'} - {row.get('municipio') or 'Sin municipio'}, {row.get('provincia') or 'Sin provincia'}"
         )
-        return f'<span class="pin dynamic" style="left:{left:.2f}%; top:{top:.2f}%;" title="{title}"></span>'
+        entity_points.append(f'<circle class="map-entity" cx="{x:.1f}" cy="{y:.1f}" r="7.5"><title>{title}</title></circle>')
 
-    dynamic_pins = "".join(pin for pin in (project_pin(row) for row in rows[:80]) if pin)
-    if not dynamic_pins:
-        dynamic_pins = '<span class="pin one"></span><span class="pin two"></span><span class="pin three"></span><span class="pin four"></span><span class="pin five"></span>'
+    municipality_layer = "".join(municipality_points)
+    entity_layer = "".join(entity_points)
+    legend_text = "Entidades encuestadas" if entity_layer else "Base municipal de Cuba"
 
     entity_cards = []
     for row in rows:
@@ -1747,7 +1757,20 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .support-item p {{ margin-bottom: 6px; }}
       .map-summary {{ position: absolute; right: 18px; bottom: 18px; display: grid; gap: 8px; width: min(240px, calc(100% - 36px)); }}
       .map-summary .metric {{ padding: 12px; background: rgba(255,255,255,.94); }}
-      .pin.dynamic {{ position: absolute; width: 13px; height: 13px; border-radius: 999px; background: #0f6fa6; border: 2px solid #fff; box-shadow: 0 0 0 5px rgba(15,111,166,.18), 0 6px 14px rgba(15,23,42,.22); }}
+      .cuba-map {{ min-height: 460px; padding: 18px; }}
+      .cuba-svg {{ width: 100%; height: min(56vw, 460px); min-height: 320px; display: block; }}
+      .map-water {{ fill: #edf6fb; stroke: #d7e4ec; stroke-width: 1; }}
+      .map-guide {{ fill: none; stroke: rgba(15,111,166,.22); stroke-width: 30; stroke-linecap: round; stroke-linejoin: round; }}
+      .map-town {{ fill: #9eb5c8; opacity: .68; }}
+      .map-town:hover {{ fill: #64748b; opacity: 1; }}
+      .map-entity {{ fill: #0f6fa6; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 7px 10px rgba(15, 23, 42, .25)); }}
+      .map-entity:hover {{ fill: #20d79f; }}
+      .map-label {{ fill: #627386; font-size: 13px; font-weight: 800; letter-spacing: 0; }}
+      .map-legend {{ position: absolute; left: 22px; bottom: 22px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 2; }}
+      .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.92); color: #435466; font-size: 12px; font-weight: 800; }}
+      .town-dot, .entity-dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; }}
+      .town-dot {{ background: #9eb5c8; }}
+      .entity-dot {{ background: #0f6fa6; box-shadow: 0 0 0 3px rgba(15,111,166,.16); }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} }}
     </style>
   </head>
@@ -1791,19 +1814,17 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
 
       <section class="map-shell">
         <div class="cuba-map">
-          <svg class="cuba-svg" viewBox="0 0 900 420" role="img" aria-label="Mapa aproximado de Cuba">
-            <path class="sea-line" d="M65 235 C160 165 260 160 370 165 C520 171 650 120 815 155" />
-            <path class="cuba-shape" d="M70 236 C100 214 132 198 168 188 C208 177 254 177 303 184 C349 190 390 187 428 172 C462 159 496 143 532 139 C569 135 604 149 638 151 C676 153 713 132 756 128 C790 125 825 136 845 158 C817 170 783 174 746 173 C707 172 674 183 641 196 C603 211 560 211 519 202 C482 194 449 198 414 213 C377 229 338 236 294 232 C246 228 210 234 174 251 C136 268 100 264 70 236Z" />
-            <path class="isle isle-west" d="M104 288 C138 276 175 279 204 298 C170 311 133 310 104 288Z" />
-            <path class="isle isle-east" d="M810 205 C834 199 858 204 878 219 C850 226 829 224 810 205Z" />
-            <path class="province-line" d="M202 187 C210 205 210 223 205 242" />
-            <path class="province-line" d="M328 187 C335 201 333 218 326 232" />
-            <path class="province-line" d="M454 162 C462 176 462 191 454 207" />
-            <path class="province-line" d="M588 145 C594 162 593 181 584 200" />
-            <path class="province-line" d="M720 143 C724 154 723 166 718 177" />
+          <svg class="cuba-svg" viewBox="0 0 900 420" role="img" aria-label="Mapa municipal de Cuba con estructuras de apoyo identificadas">
+            <rect class="map-water" x="0" y="0" width="900" height="420" rx="16" />
+            <path class="map-guide" d="M38 330 C150 250 250 252 362 258 C488 264 596 208 724 218 C790 224 834 204 872 184" />
+            <g class="municipality-layer">{municipality_layer}</g>
+            <g class="entity-layer">{entity_layer}</g>
+            <text class="map-label west" x="72" y="374">Occidente</text>
+            <text class="map-label center" x="415" y="374">Centro</text>
+            <text class="map-label east" x="760" y="374">Oriente</text>
           </svg>
-          {dynamic_pins}
-          <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Registros procesados desde la encuesta aprobada de mapeo.</p></div>
+          <div class="map-legend"><span><i class="town-dot"></i>Municipios</span><span><i class="entity-dot"></i>{legend_text}</span></div>
+          <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Los puntos se ubican por municipio; la dirección exacta se podrá geocodificar en una fase posterior.</p></div>
         </div>
         <aside class="card pad">
           <h2>Estructuras destacadas</h2>
@@ -2240,21 +2261,56 @@ def _tile_rows(rows: List[Dict[str, Any]]) -> str:
 def _daily_chart(rows: List[Dict[str, Any]]) -> str:
     if not rows:
         return "<p class='empty'>Sin datos</p>"
-    max_total = max(int(row.get("total", 0) or 0) for row in rows) or 1
-    bars = []
-    for row in rows[-30:]:
+    series = rows[-30:]
+    totals = [int(row.get("total", 0) or 0) for row in series]
+    max_total = max(totals) or 1
+    width = 760
+    height = 220
+    pad_x = 42
+    pad_top = 24
+    pad_bottom = 44
+    chart_w = width - (pad_x * 2)
+    chart_h = height - pad_top - pad_bottom
+    count = len(series)
+
+    points = []
+    for index, row in enumerate(series):
+        x = pad_x + (chart_w * index / max(count - 1, 1))
+        y = pad_top + chart_h - ((int(row.get("total", 0) or 0) / max_total) * chart_h)
+        points.append((x, y, row))
+
+    line_points = " ".join(f"{x:.1f},{y:.1f}" for x, y, _ in points)
+    area_points = f"{pad_x},{height - pad_bottom} {line_points} {width - pad_x},{height - pad_bottom}"
+    markers = []
+    for x, y, row in points:
+        fecha = escape(str(row.get("fecha") or ""))
         total = int(row.get("total", 0) or 0)
-        height = max(10, int((total / max_total) * 120))
-        fecha = str(row.get("fecha") or "")
-        short_date = fecha[5:] if len(fecha) >= 10 else fecha
-        bars.append(f"""
-          <div class="day-column" title="{escape(fecha)}: {total} respuestas">
-            <div class="day-value">{total}</div>
-            <div class="day-track"><span class="day-bar" style="height:{height}px"></span></div>
-            <div class="day-label">{escape(short_date)}</div>
-          </div>
-        """)
-    return f"<div class='daily-chart'>{''.join(bars)}</div>"
+        markers.append(
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4.2"><title>{fecha}: {total} respuestas</title></circle>'
+        )
+
+    first_date = escape(str(series[0].get("fecha") or ""))
+    last_date = escape(str(series[-1].get("fecha") or ""))
+    total_period = sum(totals)
+    peak = max_total
+    return f"""
+      <div class="trend-chart">
+        <div class="trend-summary">
+          <div><span>Periodo</span><strong>{total_period}</strong><small>respuestas</small></div>
+          <div><span>Pico diario</span><strong>{peak}</strong><small>respuestas</small></div>
+        </div>
+        <svg class="trend-svg" viewBox="0 0 {width} {height}" role="img" aria-label="Tendencia diaria de respuestas enviadas">
+          <line class="axis" x1="{pad_x}" y1="{height - pad_bottom}" x2="{width - pad_x}" y2="{height - pad_bottom}" />
+          <line class="axis" x1="{pad_x}" y1="{pad_top}" x2="{pad_x}" y2="{height - pad_bottom}" />
+          <text class="axis-label" x="{pad_x}" y="{height - 14}" text-anchor="start">{first_date}</text>
+          <text class="axis-label" x="{width - pad_x}" y="{height - 14}" text-anchor="end">{last_date}</text>
+          <text class="axis-label" x="{pad_x - 10}" y="{pad_top + 4}" text-anchor="end">{peak}</text>
+          <polygon class="trend-area" points="{area_points}" />
+          <polyline class="trend-line" points="{line_points}" />
+          <g class="trend-points">{''.join(markers)}</g>
+        </svg>
+      </div>
+    """
 
 
 def render_dashboard_html(data: Dict[str, Any]) -> str:
@@ -2380,12 +2436,19 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .donut-legend {{ margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }}
         .donut-legend li {{ display: grid; grid-template-columns: 12px 36px minmax(0,1fr); gap: 8px; align-items: center; font-size: 13px; }}
         .donut-legend span {{ width: 12px; height: 12px; border-radius: 3px; }}
-        .daily-chart {{ min-height: 190px; display: flex; align-items: end; gap: 9px; overflow-x: auto; padding: 8px 4px 2px; }}
-        .day-column {{ min-width: 42px; display: grid; grid-template-rows: 18px 130px 18px; gap: 6px; align-items: end; text-align: center; color: var(--muted-strong); }}
-        .day-value {{ font-size: 11px; font-weight: 700; color: var(--accent-deep); }}
-        .day-track {{ height: 130px; display: flex; align-items: end; justify-content: center; border-bottom: 1px solid var(--line); }}
-        .day-bar {{ width: 18px; min-height: 10px; border-radius: 7px 7px 2px 2px; background: linear-gradient(180deg, #20d79f 0%, var(--accent) 100%); box-shadow: 0 6px 14px rgba(15, 111, 166, .18); }}
-        .day-label {{ font-size: 10px; color: var(--muted); white-space: nowrap; transform: rotate(-28deg); transform-origin: center top; }}
+        .trend-chart {{ display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; align-items: stretch; }}
+        .trend-summary {{ display: grid; gap: 10px; align-content: center; }}
+        .trend-summary div {{ min-height: 78px; border: 1px solid var(--line); border-radius: 8px; background: #fbfdff; padding: 12px; }}
+        .trend-summary span {{ display: block; color: var(--muted-strong); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
+        .trend-summary strong {{ display: inline-block; margin-top: 7px; color: var(--accent-deep); font-size: 30px; line-height: 1; }}
+        .trend-summary small {{ margin-left: 5px; color: var(--muted); font-size: 12px; }}
+        .trend-svg {{ width: 100%; min-height: 240px; display: block; }}
+        .axis {{ stroke: #c9d4e2; stroke-width: 1.2; }}
+        .axis-label {{ fill: var(--muted); font-size: 12px; }}
+        .trend-area {{ fill: rgba(15, 111, 166, .12); }}
+        .trend-line {{ fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }}
+        .trend-points circle {{ fill: #fff; stroke: var(--accent); stroke-width: 3; }}
+        .trend-points circle:hover {{ fill: var(--nae-teal, #20d79f); }}
         .tile-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }}
         .tile-row {{ min-height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfdff; }}
         .tile-row strong {{ display: block; color: var(--accent-deep); font-size: 22px; line-height: 1; }}
@@ -2442,4 +2505,5 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </html>
     """
     return html
+
 
