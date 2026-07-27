@@ -1747,23 +1747,25 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; }}
       .support-item p {{ margin-bottom: 6px; }}
-      .leaflet-panel {{ position: relative; min-height: 560px; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #eaf3f8; box-shadow: var(--shadow); }}
-      #support-map {{ width: 100%; height: 560px; min-height: 420px; }}
-      .map-caption {{ position: absolute; left: 18px; top: 18px; z-index: 500; max-width: min(360px, calc(100% - 36px)); border: 1px solid rgba(217,225,232,.92); border-radius: 8px; background: rgba(255,255,255,.94); padding: 13px 14px; box-shadow: 0 10px 28px rgba(17,37,54,.12); }}
+      .leaflet-panel {{ position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }}
+      .map-caption {{ display: flex; justify-content: space-between; gap: 18px; align-items: center; border-bottom: 1px solid var(--line); background: #fff; padding: 14px 16px; }}
       .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
+      .map-caption .map-note {{ max-width: 620px; }}
+      #support-map {{ width: 100%; height: 560px; min-height: 420px; background: #eaf3f8; }}
       .map-legend {{ position: absolute; left: 18px; bottom: 18px; z-index: 500; display: flex; flex-wrap: wrap; gap: 8px; }}
       .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); color: #435466; font-size: 12px; font-weight: 800; }}
       .entity-dot {{ width: 11px; height: 11px; border-radius: 999px; display: inline-block; background: #0f6fa6; box-shadow: 0 0 0 3px rgba(15,111,166,.16); }}
       .fallback-dot {{ width: 11px; height: 11px; border-radius: 999px; display: inline-block; background: #b8871b; box-shadow: 0 0 0 3px rgba(184,135,27,.16); }}
       .nae-marker {{ width: 18px; height: 18px; border-radius: 999px; background: #0f6fa6; border: 3px solid #fff; box-shadow: 0 7px 16px rgba(15,23,42,.28), 0 0 0 5px rgba(15,111,166,.18); }}
       .nae-marker.fallback {{ background: #b8871b; }}
-      .leaflet-popup-content {{ margin: 12px 14px; min-width: 230px; }}
+      .leaflet-popup-content {{ margin: 12px 14px; width: min(280px, 72vw) !important; max-height: 220px; overflow-y: auto; }}
       .leaflet-popup-content strong {{ color: var(--nae-navy); font-size: 14px; }}
       .leaflet-popup-content p {{ margin: 6px 0 0; color: #435466; font-size: 12px; }}
+      .leaflet-popup-content .popup-services {{ max-height: 70px; overflow-y: auto; padding-right: 4px; }}
       .leaflet-container {{ font-family: Arial, Helvetica, sans-serif; }}
-      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} }}
-      @media (max-width: 720px) {{ .leaflet-panel, #support-map {{ min-height: 460px; height: 460px; }} .map-caption {{ position: relative; left: auto; top: auto; margin: 12px; max-width: none; }} .map-legend {{ left: 12px; bottom: 12px; }} }}
+      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .map-caption {{ align-items: flex-start; flex-direction: column; }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .map-legend {{ left: 12px; bottom: 12px; }} }}
     </style>
   </head>
   <body>
@@ -1806,8 +1808,11 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
 
       <section class="map-shell">
         <div class="leaflet-panel">
+          <div class="map-caption">
+            <div><h3>{data.get('total', 0)} estructuras visibles</h3><p>Mapa interactivo de Cuba con las estructuras de apoyo identificadas.</p></div>
+            <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
+          </div>
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
-          <div class="map-caption"><h3>{data.get('total', 0)} estructuras visibles</h3><p>Mapa interactivo con ubicación por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p></div>
           <div class="map-legend"><span><i class="entity-dot"></i>Entidad ubicada</span><span><i class="fallback-dot"></i>Ubicación municipal</span></div>
         </div>
         <aside class="card pad">
@@ -1854,6 +1859,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       }});
 
       supportEntities.forEach((entity) => {{
+        const services = escapeHtml(entity.services);
         const marker = L.marker([entity.lat, entity.lng], {{
           icon: markerIcon(entity.source === 'municipio')
         }}).bindPopup(`
@@ -1861,14 +1867,14 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
           <p>${{escapeHtml(entity.type)}}</p>
           <p>${{escapeHtml(entity.municipality)}}, ${{escapeHtml(entity.province)}}</p>
           <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
-          <p><b>Servicios:</b> ${{escapeHtml(entity.services)}}</p>
+          <p class="popup-services"><b>Servicios:</b> ${{services}}</p>
         `);
         marker.addTo(markerLayer);
         bounds.push([entity.lat, entity.lng]);
       }});
 
-      if (bounds.length > 0) {{
-        map.fitBounds(bounds, {{ padding: [42, 42], maxZoom: 9 }});
+      if (bounds.length > 1) {{
+        map.fitBounds(bounds, {{ padding: [48, 48], maxZoom: 7 }});
       }} else {{
         map.setView([21.85, -79.55], 6);
       }}
