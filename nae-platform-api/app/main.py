@@ -77,7 +77,7 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
         'Prototipo institucional': 'Plataforma institucional',
         'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': 'Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.',
         'formulario pendiente de confirmación final': 'formulario aprobado',
-        'href="#"': 'href="/mapa-apoyo"' if filename == "encuesta.html" else 'href="#"',
+        'href="#"': 'href="https://forms.gle/R7DtU5N93iapC5nR6" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
     }
     for old, new in replacements.items():
         html = html.replace(old, new)
@@ -203,6 +203,8 @@ def panel_analitico(
     version_encuesta: Optional[str] = None,
     genero: Optional[str] = None,
     tema: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
 ):
     data = get_dashboard_data(
         limit=limit,
@@ -210,6 +212,8 @@ def panel_analitico(
         version_encuesta=version_encuesta,
         genero=genero,
         tema=tema,
+        tipo=tipo,
+        servicio=servicio,
     )
     data["filters"]["limit"] = limit
     return render_dashboard_html(data)
@@ -222,6 +226,8 @@ def panel_dashboard(
     version_encuesta: Optional[str] = None,
     genero: Optional[str] = None,
     tema: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
 ):
     return panel_analitico(
         limit=limit,
@@ -229,6 +235,8 @@ def panel_dashboard(
         version_encuesta=version_encuesta,
         genero=genero,
         tema=tema,
+        tipo=tipo,
+        servicio=servicio,
     )
 
 @app.get("/respuestas/{respuesta_id}", response_class=HTMLResponse)

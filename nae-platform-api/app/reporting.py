@@ -1787,3 +1787,584 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
   </body>
 </html>
     """
+
+
+def _mapeo_filters_clause(
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
+) -> tuple[str, Dict[str, Any]]:
+    clauses = ["COALESCE(f.version_encuesta, '1.0') = 'mapeo_estructuras_v1'"]
+    params: Dict[str, Any] = {}
+
+    if provincia:
+        clauses.append("t.provincia_nombre = :provincia")
+        params["provincia"] = provincia
+
+    if version_encuesta:
+        clauses.append("COALESCE(f.version_encuesta, '1.0') = :version_encuesta")
+        params["version_encuesta"] = version_encuesta
+
+    if tipo:
+        clauses.append("COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion) = :tipo")
+        params["tipo"] = tipo
+
+    if servicio:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM operational.respuestas_mapeo_servicios sf
+                WHERE sf.operational_respuesta_id = o.id
+                  AND sf.servicio = :servicio
+            )
+            """
+        )
+        params["servicio"] = servicio
+
+    return " AND ".join(clauses), params
+
+
+def _fetch_mapeo_lookup_options() -> Dict[str, List[str]]:
+    db = SessionLocal()
+    try:
+        provincias = db.execute(
+            text("""
+                SELECT DISTINCT t.provincia_nombre
+                FROM analytics.f_respuestas_encuesta f
+                JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+                WHERE COALESCE(f.version_encuesta, '1.0') = 'mapeo_estructuras_v1'
+                ORDER BY t.provincia_nombre
+            """)
+        ).scalars().all()
+
+        versiones = db.execute(
+            text("""
+                SELECT DISTINCT COALESCE(version_encuesta, '1.0') AS version_encuesta
+                FROM analytics.f_respuestas_encuesta
+                ORDER BY version_encuesta DESC
+            """)
+        ).scalars().all()
+
+        tipos = db.execute(
+            text("""
+                SELECT DISTINCT COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion) AS tipo
+                FROM operational.respuestas_encuesta o
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+                WHERE COALESCE(o.version_encuesta, '') = 'mapeo_estructuras_v1'
+                  AND COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion) IS NOT NULL
+                ORDER BY tipo
+            """)
+        ).scalars().all()
+
+        servicios = db.execute(
+            text("""
+                SELECT DISTINCT servicio
+                FROM operational.respuestas_mapeo_servicios
+                ORDER BY servicio
+            """)
+        ).scalars().all()
+
+        return {
+            "provincias": list(provincias),
+            "versiones": list(versiones),
+            "tipos": list(tipos),
+            "servicios": list(servicios),
+        }
+    except ProgrammingError:
+        db.rollback()
+        return {"provincias": [], "versiones": [], "tipos": [], "servicios": []}
+    finally:
+        db.close()
+
+
+def get_dashboard_data(
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
+) -> Dict[str, Any]:
+    db = SessionLocal()
+    try:
+        where_clause, params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
+
+        total = db.execute(
+            text(f"""
+                SELECT COUNT(*)::int
+                FROM analytics.f_respuestas_encuesta f
+                JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+                JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+                WHERE {where_clause}
+            """),
+            params,
+        ).scalar_one()
+
+        kpis = db.execute(
+            text(f"""
+                SELECT COUNT(DISTINCT t.provincia_nombre)::int AS provincias,
+                       COUNT(DISTINCT t.municipio_nombre)::int AS municipios,
+                       COUNT(DISTINCT COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion))::int AS tipos_estructura,
+                       COUNT(*) FILTER (WHERE NULLIF(TRIM(COALESCE(m.telefonos, m.correo_electronico, '')), '') IS NOT NULL)::int AS con_contacto,
+                       COUNT(*) FILTER (WHERE COALESCE(m.capacidad_actualizar_mapeo, '') ILIKE 'Sí%%')::int AS actualizan_mapeo,
+                       COUNT(*) FILTER (WHERE COALESCE(m.capacidad_ampliar_cobertura, '') ILIKE 'Sí%%')::int AS amplian_cobertura
+                FROM analytics.f_respuestas_encuesta f
+                JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+                JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+                WHERE {where_clause}
+            """),
+            params,
+        ).mappings().one()
+
+        def rows(sql: str, extra: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+            return [dict(row) for row in db.execute(text(sql), {**params, **(extra or {})}).mappings().all()]
+
+        por_estado = rows(f"""
+            SELECT e.estado_validacion AS label, COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_estado_validacion e ON e.id = f.estado_validacion_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY e.estado_validacion
+            ORDER BY total DESC, label ASC
+        """)
+
+        por_provincia = rows(f"""
+            SELECT t.provincia_nombre AS provincia,
+                   t.municipio_nombre AS municipio,
+                   COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY t.provincia_nombre, t.municipio_nombre
+            ORDER BY total DESC, provincia ASC, municipio ASC
+        """)
+
+        tipos_estructura = rows(f"""
+            SELECT COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion, 'Sin dato') AS label,
+                   COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion, 'Sin dato')
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+        cobertura = rows(f"""
+            SELECT COALESCE(m.cobertura_principal, o.ambito_actuacion, 'Sin dato') AS label,
+                   COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY COALESCE(m.cobertura_principal, o.ambito_actuacion, 'Sin dato')
+            ORDER BY total DESC, label ASC
+        """)
+
+        modalidad_atencion = rows(f"""
+            SELECT COALESCE(m.modalidad_atencion, 'Sin dato') AS label,
+                   COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY COALESCE(m.modalidad_atencion, 'Sin dato')
+            ORDER BY total DESC, label ASC
+        """)
+
+        servicios_ofrecidos = rows(f"""
+            SELECT s.servicio AS label, COUNT(*)::int AS total
+            FROM operational.respuestas_mapeo_servicios s
+            JOIN operational.respuestas_encuesta o ON o.id = s.operational_respuesta_id
+            JOIN analytics.f_respuestas_encuesta f ON f.operational_respuesta_id = o.id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause} AND s.ofrece_actualmente IS TRUE
+            GROUP BY s.servicio
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+        servicios_fortalecer = rows(f"""
+            SELECT s.servicio AS label, COUNT(*)::int AS total
+            FROM operational.respuestas_mapeo_servicios s
+            JOIN operational.respuestas_encuesta o ON o.id = s.operational_respuesta_id
+            JOIN analytics.f_respuestas_encuesta f ON f.operational_respuesta_id = o.id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause} AND s.requiere_fortalecer IS TRUE
+            GROUP BY s.servicio
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+        tipos_nae = rows(f"""
+            SELECT tn.tipo_nae AS label, COUNT(*)::int AS total
+            FROM operational.respuestas_mapeo_tipos_nae tn
+            JOIN operational.respuestas_encuesta o ON o.id = tn.operational_respuesta_id
+            JOIN analytics.f_respuestas_encuesta f ON f.operational_respuesta_id = o.id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY tn.tipo_nae
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+        capacidades = rows(f"""
+            SELECT ct.capacidad_tecnica AS label, COUNT(*)::int AS total
+            FROM operational.respuestas_mapeo_capacidades_tecnicas ct
+            JOIN operational.respuestas_encuesta o ON o.id = ct.operational_respuesta_id
+            JOIN analytics.f_respuestas_encuesta f ON f.operational_respuesta_id = o.id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY ct.capacidad_tecnica
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+        limitaciones = rows(f"""
+            SELECT rl.limitacion AS label, COUNT(*)::int AS total
+            FROM operational.respuestas_limitaciones rl
+            JOIN operational.respuestas_encuesta o ON o.id = rl.operational_respuesta_id
+            JOIN analytics.f_respuestas_encuesta f ON f.operational_respuesta_id = o.id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY rl.limitacion
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+        conectividad = rows(f"""
+            SELECT COALESCE(m.condiciones_conectividad, 'Sin dato') AS label, COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY COALESCE(m.condiciones_conectividad, 'Sin dato')
+            ORDER BY total DESC, label ASC
+        """)
+
+        sostenibilidad = rows(f"""
+            SELECT COALESCE(m.capacidad_sostener_servicios, 'Sin dato') AS label, COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY COALESCE(m.capacidad_sostener_servicios, 'Sin dato')
+            ORDER BY total DESC, label ASC
+        """)
+
+        actualizacion_mapa = rows(f"""
+            SELECT COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato') AS label, COUNT(*)::int AS total
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            GROUP BY COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato')
+            ORDER BY total DESC, label ASC
+        """)
+
+        ultimas_respuestas = rows(f"""
+            SELECT f.id,
+                   COALESCE(f.version_encuesta, '1.0') AS version_encuesta,
+                   f.fecha_respuesta,
+                   t.provincia_nombre,
+                   t.municipio_nombre,
+                   COALESCE(m.entidad_nombre, o.nombre_institucion) AS nombre_institucion,
+                   COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion) AS tipo_estructura,
+                   COALESCE(m.cobertura_principal, o.ambito_actuacion) AS cobertura,
+                   COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato') AS actualizacion_mapa,
+                   e.estado_validacion
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            JOIN analytics.dim_estado_validacion e ON e.id = f.estado_validacion_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {where_clause}
+            ORDER BY f.id DESC
+            LIMIT :limit
+        """, {"limit": limit})
+
+        return {
+            "filters": {
+                "provincia": provincia,
+                "version_encuesta": version_encuesta,
+                "genero": genero,
+                "tema": tema,
+                "tipo": tipo,
+                "servicio": servicio,
+            },
+            "lookups": _fetch_mapeo_lookup_options(),
+            "total_respuestas": int(total),
+            "kpis": dict(kpis),
+            "por_estado": por_estado,
+            "por_provincia": por_provincia,
+            "tipos_estructura": tipos_estructura,
+            "cobertura": cobertura,
+            "modalidad_atencion": modalidad_atencion,
+            "servicios_ofrecidos": servicios_ofrecidos,
+            "servicios_fortalecer": servicios_fortalecer,
+            "tipos_nae": tipos_nae,
+            "capacidades": capacidades,
+            "limitaciones": limitaciones,
+            "conectividad": conectividad,
+            "sostenibilidad": sostenibilidad,
+            "actualizacion_mapa": actualizacion_mapa,
+            "instituciones": [{"label": row["nombre_institucion"], "total": 1} for row in ultimas_respuestas[:10]],
+            "temas_formacion": servicios_fortalecer,
+            "por_genero": tipos_estructura,
+            "por_nivel_instruccion": cobertura,
+            "ultimas_respuestas": ultimas_respuestas,
+        }
+    except ProgrammingError:
+        db.rollback()
+        return {
+            "filters": {"provincia": provincia, "version_encuesta": version_encuesta, "genero": genero, "tema": tema, "tipo": tipo, "servicio": servicio},
+            "lookups": {"provincias": [], "versiones": [], "tipos": [], "servicios": []},
+            "total_respuestas": 0,
+            "kpis": {"provincias": 0, "municipios": 0, "tipos_estructura": 0, "con_contacto": 0, "actualizan_mapeo": 0, "amplian_cobertura": 0},
+            "por_estado": [], "por_provincia": [], "tipos_estructura": [], "cobertura": [], "modalidad_atencion": [],
+            "servicios_ofrecidos": [], "servicios_fortalecer": [], "tipos_nae": [], "capacidades": [], "limitaciones": [],
+            "conectividad": [], "sostenibilidad": [], "actualizacion_mapa": [], "instituciones": [], "temas_formacion": [],
+            "por_genero": [], "por_nivel_instruccion": [], "ultimas_respuestas": [],
+        }
+    finally:
+        db.close()
+
+
+def _donut_chart(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "<p class='empty'>Sin datos</p>"
+    colors = ["#0f6fa6", "#20d79f", "#b8871b", "#b64b4b", "#64748b", "#7c3aed", "#0f766e"]
+    total = sum(int(row.get("total", 0) or 0) for row in rows) or 1
+    start = 0.0
+    segments = []
+    legend = []
+    for index, row in enumerate(rows[:7]):
+        value = int(row.get("total", 0) or 0)
+        end = start + (value / total) * 100
+        color = colors[index % len(colors)]
+        segments.append(f"{color} {start:.2f}% {end:.2f}%")
+        label = escape(str(row.get("label") or "Sin dato"))
+        legend.append(f"<li><span style='background:{color}'></span><strong>{value}</strong>{label}</li>")
+        start = end
+    return f"""
+      <div class="donut-wrap">
+        <div class="donut" style="background: conic-gradient({', '.join(segments)});"><span>{total}</span></div>
+        <ul class="donut-legend">{''.join(legend)}</ul>
+      </div>
+    """
+
+
+def _tile_rows(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "<p class='empty'>Sin datos</p>"
+    return "".join(
+        f"""
+        <div class="tile-row">
+          <strong>{escape(str(row.get('total') or 0))}</strong>
+          <span>{escape(str(row.get('label') or 'Sin dato'))}</span>
+        </div>
+        """
+        for row in rows[:8]
+    )
+
+
+def render_dashboard_html(data: Dict[str, Any]) -> str:
+    lookups = data["lookups"]
+    selected = data["filters"]
+    kpis = data.get("kpis", {})
+    estado_totals = {row.get("label"): row.get("total", 0) for row in data["por_estado"]}
+    validadas = estado_totals.get("validada", 0)
+    observaciones = estado_totals.get("con_observaciones", 0)
+    rechazadas = estado_totals.get("rechazada", 0)
+    export_params = {
+        key: value
+        for key, value in {
+            "provincia": selected.get("provincia"),
+            "version_encuesta": selected.get("version_encuesta"),
+            "tipo": selected.get("tipo"),
+            "servicio": selected.get("servicio"),
+            "limit": selected.get("limit") or 10,
+        }.items()
+        if value not in (None, "")
+    }
+    export_url = "/api/v1/resumen.csv"
+    if export_params:
+        export_url = f"{export_url}?{urlencode(export_params)}"
+
+    def option_list(values: List[str], selected_value: Optional[str]) -> str:
+        options = ['<option value="">Todos</option>']
+        for value in values:
+            mark = " selected" if value == selected_value else ""
+            options.append(f"<option value='{escape(str(value))}'{mark}>{escape(str(value))}</option>")
+        return "".join(options)
+
+    filters_html = f"""
+        <form class="filters" method="get" action="/analitica">
+          <div class="filter-title">
+            <strong>Filtros</strong>
+            <span>Lectura operativa del mapeo de estructuras de apoyo</span>
+          </div>
+          <label><span>Provincia</span><select name="provincia">{option_list(lookups.get('provincias', []), selected.get('provincia'))}</select></label>
+          <label><span>Versión</span><select name="version_encuesta">{option_list(lookups.get('versiones', []), selected.get('version_encuesta'))}</select></label>
+          <label><span>Tipo estructura</span><select name="tipo">{option_list(lookups.get('tipos', []), selected.get('tipo'))}</select></label>
+          <label><span>Servicio</span><select name="servicio">{option_list(lookups.get('servicios', []), selected.get('servicio'))}</select></label>
+          <label><span>Límite</span><input type="number" name="limit" min="1" max="50" value="{escape(str(selected.get('limit') or 10))}" /></label>
+          <div class="filter-actions">
+            <button type="submit">Aplicar</button>
+            <a href="/analitica">Limpiar</a>
+            <a class="export-inline" href="{escape(export_url)}">Exportar CSV</a>
+          </div>
+        </form>
+    """
+
+    metrics = f"""
+        <section class="kpis">
+          <div class="kpi primary"><span>Entidades mapeadas</span><strong>{data['total_respuestas']}</strong><small>Registros visibles de la encuesta aprobada</small></div>
+          <div class="kpi"><span>Provincias</span><strong>{kpis.get('provincias', 0)}</strong><small>Cobertura territorial capturada</small></div>
+          <div class="kpi"><span>Municipios</span><strong>{kpis.get('municipios', 0)}</strong><small>Ubicaciones con estructuras reportadas</small></div>
+          <div class="kpi"><span>Tipos de estructura</span><strong>{kpis.get('tipos_estructura', 0)}</strong><small>Diversidad institucional registrada</small></div>
+          <div class="kpi"><span>Con contacto</span><strong>{kpis.get('con_contacto', 0)}</strong><small>Teléfono o correo disponible</small></div>
+          <div class="kpi"><span>Actualizan mapa</span><strong>{kpis.get('actualizan_mapeo', 0)}</strong><small>Capacidad declarada de actualización</small></div>
+          <div class="kpi"><span>Amplían cobertura</span><strong>{kpis.get('amplian_cobertura', 0)}</strong><small>Posibilidad de atender otros territorios</small></div>
+          <div class="kpi attention"><span>Observaciones</span><strong>{observaciones}</strong><small>Revisar calidad del dato</small></div>
+        </section>
+    """
+
+    html = f"""
+    <!doctype html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>NAE Platform - Analítica</title>
+      <style>
+        :root {{
+          --bg: #f4f6f9; --panel: #ffffff; --panel-soft: #f8fafc; --line: #d8dee8; --line-strong: #b8c2d1;
+          --text: #172033; --muted: #66758a; --muted-strong: #46566f; --accent: #0f6fa6; --accent-deep: #003247;
+          --accent-soft: #e8f3f8; --ok: #087456; --warn: #b8871b; --danger: #b64b4b;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }}
+        header {{ background: var(--accent-deep); color: #fff; border-bottom: 1px solid #06284f; }}
+        .shell {{ width: min(1440px, 100%); margin: 0 auto; padding: 0 24px; }}
+        .topbar {{ display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 72px; }}
+        .brand {{ display: flex; align-items: center; gap: 12px; min-width: 0; }}
+        .brand-mark {{ width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; background: #ffffff; color: var(--accent-deep); font-weight: 700; flex: 0 0 auto; }}
+        .brand h1 {{ margin: 0; font-size: 20px; line-height: 1.1; }}
+        .brand p {{ margin: 3px 0 0; color: #c9d9ef; font-size: 13px; }}
+        .header-meta {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
+        .status-pill {{ display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; color: #eaf2ff; font-size: 12px; background: rgba(255,255,255,.08); white-space: nowrap; }}
+        main {{ padding: 22px 0 34px; }}
+        .layout {{ display: grid; gap: 16px; }}
+        .filters {{ display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(5, minmax(120px, 1fr)) auto; gap: 10px; align-items: end; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }}
+        .filter-title {{ display: grid; gap: 2px; align-self: center; }}
+        .filter-title strong {{ font-size: 14px; }} .filter-title span {{ color: var(--muted); font-size: 12px; }}
+        .filters label {{ display: grid; gap: 5px; min-width: 0; }}
+        .filters label span {{ color: var(--muted-strong); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
+        .filters select, .filters input {{ width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--text); font-size: 13px; }}
+        .filter-actions {{ display: flex; gap: 8px; align-items: end; white-space: nowrap; }}
+        .filter-actions button, .filter-actions a {{ display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; border: 1px solid var(--line-strong); cursor: pointer; }}
+        .filter-actions button {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+        .filter-actions a {{ color: var(--text); background: #fff; }}
+        .filter-actions .export-inline {{ background: var(--accent-soft); color: var(--accent-deep); border-color: #bfd5f6; }}
+        .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }}
+        .kpi, .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }}
+        .kpi {{ min-height: 112px; padding: 15px; display: grid; align-content: space-between; border-left: 4px solid #9eb5d1; }}
+        .kpi.primary {{ border-left-color: var(--accent); }} .kpi.attention {{ border-left-color: var(--warn); }} .kpi.danger {{ border-left-color: var(--danger); }}
+        .kpi span {{ color: var(--muted-strong); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
+        .kpi strong {{ display: block; color: var(--text); font-size: 30px; line-height: 1; margin-top: 8px; }}
+        .kpi small {{ display: block; color: var(--muted); font-size: 12px; margin-top: 8px; }}
+        .grid {{ display: grid; grid-template-columns: 1fr; gap: 18px; }}
+        @media(min-width: 1100px) {{ .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+        .card {{ padding: 0; overflow: hidden; }}
+        .card-head {{ padding: 15px 16px 12px; border-bottom: 1px solid var(--line); background: var(--panel-soft); }}
+        .card-body {{ padding: 14px 16px 16px; }}
+        .card h2 {{ margin: 3px 0 0; font-size: 16px; line-height: 1.25; }}
+        .section-lead {{ margin: 0; color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
+        .bar-row {{ display: grid; grid-template-columns: minmax(140px, 1.3fr) minmax(160px, 2fr) 48px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #edf1f6; }}
+        .bar-row:last-child {{ border-bottom: 0; }} .bar-label, .bar-value {{ font-size: 13px; }} .bar-value {{ text-align: right; color: var(--muted-strong); font-weight: 700; }}
+        .bar-track {{ height: 10px; background: #edf2f7; border-radius: 999px; overflow: hidden; }} .bar-fill {{ height: 100%; background: var(--accent); border-radius: 999px; }}
+        .donut-wrap {{ display: grid; grid-template-columns: 170px minmax(0,1fr); gap: 16px; align-items: center; }}
+        .donut {{ width: 156px; height: 156px; border-radius: 50%; display: grid; place-items: center; position: relative; }}
+        .donut::after {{ content: ''; position: absolute; inset: 32px; border-radius: 50%; background: #fff; }}
+        .donut span {{ position: relative; z-index: 1; font-size: 26px; font-weight: 800; color: var(--accent-deep); }}
+        .donut-legend {{ margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }}
+        .donut-legend li {{ display: grid; grid-template-columns: 12px 36px minmax(0,1fr); gap: 8px; align-items: center; font-size: 13px; }}
+        .donut-legend span {{ width: 12px; height: 12px; border-radius: 3px; }}
+        .tile-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }}
+        .tile-row {{ min-height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfdff; }}
+        .tile-row strong {{ display: block; color: var(--accent-deep); font-size: 22px; line-height: 1; }}
+        .tile-row span {{ display: block; margin-top: 8px; color: var(--muted-strong); font-size: 13px; }}
+        table {{ width: 100%; border-collapse: collapse; }} th, td {{ padding: 9px 10px; border-bottom: 1px solid #e4e9f0; text-align: left; font-size: 13px; vertical-align: top; }}
+        th {{ background: #f7f9fc; color: var(--muted-strong); font-size: 11px; text-transform: uppercase; }} tr:hover td {{ background: #fbfdff; }} td a {{ color: var(--accent); font-weight: 700; text-decoration: none; }}
+        .empty {{ color: var(--muted); margin: 0; }} .wide {{ grid-column: 1 / -1; }} .table-wrap {{ overflow-x: auto; }}
+        @media(max-width: 1180px) {{ .filters {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }} .filter-title, .filter-actions {{ grid-column: 1 / -1; }} .kpis {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+        @media(max-width: 720px) {{ .shell {{ padding: 0 14px; }} .topbar {{ align-items: flex-start; flex-direction: column; padding: 14px 0; }} main {{ padding: 16px 0 26px; }} .filters, .kpis, .tile-grid, .donut-wrap {{ grid-template-columns: 1fr; }} .filter-actions {{ flex-wrap: wrap; }} .filter-actions button, .filter-actions a {{ width: 100%; }} }}
+      </style>
+    </head>
+    <body>
+      <header>
+        <div class="shell">
+          <div class="topbar">
+            <div class="brand"><div class="brand-mark">NAE</div><div><h1>Analítica del mapeo</h1><p>Indicadores operativos de estructuras de apoyo a nuevos actores económicos.</p></div></div>
+            <div class="header-meta"><span class="status-pill">Encuesta mapeo v1</span><span class="status-pill">{data['total_respuestas']} entidades</span></div>
+          </div>
+        </div>
+      </header>
+      <main>
+        <div class="shell layout">
+          {filters_html}
+          {metrics}
+          <section class="grid">
+            <section class="card"><div class="card-head"><p class="section-lead">Calidad</p><h2>Estado de validación</h2></div><div class="card-body">{_donut_chart(data['por_estado'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Cobertura</p><h2>Tipos de estructura</h2></div><div class="card-body">{_donut_chart(data['tipos_estructura'])}</div></section>
+          </section>
+          <section class="grid">
+            <section class="card"><div class="card-head"><p class="section-lead">Territorio</p><h2>Provincias y municipios</h2></div><div class="card-body table-wrap">{_table(['provincia', 'municipio', 'total'], data['por_provincia'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Atención</p><h2>Cobertura principal</h2></div><div class="card-body">{_bar_rows(data['cobertura'])}</div></section>
+          </section>
+          <section class="grid">
+            <section class="card"><div class="card-head"><p class="section-lead">Servicios</p><h2>Servicios ofrecidos actualmente</h2></div><div class="card-body">{_bar_rows(data['servicios_ofrecidos'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Brechas</p><h2>Servicios que requieren fortalecimiento</h2></div><div class="card-body">{_bar_rows(data['servicios_fortalecer'])}</div></section>
+          </section>
+          <section class="grid">
+            <section class="card"><div class="card-head"><p class="section-lead">Beneficiarios</p><h2>Tipos de NAE atendidos</h2></div><div class="card-body tile-grid">{_tile_rows(data['tipos_nae'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Capacidades</p><h2>Capacidades técnicas disponibles</h2></div><div class="card-body tile-grid">{_tile_rows(data['capacidades'])}</div></section>
+          </section>
+          <section class="grid">
+            <section class="card"><div class="card-head"><p class="section-lead">Infraestructura</p><h2>Condiciones de conectividad</h2></div><div class="card-body">{_donut_chart(data['conectividad'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Continuidad</p><h2>Sostenibilidad de servicios</h2></div><div class="card-body">{_donut_chart(data['sostenibilidad'])}</div></section>
+          </section>
+          <section class="grid">
+            <section class="card"><div class="card-head"><p class="section-lead">Mapa</p><h2>Capacidad de actualizar información</h2></div><div class="card-body">{_bar_rows(data['actualizacion_mapa'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Riesgos</p><h2>Limitaciones reportadas</h2></div><div class="card-body">{_bar_rows(data['limitaciones'])}</div></section>
+          </section>
+          <section class="card wide"><div class="card-head"><p class="section-lead">Detalle</p><h2>Últimas entidades procesadas</h2></div><div class="card-body table-wrap">{_table_with_links(['id', 'fecha_respuesta', 'estado_validacion', 'provincia_nombre', 'municipio_nombre', 'nombre_institucion', 'tipo_estructura', 'cobertura', 'actualizacion_mapa'], data['ultimas_respuestas'], 'id', '/respuestas/')}</div></section>
+        </div>
+      </main>
+    </body>
+    </html>
+    """
+    return html

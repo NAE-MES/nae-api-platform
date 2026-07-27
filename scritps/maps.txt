@@ -1,0 +1,360 @@
+y este es el código HTML para poder crearlo en una web. Pásaselo a Denis, que él entiende más de eso. Yo soy aficionado
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa del Ecosistema de Emprendimiento - Cuba</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary: #cf142b; /* Rojo seleccionado como color primario */
+            --dark-blue: #002a83; 
+        }
+        body {
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .bg-primary { background-color: var(--primary); }
+        .text-primary { color: var(--primary); }
+        .text-blue-main { color: var(--dark-blue); }
+        
+        #map {
+            height: 550px;
+            width: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+        .card-hover:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .custom-tooltip {
+            background-color: white;
+            border: 1px solid var(--primary);
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-weight: bold;
+            color: var(--primary);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .tooltip-empty {
+            border: 1px solid #94a3b8;
+            color: #64748b;
+        }
+        /* Iconos de marcadores personalizados */
+        .marker-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.4);
+        }
+        .bg-empty { background-color: #94a3b8; } /* Gris para sin datos */
+        .bg-filled { background-color: var(--primary); } /* Rojo para con datos */
+
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1em;
+        }
+        .badge-need {
+            display: inline-block;
+            background-color: #fef2f2;
+            color: #991b1b;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-right: 4px;
+            margin-bottom: 4px;
+            border: 1px solid #fee2e2;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="bg-white shadow-md sticky top-0 z-[1000]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <div class="text-xl font-bold text-blue-main flex items-center">
+                        <i class="fas fa-map-marked-alt mr-2 text-primary"></i>
+                        <span>Cuba<span class="text-primary">Emprende</span></span>
+                    </div>
+                </div>
+                <div class="hidden md:flex space-x-6 text-sm text-gray-500 italic">
+                    Capacidades Municipales para Nuevos Actores Económicos
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Filtros -->
+            <aside class="lg:col-span-3 space-y-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-filter mr-2 text-primary"></i> Filtros
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Provincia</label>
+                            <select id="filter-provincia" onchange="updateMunicipios(); applyFilters();" class="w-full px-3 py-2 text-sm border rounded-lg outline-none bg-white focus:ring-2 focus:ring-red-100">
+                                <option value="">Todas las provincias</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Municipio</label>
+                            <select id="filter-municipio" onchange="applyFilters();" class="w-full px-3 py-2 text-sm border rounded-lg outline-none bg-white focus:ring-2 focus:ring-red-100">
+                                <option value="">Todos los municipios</option>
+                            </select>
+                        </div>
+
+                        <div class="pt-2 border-t mt-4">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo de Institución</label>
+                            <select id="filter-inst" onchange="applyFilters();" class="w-full px-3 py-2 text-sm border rounded-lg outline-none bg-white focus:ring-2 focus:ring-red-100">
+                                <option value="">Todas</option>
+                                <option value="Gobierno municipal">Gobierno municipal</option>
+                                <option value="Universidad o centro académico">Universidad / Academia</option>
+                                <option value="Joven Club">Joven Club</option>
+                            </select>
+                        </div>
+
+                        <button onclick="resetFilters()" class="w-full py-2 text-xs font-bold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition mt-4">
+                            Limpiar Selección
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                    <p class="text-xs text-red-700 leading-relaxed" id="stats">
+                        Cargando marcadores...
+                    </p>
+                    <div class="mt-2 flex items-center gap-4 text-[10px] text-red-800">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-primary"></span> Con respuestas</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span> Pendientes</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Mapa y Contenido -->
+            <div class="lg:col-span-9 space-y-4">
+                <div class="bg-white p-2 rounded-xl shadow-md border relative">
+                    <div id="map"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="municipios-list"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const dbGeografia = {
+            "Pinar del Río": [{ nombre: "Consolación del Sur", lat: 22.5036, lng: -83.5136 }, { nombre: "Guane", lat: 22.2006, lng: -84.0836 }, { nombre: "La Palma", lat: 22.7561, lng: -83.5533 }, { nombre: "Los Palacios", lat: 22.5889, lng: -83.2486 }, { nombre: "Mantua", lat: 22.2903, lng: -84.2836 }, { nombre: "Minas de Matahambre", lat: 22.5819, lng: -83.9494 }, { nombre: "Pinar del Río", lat: 22.4175, lng: -83.6981 }, { nombre: "San Juan y Martínez", lat: 22.2664, lng: -83.8339 }, { nombre: "San Luis", lat: 22.2514, lng: -83.7678 }, { nombre: "Sandino", lat: 22.0811, lng: -84.1753 }, { nombre: "Viñales", lat: 22.6144, lng: -83.7125 }],
+            "Artemisa": [{ nombre: "Alquízar", lat: 22.8067, lng: -82.5828 }, { nombre: "Artemisa", lat: 22.8136, lng: -82.7633 }, { nombre: "Bahía Honda", lat: 22.905, lng: -83.1592 }, { nombre: "Bauta", lat: 22.9819, lng: -82.545 }, { nombre: "Caimito", lat: 22.9567, lng: -82.5964 }, { nombre: "Candelaria", lat: 22.7383, lng: -82.9592 }, { nombre: "Guanajay", lat: 22.9264, lng: -82.6881 }, { nombre: "Güira de Melena", lat: 22.7919, lng: -82.5047 }, { nombre: "Mariel", lat: 23.0039, lng: -82.7539 }, { nombre: "San Antonio de los Baños", lat: 22.8889, lng: -82.4986 }, { nombre: "San Cristóbal", lat: 22.7169, lng: -83.0119 }],
+            "La Habana": [{ nombre: "Arroyo Naranjo", lat: 23.0436, lng: -82.3328 }, { nombre: "Boyeros", lat: 22.9858, lng: -82.3889 }, { nombre: "Centro Habana", lat: 23.1333, lng: -82.3667 }, { nombre: "Cerro", lat: 23.1231, lng: -82.3783 }, { nombre: "Cotorro", lat: 23.0261, lng: -82.2472 }, { nombre: "Diez de Octubre", lat: 23.0889, lng: -82.3558 }, { nombre: "Guanabacoa", lat: 23.0953, lng: -82.3336 }, { nombre: "Habana del Este", lat: 23.1667, lng: -82.2833 }, { nombre: "La Habana Vieja", lat: 23.1367, lng: -82.35 }, { nombre: "La Lisa", lat: 23.025, lng: -82.4633 }, { nombre: "Marianao", lat: 23.0833, lng: -82.4333 }, { nombre: "Playa", lat: 23.0942, lng: -82.4481 }, { nombre: "Plaza de la Revolución", lat: 23.125, lng: -82.3853 }, { nombre: "Regla", lat: 23.1256, lng: -82.3353 }, { nombre: "San Miguel del Padrón", lat: 23.0944, lng: -82.3056 }],
+            "Mayabeque": [{ nombre: "Batabanó", lat: 22.72, lng: -82.2917 }, { nombre: "Bejucal", lat: 22.9292, lng: -82.3908 }, { nombre: "Güines", lat: 22.8364, lng: -82.0233 }, { nombre: "Jaruco", lat: 23.0425, lng: -82.0089 }, { nombre: "Madruga", lat: 22.915, lng: -81.8569 }, { nombre: "Melena del Sur", lat: 22.7814, lng: -82.1481 }, { nombre: "Nueva Paz", lat: 22.7633, lng: -81.7581 }, { nombre: "Quivicán", lat: 22.825, lng: -82.3558 }, { nombre: "San José de las Lajas", lat: 22.9614, lng: -82.1511 }, { nombre: "San Nicolás", lat: 22.7811, lng: -81.9142 }, { nombre: "Santa Cruz del Norte", lat: 23.1558, lng: -81.9264 }],
+            "Matanzas": [{ nombre: "Calimete", lat: 22.5333, lng: -80.9083 }, { nombre: "Cárdenas", lat: 23.0428, lng: -81.2036 }, { nombre: "Ciénaga de Zapata", lat: 22.2881, lng: -81.1975 }, { nombre: "Colón", lat: 22.7192, lng: -80.9058 }, { nombre: "Jagüey Grande", lat: 22.5269, lng: -81.1286 }, { nombre: "Jovellanos", lat: 22.8106, lng: -81.1978 }, { nombre: "Limonar", lat: 22.9564, lng: -81.4086 }, { nombre: "Los Arabos", lat: 22.74, lng: -80.7158 }, { nombre: "Martí", lat: 22.9525, lng: -80.9167 }, { nombre: "Matanzas", lat: 23.0411, lng: -81.5775 }, { nombre: "Pedro Betancourt", lat: 22.7306, lng: -81.2906 }, { nombre: "Perico", lat: 22.775, lng: -81.0181 }, { nombre: "Unión de Reyes", lat: 22.8, lng: -81.5369 }],
+            "Villa Clara": [{ nombre: "Caibarién", lat: 22.5042, lng: -79.475 }, { nombre: "Camajuaní", lat: 22.4681, lng: -79.7236 }, { nombre: "Cifuentes", lat: 22.6305, lng: -79.9284 }, { nombre: "Corralillo", lat: 22.9825, lng: -80.5853 }, { nombre: "Encrucijada", lat: 22.6172, lng: -79.8661 }, { nombre: "Manicaragua", lat: 22.1503, lng: -79.9761 }, { nombre: "Placetas", lat: 22.3161, lng: -79.6533 }, { nombre: "Quemado de Güines", lat: 22.79, lng: -80.2558 }, { nombre: "Ranchuelo", lat: 22.3364, lng: -80.1128 }, { nombre: "Remedios", lat: 22.4922, lng: -79.5456 }, { nombre: "Sagua la Grande", lat: 22.8067, lng: -80.0756 }, { nombre: "Santa Clara", lat: 22.4069, lng: -79.9647 }, { nombre: "Santo Domingo", lat: 22.5833, lng: -80.2383 }],
+            "Cienfuegos": [{ nombre: "Abreus", lat: 22.2806, lng: -80.5678 }, { nombre: "Aguada de Pasajeros", lat: 22.3847, lng: -80.8461 }, { nombre: "Cumanayagua", lat: 22.15, lng: -80.2 }, { nombre: "Cruces", lat: 22.3422, lng: -80.2667 }, { nombre: "Cienfuegos", lat: 22.15, lng: -80.3833 }, { nombre: "Lajas", lat: 22.4164, lng: -80.2906 }, { nombre: "Palmira", lat: 22.2444, lng: -80.3931 }, { nombre: "Rodas", lat: 22.3428, lng: -80.5553 }],
+            "Sancti Spíritus": [{ nombre: "Cabaiguán", lat: 22.0839, lng: -79.4953 }, { nombre: "Fomento", lat: 22.1053, lng: -79.72 }, { nombre: "Jatibonico", lat: 21.9464, lng: -79.1681 }, { nombre: "La Sierpe", lat: 21.7608, lng: -79.2433 }, { nombre: "Sancti Spíritus", lat: 21.9297, lng: -79.4442 }, { nombre: "Taguasco", lat: 22.0053, lng: -79.2653 }, { nombre: "Trinidad", lat: 21.8019, lng: -79.9842 }, { nombre: "Yaguajay", lat: 22.3306, lng: -79.2369 }],
+            "Ciego de Ávila": [{ nombre: "Baraguá", lat: 21.6822, lng: -78.6244 }, { nombre: "Bolivia", lat: 22.075, lng: -78.3367 }, { nombre: "Chambas", lat: 22.1967, lng: -78.9131 }, { nombre: "Ciego de Ávila", lat: 21.8444, lng: -78.7619 }, { nombre: "Ciro Redondo", lat: 22.0189, lng: -78.7047 }, { nombre: "Florencia", lat: 22.1475, lng: -78.9669 }, { nombre: "Majagua", lat: 21.9242, lng: -78.9831 }, { nombre: "Morón", lat: 22.1108, lng: -78.6278 }, { nombre: "Primero de Enero", lat: 21.9453, lng: -78.4314 }, { nombre: "Venezuela", lat: 21.7511, lng: -78.7789 }],
+            "Camagüey": [{ nombre: "Céspedes", lat: 21.5769, lng: -78.1511 }, { nombre: "Camagüey", lat: 21.3639, lng: -77.8756 }, { nombre: "Esmeralda", lat: 21.85, lng: -78.1 }, { nombre: "Florida", lat: 21.5247, lng: -78.2258 }, { nombre: "Guáimaro", lat: 21.0589, lng: -77.3478 }, { nombre: "Jimaguayú", lat: 21.2667, lng: -77.8303 }, { nombre: "Minas", lat: 21.4894, lng: -77.6047 }, { nombre: "Najasa", lat: 21.0833, lng: -77.7469 }, { nombre: "Nuevitas", lat: 21.5453, lng: -77.2644 }, { nombre: "Santa Cruz del Sur", lat: 20.7194, lng: -77.9892 }, { nombre: "Sibanicú", lat: 21.2392, lng: -77.5208 }, { nombre: "Sierra de Cubitas", lat: 21.7331, lng: -77.7706 }, { nombre: "Vertientes", lat: 21.2572, lng: -78.1464 }],
+            "Las Tunas": [{ nombre: "Colombia", lat: 20.9903, lng: -77.43 }, { nombre: "Jesús Menéndez", lat: 21.1636, lng: -76.4772 }, { nombre: "Jobabo", lat: 20.9081, lng: -77.2831 }, { nombre: "Las Tunas", lat: 20.9617, lng: -76.9511 }, { nombre: "Majibacoa", lat: 20.9172, lng: -76.8761 }, { nombre: "Manatí", lat: 21.3147, lng: -76.9406 }, { nombre: "Puerto Padre", lat: 21.1953, lng: -76.6014 }, { nombre: "Amancio", lat: 20.8197, lng: -77.5814 }],
+            "Holguín": [{ nombre: "Antilla", lat: 20.8486, lng: -75.7525 }, { nombre: "Báguanos", lat: 20.7631, lng: -76.0294 }, { nombre: "Banes", lat: 20.97, lng: -75.7114 }, { nombre: "Cacocum", lat: 20.7439, lng: -76.3242 }, { nombre: "Calixto García", lat: 20.8544, lng: -76.6019 }, { nombre: "Cueto", lat: 20.6483, lng: -75.9317 }, { nombre: "Frank País", lat: 20.6647, lng: -75.2814 }, { nombre: "Gibara", lat: 21.1072, lng: -76.1317 }, { nombre: "Holguín", lat: 20.8833, lng: -76.25 }, { nombre: "Mayarí", lat: 20.6594, lng: -75.6778 }, { nombre: "Moa", lat: 20.6403, lng: -74.9175 }, { nombre: "Rafael Freyre", lat: 21.0283, lng: -75.9961 }, { nombre: "Sagua de Tánamo", lat: 20.5819, lng: -75.2414 }, { nombre: "Urbano Noris", lat: 20.5983, lng: -76.1328 }],
+            "Granma": [{ nombre: "Bartolomé Masó", lat: 20.1686, lng: -76.9425 }, { nombre: "Bayamo", lat: 20.3742, lng: -76.6436 }, { nombre: "Buey Arriba", lat: 20.1736, lng: -76.7492 }, { nombre: "Campechuela", lat: 20.0892, lng: -77.2789 }, { nombre: "Cauto Cristo", lat: 20.5622, lng: -76.4694 }, { nombre: "Guisa", lat: 20.2611, lng: -76.5414 }, { nombre: "Jiguaní", lat: 20.3733, lng: -76.4222 }, { nombre: "Manzanillo", lat: 20.3397, lng: -77.1086 }, { nombre: "Media Luna", lat: 20.1444, lng: -77.4361 }, { nombre: "Niquero", lat: 20.0472, lng: -77.5781 }, { nombre: "Pilón", lat: 19.9056, lng: -77.3208 }, { nombre: "Río Cauto", lat: 20.5639, lng: -76.9172 }, { nombre: "Yara", lat: 20.2769, lng: -76.9469 }],
+            "Santiago de Cuba": [{ nombre: "Contramaestre", lat: 20.3, lng: -76.2506 }, { nombre: "Guamá", lat: 19.9758, lng: -76.41 }, { nombre: "Mella", lat: 20.3692, lng: -75.9108 }, { nombre: "Palma Soriano", lat: 20.2142, lng: -75.9917 }, { nombre: "San Luis", lat: 20.1881, lng: -75.8486 }, { nombre: "Santiago de Cuba", lat: 20.0247, lng: -75.8219 }, { nombre: "Segundo Frente", lat: 20.4119, lng: -75.5286 }, { nombre: "Songo - La Maya", lat: 20.1733, lng: -75.6461 }, { nombre: "Tercer Frente", lat: 20.1719, lng: -76.3272 }],
+            "Guantánamo": [{ nombre: "Baracoa", lat: 20.3506, lng: -74.5103 }, { nombre: "Caimanera", lat: 19.995, lng: -75.1597 }, { nombre: "El Salvador", lat: 20.2097, lng: -75.2231 }, { nombre: "Guantánamo", lat: 20.1444, lng: -75.2092 }, { nombre: "Imías", lat: 20.0769, lng: -74.6517 }, { nombre: "Maisí", lat: 20.2433, lng: -74.1558 }, { nombre: "Manuel Tames", lat: 20.1806, lng: -75.0514 }, { nombre: "Niceto Pérez", lat: 20.1278, lng: -75.3419 }, { nombre: "San Antonio del Sur", lat: 20.0569, lng: -74.8078 }, { nombre: "Yateras", lat: 20.3503, lng: -74.9242 }],
+            "Isla de la Juventud": [{ nombre: "Isla de la Juventud", lat: 21.885, lng: -82.7667 }]
+        };
+
+        const respuestasData = [
+            { email: "contacto@bayamo.edu.cu", provincia: "Granma", nombre: "Bayamo", inst: "Universidad o centro académico", tech: "Media", necesidades: ["Normativas jurídicas", "Innovación"] },
+            { email: "alianamsepul3011@gmail.com", provincia: "Mayabeque", nombre: "San Nicolás ", inst: "Gobierno municipal", tech: "Nula", necesidades: ["Gestión empresarial", "Contabilidad"] },
+            { email: "gobierno@bejucal.gob.cu", provincia: "Mayabeque", nombre: "Bejucal", inst: "Joven Club", tech: "Media", necesidades: ["Creación NAEs"] },
+            { email: "uclv@boyeros.cu", provincia: "La Habana", nombre: "Boyeros", inst: "Universidad o centro académico", tech: "Alta", necesidades: ["Encadenamientos"] },
+            { email: "cabaiguan@gob.cu", provincia: "Sancti Spíritus", nombre: "Cabaiguán", inst: "Gobierno municipal", tech: "Baja", necesidades: ["Liderazgo"] },
+            { email: "villa.clara@caibarien.cu", provincia: "Villa Clara", nombre: "Caibarién", inst: "Gobierno municipal", tech: "Media", necesidades: ["Formación"] },
+            { email: "rectoria@uam.camaguey.cu", provincia: "Camagüey", nombre: "Camagüey", inst: "Universidad o centro académico", tech: "Alta", necesidades: ["Normativas"] },
+            { email: "cespedes@camaguey.gob.cu", provincia: "Camagüey", nombre: "Céspedes", inst: "Gobierno municipal", tech: "Baja", necesidades: ["Administración"] },
+            { email: "atencion@cerro.habana.cu", provincia: "La Habana", nombre: "Cerro", inst: "Gobierno municipal", tech: "Alta", necesidades: ["Marketing"] },
+            { email: "muni@cienfuegos.gob.cu", provincia: "Cienfuegos", nombre: "Cienfuegos", inst: "Gobierno municipal", tech: "Media", necesidades: ["Finanzas"] },
+            { email: "coord@pinar.gob.cu", provincia: "Pinar del Río", nombre: "Consolación del Sur", inst: "Gobierno municipal", tech: "Baja", necesidades: ["Digitalización"] }
+        ];
+
+        let map, markers = [], ghostMarkers = [];
+        const CUBA_CENTER = [21.5218, -77.7812];
+        const CUBA_ZOOM = 6;
+
+        function normalizar(texto) {
+            if (!texto) return "";
+            return texto.toString().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ');
+        }
+
+        function getCoordenadas(prov, mun) {
+            if (!dbGeografia[prov]) return null;
+            const munNorm = normalizar(mun);
+            const found = dbGeografia[prov].find(m => normalizar(m.nombre) === munNorm);
+            return found ? { lat: found.lat, lng: found.lng } : null;
+        }
+
+        function initMap() {
+            map = L.map('map', { scrollWheelZoom: false }).setView(CUBA_CENTER, CUBA_ZOOM);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            setupFilters();
+            applyFilters();
+        }
+
+        function setupFilters() {
+            const provSelect = document.getElementById('filter-provincia');
+            Object.keys(dbGeografia).sort().forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                provSelect.appendChild(opt);
+            });
+        }
+
+        function updateMunicipios() {
+            const prov = document.getElementById('filter-provincia').value;
+            const munSelect = document.getElementById('filter-municipio');
+            munSelect.innerHTML = '<option value="">Todos los municipios</option>';
+            if (prov && dbGeografia[prov]) {
+                dbGeografia[prov].map(m => m.nombre).sort().forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m; opt.textContent = m;
+                    munSelect.appendChild(opt);
+                });
+            }
+        }
+
+        function applyFilters() {
+            const prov = document.getElementById('filter-provincia').value;
+            const mun = document.getElementById('filter-municipio').value;
+            const inst = document.getElementById('filter-inst').value;
+
+            const filtered = respuestasData.filter(r => {
+                return (prov === "" || r.provincia === prov) &&
+                       (mun === "" || normalizar(r.nombre) === normalizar(mun)) &&
+                       (inst === "" || r.inst === inst);
+            });
+
+            renderMarkers(filtered, prov);
+            renderList(filtered);
+            updateStats(filtered.length);
+
+            // Ajustar cámara
+            if (mun !== "") {
+                const c = getCoordenadas(prov, mun);
+                if (c) map.flyTo([c.lat, c.lng], 13);
+            } else if (prov !== "") {
+                const group = new L.featureGroup([...markers, ...ghostMarkers]);
+                if (group.getLayers().length > 0) map.fitBounds(group.getBounds(), { padding: [30, 30] });
+            } else {
+                map.flyTo(CUBA_CENTER, CUBA_ZOOM);
+            }
+        }
+
+        function renderMarkers(data, provSel) {
+            markers.forEach(m => map.removeLayer(m));
+            ghostMarkers.forEach(m => map.removeLayer(m));
+            markers = [];
+            ghostMarkers = [];
+
+            // 1. Marcadores ROJOS (Con datos)
+            data.forEach(r => {
+                const c = getCoordenadas(r.provincia, r.nombre);
+                if (c) {
+                    const redIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="marker-dot bg-filled"></div>`,
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7]
+                    });
+
+                    const m = L.marker([c.lat, c.lng], { icon: redIcon })
+                        .addTo(map)
+                        .bindPopup(`
+                            <div class="p-1">
+                                <h4 class="font-bold text-primary">${r.inst}</h4>
+                                <p class="text-xs text-gray-600">${r.nombre}, ${r.provincia}</p>
+                                <span class="text-[10px] bg-red-50 text-red-700 px-2 py-1 rounded mt-2 block border border-red-100">Datos registrados</span>
+                            </div>
+                        `)
+                        .bindTooltip(r.nombre, { direction: 'top', className: 'custom-tooltip' });
+                    markers.push(m);
+                }
+            });
+
+            // 2. Marcadores GRISES (Municipios de la provincia sin datos)
+            if (provSel !== "") {
+                const munConDatos = data.map(d => normalizar(d.nombre));
+                dbGeografia[provSel].forEach(geo => {
+                    if (!munConDatos.includes(normalizar(geo.nombre))) {
+                        const grayIcon = L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div class="marker-dot bg-empty"></div>`,
+                            iconSize: [12, 12],
+                            iconAnchor: [6, 6]
+                        });
+                        const gm = L.marker([geo.lat, geo.lng], { icon: grayIcon })
+                            .addTo(map)
+                            .bindTooltip(`${geo.nombre} (Pendiente)`, { direction: 'top', className: 'custom-tooltip tooltip-empty' });
+                        ghostMarkers.push(gm);
+                    }
+                });
+            }
+        }
+
+        function renderList(data) {
+            const list = document.getElementById('municipios-list');
+            list.innerHTML = '';
+            if (data.length === 0) {
+                list.innerHTML = '<div class="col-span-full py-10 text-center text-gray-400">Sin resultados.</div>';
+                return;
+            }
+            data.forEach(r => {
+                const c = getCoordenadas(r.provincia, r.nombre);
+                const item = document.createElement('div');
+                item.className = 'bg-white p-4 border rounded-xl card-hover cursor-pointer border-l-4 border-l-primary transition-all';
+                item.onclick = () => { if (c) map.flyTo([c.lat, c.lng], 14); };
+                item.innerHTML = `
+                    <div class="text-[10px] text-gray-400 font-bold uppercase mb-1">${r.provincia}</div>
+                    <h4 class="font-bold text-gray-800 mb-1">${r.inst}</h4>
+                    <p class="text-xs text-gray-500 mb-2">${r.nombre}</p>
+                    <div class="flex flex-wrap border-t pt-2 mt-2">
+                        ${r.necesidades.map(n => `<span class="badge-need">${n}</span>`).join('')}
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function updateStats(n) {
+            document.getElementById('stats').innerHTML = `Se visualizan <b class="text-primary">${n}</b> instituciones con diagnósticos completados.`;
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-provincia').value = '';
+            updateMunicipios();
+            document.getElementById('filter-inst').value = '';
+            applyFilters();
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>

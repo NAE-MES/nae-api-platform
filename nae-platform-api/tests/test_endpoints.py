@@ -111,6 +111,8 @@ def test_resumen_html_endpoint_uses_renderer(monkeypatch):
         "version_encuesta": None,
         "genero": None,
         "tema": None,
+        "tipo": None,
+        "servicio": None,
     }
 
 
