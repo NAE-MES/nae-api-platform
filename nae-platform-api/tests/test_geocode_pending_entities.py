@@ -63,3 +63,29 @@ def test_geocode_plus_code_uses_municipality_reference():
     assert abs(result.lat - 22.446234) < 0.001
     assert abs(result.lng - -79.894646) < 0.001
 
+def test_fetch_pending_entities_prefers_geocoding_original_address(monkeypatch):
+    captured = {}
+
+    class FakeResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class FakeDB:
+        def execute(self, query, params=None):
+            captured["query"] = str(query)
+            captured["params"] = params
+            return FakeResult()
+
+        def close(self):
+            captured["closed"] = True
+
+    monkeypatch.setattr(geocoder, "SessionLocal", lambda: FakeDB())
+
+    assert geocoder.fetch_pending_entities(5) == []
+    assert "COALESCE(g.direccion_original, m.direccion_fisica) AS direccion_fisica" in captured["query"]
+    assert captured["params"] == {"limit": 5}
+    assert captured["closed"] is True
+

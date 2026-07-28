@@ -248,7 +248,7 @@ def fetch_pending_entities(limit: int) -> list[PendingEntity]:
                 SELECT
                     op.id AS operational_respuesta_id,
                     COALESCE(m.entidad_nombre, op.nombre_institucion) AS entidad,
-                    m.direccion_fisica,
+                    COALESCE(g.direccion_original, m.direccion_fisica) AS direccion_fisica,
                     p.nombre AS provincia,
                     mu.nombre AS municipio
                 FROM operational.respuestas_encuesta op
@@ -425,3 +425,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
