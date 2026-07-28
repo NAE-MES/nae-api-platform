@@ -4,21 +4,16 @@ const NAE_FORM_TITLE = 'Formulario V1 · Mapeo de estructuras de apoyo a los NAE
 const NAE_SURVEY_VERSION = 'mapeo_estructuras_v1';
 
 function onFormSubmit(e) {
-  if (!e || !e.namedValues) {
+  if (!e) {
     throw new Error('Evento onFormSubmit no disponible');
   }
 
-  const payload = {};
-  Object.keys(e.namedValues).forEach(function (key) {
-    const value = e.namedValues[key];
-    payload[key] = Array.isArray(value) && value.length === 1 ? value[0] : value;
-  });
-
+  const payload = buildPayloadFromEvent(e);
   const body = {
-    id_respuesta_origen: Utilities.getUuid(),
+    id_respuesta_origen: buildResponseId(e),
     formulario_origen: NAE_FORM_TITLE,
-    fecha_respuesta: new Date().toISOString(),
-    version_encuesta: detectSurveyVersion(payload),
+    fecha_respuesta: getSubmittedAt(e),
+    version_encuesta: NAE_SURVEY_VERSION,
     payload: payload
   };
 
@@ -42,37 +37,91 @@ function onFormSubmit(e) {
   Logger.log('Respuesta enviada correctamente: ' + content);
 }
 
-function detectSurveyVersion(payload) {
-  if (
-    payload['0.1* Entidad a la que pertenece'] ||
-    payload['0.4* Nivel de conocimiento sobre los NAE en el municipio'] ||
-    payload['1.6* Tipo de entidad o estructura de apoyo'] ||
-    hasKeyStartingWith(payload, '1.2* Municipio donde se ubica la entidad o estructura de apoyo')
-  ) {
-    return NAE_SURVEY_VERSION;
+function buildPayloadFromEvent(e) {
+  if (e.namedValues) {
+    return buildPayloadFromNamedValues(e.namedValues);
   }
 
-  if (
-    payload['0.5 Nivel de conocimiento sobre la realidad del municipio'] ||
-    payload['3.4 Nivel de interés de los actores de gobierno en formación sobre NAE'] ||
-    payload['4.1 Conoce la existencia de mecanismos de coordinación institucional']
-  ) {
-    return NAE_SURVEY_VERSION;
+  if (e.response) {
+    return buildPayloadFromFormResponse(e.response);
   }
 
-  if (
-    payload['0.4 Nivel de conocimiento sobre la realidad del municipio'] ||
-    payload['4.1 Nivel de interés de los actores de gobierno en formación sobre NAE'] ||
-    payload['5.1 Existencia de mecanismos de coordinación institucional']
-  ) {
-    return '1.1';
-  }
-
-  return NAE_SURVEY_VERSION;
+  throw new Error('Evento onFormSubmit sin namedValues ni response. Revise el tipo de trigger instalado.');
 }
 
-function hasKeyStartingWith(payload, prefix) {
-  return Object.keys(payload).some(function (key) {
-    return key.indexOf(prefix) === 0;
+function buildPayloadFromNamedValues(namedValues) {
+  const payload = {};
+
+  Object.keys(namedValues).forEach(function (key) {
+    const values = namedValues[key];
+    payload[key] = normalizeEventValue(values);
   });
+
+  return payload;
+}
+
+function buildPayloadFromFormResponse(formResponse) {
+  const payload = {};
+  const itemResponses = formResponse.getItemResponses();
+
+  itemResponses.forEach(function (itemResponse) {
+    const title = itemResponse.getItem().getTitle();
+    payload[title] = normalizeEventValue(itemResponse.getResponse());
+  });
+
+  payload['Timestamp'] = formResponse.getTimestamp().toISOString();
+  return payload;
+}
+
+function normalizeEventValue(value) {
+  if (Array.isArray(value)) {
+    const cleaned = value
+      .map(function (item) {
+        return item === null || item === undefined ? '' : String(item).trim();
+      })
+      .filter(function (item) {
+        return item !== '';
+      });
+
+    if (cleaned.length === 0) {
+      return '';
+    }
+
+    return cleaned.length === 1 ? cleaned[0] : cleaned;
+  }
+
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function buildResponseId(e) {
+  if (e.response && e.response.getId) {
+    return e.response.getId();
+  }
+
+  if (e.range && e.range.getSheet) {
+    const sheet = e.range.getSheet();
+    const spreadsheet = sheet.getParent();
+    return spreadsheet.getId() + ':' + sheet.getSheetId() + ':row:' + e.range.getRow();
+  }
+
+  return Utilities.getUuid();
+}
+
+function getSubmittedAt(e) {
+  if (e.response && e.response.getTimestamp) {
+    return e.response.getTimestamp().toISOString();
+  }
+
+  if (e.namedValues) {
+    const timestamp = e.namedValues['Timestamp'] || e.namedValues['Marca temporal'];
+    const value = normalizeEventValue(timestamp);
+    if (value) {
+      const parsed = new Date(value);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString();
+      }
+    }
+  }
+
+  return new Date().toISOString();
 }
