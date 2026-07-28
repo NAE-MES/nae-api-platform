@@ -1,17 +1,23 @@
 from datetime import datetime
+import base64
+import hashlib
+import hmac
+from html import escape
 import logging
 import json
 from pathlib import Path
+import time
 from typing import Any, Dict, Optional
+from urllib.parse import parse_qs, urlencode
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
-from app.config import API_TOKEN
+from app.config import ANALYTICS_PASSWORD, ANALYTICS_USERNAME, API_TOKEN, SESSION_SECRET
 from app.database import SessionLocal
 from app.reporting import (
     build_support_entities_csv,
@@ -38,6 +44,8 @@ app.mount("/images", StaticFiles(directory=str(PROJECT_ROOT / "images")), name="
 app.mount("/prototype-assets", StaticFiles(directory=str(PROJECT_ROOT / "prototype")), name="prototype-assets")
 
 logger = logging.getLogger(__name__)
+AUTH_COOKIE_NAME = "nae_analytics_session"
+AUTH_COOKIE_MAX_AGE = 8 * 60 * 60
 
 
 class RespuestaFormulario(BaseModel):
@@ -46,6 +54,114 @@ class RespuestaFormulario(BaseModel):
     fecha_respuesta: Optional[datetime] = None
     version_encuesta: Optional[str] = None
     payload: Dict[str, Any]
+
+
+def _b64encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _b64decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def _session_signature(payload: str) -> str:
+    digest = hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    return _b64encode(digest)
+
+
+def _create_session_cookie(username: str) -> str:
+    issued_at = str(int(time.time()))
+    payload = _b64encode(f"{username}:{issued_at}".encode("utf-8"))
+    return f"{payload}.{_session_signature(payload)}"
+
+
+def _is_valid_session_cookie(cookie_value: Optional[str]) -> bool:
+    if not cookie_value or "." not in cookie_value:
+        return False
+
+    payload, signature = cookie_value.rsplit(".", 1)
+    if not hmac.compare_digest(signature, _session_signature(payload)):
+        return False
+
+    try:
+        raw_payload = _b64decode(payload).decode("utf-8")
+        username, issued_at = raw_payload.rsplit(":", 1)
+        age = int(time.time()) - int(issued_at)
+    except Exception:
+        return False
+
+    return username == ANALYTICS_USERNAME and 0 <= age <= AUTH_COOKIE_MAX_AGE
+
+
+def _has_analytics_access(request: Request, authorization: Optional[str] = None) -> bool:
+    if authorization == f"Bearer {API_TOKEN}":
+        return True
+    return _is_valid_session_cookie(request.cookies.get(AUTH_COOKIE_NAME))
+
+
+def _require_analytics_access(request: Request, authorization: Optional[str] = None) -> None:
+    if not _has_analytics_access(request, authorization):
+        raise HTTPException(status_code=401, detail="Autenticación requerida")
+
+
+def _redirect_to_login(request: Request) -> RedirectResponse:
+    next_url = str(request.url.path)
+    if request.url.query:
+        next_url = f"{next_url}?{request.url.query}"
+    return RedirectResponse(url=f"/login?{urlencode({'next': next_url})}", status_code=303)
+
+
+def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica") -> HTMLResponse:
+    error_html = f'<div class="error">{error}</div>' if error else ""
+    safe_next_url = escape(next_url, quote=True)
+    html = f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acceso | NAE Platform</title>
+  <style>
+    :root {{ color-scheme: light; --blue:#0b4f8a; --ink:#162033; --muted:#667085; --line:#d9e2ec; --bg:#f4f7fb; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin:0; min-height:100vh; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }}
+    header, footer {{ background:#fff; border-bottom:1px solid var(--line); }}
+    footer {{ border-top:1px solid var(--line); border-bottom:0; margin-top:auto; }}
+    .brand {{ max-width:1040px; margin:0 auto; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px; }}
+    .brand img {{ max-height:52px; max-width:100%; object-fit:contain; }}
+    main {{ width:100%; max-width:420px; margin:56px auto; padding:0 20px; }}
+    .panel {{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:28px; box-shadow:0 16px 40px rgba(22,32,51,.08); }}
+    h1 {{ margin:0 0 8px; font-size:24px; line-height:1.2; color:var(--blue); }}
+    p {{ margin:0 0 22px; color:var(--muted); line-height:1.5; }}
+    label {{ display:block; font-size:13px; font-weight:700; margin:16px 0 6px; }}
+    input {{ width:100%; border:1px solid var(--line); border-radius:6px; padding:12px; font-size:15px; }}
+    button {{ width:100%; margin-top:22px; border:0; border-radius:6px; padding:12px 14px; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; }}
+    .error {{ border:1px solid #f2b8b5; background:#fff0f0; color:#b42318; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:14px; }}
+    .back {{ display:inline-block; margin-top:16px; color:var(--blue); text-decoration:none; font-size:14px; }}
+  </style>
+</head>
+<body>
+  <header><div class="brand"><img src="/images/header.png" alt="NAE" /></div></header>
+  <main>
+    <section class="panel">
+      <h1>Acceso a analítica</h1>
+      <p>Ingrese sus credenciales para consultar el panel operativo.</p>
+      {error_html}
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="{safe_next_url}" />
+        <label for="username">Usuario</label>
+        <input id="username" name="username" autocomplete="username" required />
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <button type="submit">Entrar</button>
+      </form>
+      <a class="back" href="/">Volver al inicio</a>
+    </section>
+  </main>
+  <footer><div class="brand"><img src="/images/footer.png" alt="" /></div></footer>
+</body>
+</html>"""
+    return HTMLResponse(html)
 
 
 def _run_pipeline_chain(limit: int = 100) -> None:
@@ -77,24 +193,69 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
         'Prototipo institucional': 'Plataforma institucional',
         'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': 'Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.',
         'formulario pendiente de confirmación final': 'formulario aprobado',
-        'href="#"': 'href="https://forms.gle/R7DtU5N93iapC5nR6" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
+        'href="#"': 'href="https://forms.gle/viPXknF1shJ22yWW7" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
     }
     for old, new in replacements.items():
         html = html.replace(old, new)
     return HTMLResponse(html)
+
+
 @app.get("/api/v1/salud")
 def salud():
     return {"status": "ok"}
 
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page(next: str = "/analitica"):
+    return _render_login_html(next_url=next)
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    username = form.get("username", [""])[0]
+    password = form.get("password", [""])[0]
+    next_url = form.get("next", ["/analitica"])[0] or "/analitica"
+
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = "/analitica"
+
+    valid_user = hmac.compare_digest(username, ANALYTICS_USERNAME)
+    valid_password = hmac.compare_digest(password, ANALYTICS_PASSWORD)
+    if not valid_user or not valid_password:
+        return _render_login_html(error="Usuario o contraseña incorrectos.", next_url=next_url)
+
+    response = RedirectResponse(url=next_url, status_code=303)
+    response.set_cookie(
+        AUTH_COOKIE_NAME,
+        _create_session_cookie(username),
+        max_age=AUTH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie(AUTH_COOKIE_NAME)
+    return response
+
+
 @app.get("/api/v1/resumen")
 def resumen(
+    request: Request,
     limit: int = 10,
     provincia: Optional[str] = None,
     version_encuesta: Optional[str] = None,
     genero: Optional[str] = None,
     tema: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
 ):
+    _require_analytics_access(request, authorization)
     return get_dashboard_data(
         limit=limit,
         provincia=provincia,
@@ -106,12 +267,15 @@ def resumen(
 
 @app.get("/api/v1/resumen.csv")
 def resumen_csv(
+    request: Request,
     limit: int = 10,
     provincia: Optional[str] = None,
     version_encuesta: Optional[str] = None,
     genero: Optional[str] = None,
     tema: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
 ):
+    _require_analytics_access(request, authorization)
     data = get_dashboard_data(
         limit=limit,
         provincia=provincia,
@@ -174,7 +338,12 @@ def mapa_apoyo(
     return render_support_entities_html(data)
 
 @app.get("/api/v1/respuestas/{respuesta_id}")
-def detalle_respuesta_api(respuesta_id: int):
+def detalle_respuesta_api(
+    request: Request,
+    respuesta_id: int,
+    authorization: Optional[str] = Header(None),
+):
+    _require_analytics_access(request, authorization)
     data = get_response_detail(respuesta_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
@@ -198,6 +367,7 @@ def documentacion_publica():
 
 @app.get("/analitica", response_class=HTMLResponse)
 def panel_analitico(
+    request: Request,
     limit: int = 10,
     provincia: Optional[str] = None,
     version_encuesta: Optional[str] = None,
@@ -206,6 +376,9 @@ def panel_analitico(
     tipo: Optional[str] = None,
     servicio: Optional[str] = None,
 ):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+
     data = get_dashboard_data(
         limit=limit,
         provincia=provincia,
@@ -221,6 +394,7 @@ def panel_analitico(
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def panel_dashboard(
+    request: Request,
     limit: int = 10,
     provincia: Optional[str] = None,
     version_encuesta: Optional[str] = None,
@@ -230,6 +404,7 @@ def panel_dashboard(
     servicio: Optional[str] = None,
 ):
     return panel_analitico(
+        request=request,
         limit=limit,
         provincia=provincia,
         version_encuesta=version_encuesta,
@@ -240,7 +415,10 @@ def panel_dashboard(
     )
 
 @app.get("/respuestas/{respuesta_id}", response_class=HTMLResponse)
-def detalle_respuesta_html(respuesta_id: int):
+def detalle_respuesta_html(request: Request, respuesta_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+
     data = get_response_detail(respuesta_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")

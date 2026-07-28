@@ -73,6 +73,9 @@ El payload de ejemplo vive en `nae-platform-api/scripts/sample_payload.json`.
 ## Endpoints principales
 
 - `GET /api/v1/salud`
+- `GET /login`
+- `GET /logout`
+- `GET /analitica`
 - `GET /api/v1/resumen`
 - `GET /api/v1/resumen.csv`
 - `GET /api/v1/respuestas/{respuesta_id}`
@@ -81,7 +84,7 @@ El payload de ejemplo vive en `nae-platform-api/scripts/sample_payload.json`.
 - `POST /api/v1/pipelines/operational/staging-to-operational`
 - `POST /api/v1/pipelines/analytics/operational-to-analytics`
 
-Todos los endpoints protegidos usan `Authorization: Bearer <API_TOKEN>`.
+La vista de analítica usa login con cookie de sesión. Sus endpoints de datos (`/api/v1/resumen`, `/api/v1/resumen.csv` y `/api/v1/respuestas/{respuesta_id}`) aceptan sesión web o `Authorization: Bearer <API_TOKEN>`.
 
 El panel HTML acepta filtros por query string:
 

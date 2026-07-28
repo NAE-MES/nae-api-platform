@@ -2544,6 +2544,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .trend-line {{ fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }}
         .trend-points circle {{ fill: #fff; stroke: var(--accent); stroke-width: 3; }}
         .trend-points circle:hover {{ fill: var(--nae-teal, #20d79f); }}
+        .header-meta a {{ color: var(--accent-deep); text-decoration: none; font-size: 12px; font-weight: 800; text-transform: uppercase; }}
         .tile-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }}
         .tile-row {{ min-height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfdff; }}
         .tile-row strong {{ display: block; color: var(--accent-deep); font-size: 22px; line-height: 1; }}
@@ -2560,7 +2561,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         <div class="shell">
           <div class="topbar">
             <div class="brand"><div class="brand-mark">NAE</div><div><h1>Analítica del mapeo</h1><p>Indicadores operativos de estructuras de apoyo a nuevos actores económicos.</p></div></div>
-            <div class="header-meta"><span class="status-pill">Encuesta mapeo v1</span><span class="status-pill">{data['total_respuestas']} entidades</span></div>
+            <div class="header-meta"><span class="status-pill">Encuesta mapeo v1</span><span class="status-pill">{data['total_respuestas']} entidades</span><a href="/logout">Cerrar sesión</a></div>
           </div>
         </div>
       </header>

@@ -6,6 +6,9 @@ os.environ.setdefault("DB_NAME", "nae")
 os.environ.setdefault("DB_USER", "nae")
 os.environ.setdefault("DB_PASSWORD", "nae")
 os.environ.setdefault("API_TOKEN", "test-token")
+os.environ.setdefault("ANALYTICS_USERNAME", "admin")
+os.environ.setdefault("ANALYTICS_PASSWORD", "secret")
+os.environ.setdefault("SESSION_SECRET", "test-session-secret")
 
 from fastapi.testclient import TestClient
 
@@ -32,6 +35,7 @@ def test_resumen_endpoint_forwards_filters(monkeypatch):
 
     response = client.get(
         "/api/v1/resumen",
+        headers={"Authorization": "Bearer test-token"},
         params={
             "limit": 7,
             "provincia": "La Habana",
@@ -71,7 +75,11 @@ def test_resumen_csv_endpoint_returns_download(monkeypatch):
     monkeypatch.setattr(main, "get_dashboard_data", fake_get_dashboard_data)
     monkeypatch.setattr(main, "build_resumen_csv", lambda data: "id,valor\n1,ok\n")
 
-    response = client.get("/api/v1/resumen.csv", params={"limit": 2})
+    response = client.get(
+        "/api/v1/resumen.csv",
+        headers={"Authorization": "Bearer test-token"},
+        params={"limit": 2},
+    )
 
     assert response.status_code == 200
     assert response.headers["content-disposition"] == 'attachment; filename="nae_resumen.csv"'
@@ -100,6 +108,7 @@ def test_resumen_html_endpoint_uses_renderer(monkeypatch):
 
     monkeypatch.setattr(main, "get_dashboard_data", fake_get_dashboard_data)
     monkeypatch.setattr(main, "render_dashboard_html", lambda data: "<html>panel</html>")
+    monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
 
     response = client.get("/analitica?limit=4")
 
@@ -114,6 +123,25 @@ def test_resumen_html_endpoint_uses_renderer(monkeypatch):
         "tipo": None,
         "servicio": None,
     }
+
+
+def test_analitica_requires_login():
+    response = client.get("/analitica", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login?")
+
+
+def test_login_sets_session_cookie():
+    response = client.post(
+        "/login",
+        data={"username": "admin", "password": "secret", "next": "/analitica"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/analitica"
+    assert main.AUTH_COOKIE_NAME in response.cookies
 
 
 def test_response_detail_endpoints(monkeypatch):
@@ -154,8 +182,9 @@ def test_response_detail_endpoints(monkeypatch):
 
     monkeypatch.setattr(main, "get_response_detail", lambda respuesta_id: detail if respuesta_id == 3 else None)
     monkeypatch.setattr(main, "render_response_detail_html", lambda data: "<html>detalle</html>")
+    monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
 
-    api_response = client.get("/api/v1/respuestas/3")
+    api_response = client.get("/api/v1/respuestas/3", headers={"Authorization": "Bearer test-token"})
     html_response = client.get("/respuestas/3")
 
     assert api_response.status_code == 200
@@ -167,7 +196,7 @@ def test_response_detail_endpoints(monkeypatch):
 def test_response_detail_missing_returns_404(monkeypatch):
     monkeypatch.setattr(main, "get_response_detail", lambda respuesta_id: None)
 
-    response = client.get("/api/v1/respuestas/9999")
+    response = client.get("/api/v1/respuestas/9999", headers={"Authorization": "Bearer test-token"})
 
     assert response.status_code == 404
 

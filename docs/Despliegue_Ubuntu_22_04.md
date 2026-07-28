@@ -84,6 +84,9 @@ DB_NAME=nae
 DB_USER=nae
 DB_PASSWORD=tu_password_real
 API_TOKEN=tu_token_real
+ANALYTICS_USERNAME=admin
+ANALYTICS_PASSWORD=tu_password_panel
+SESSION_SECRET=una_cadena_larga_aleatoria
 ```
 
 Permisos recomendados:
@@ -169,15 +172,17 @@ HAProxy remoto debe apuntar a `http://nae-plataforma.mes.gob.cu:8080` o a la IP 
 
 ```bash
 curl http://127.0.0.1:8000/api/v1/salud
-curl http://127.0.0.1:8000/api/v1/resumen
+curl -H "Authorization: Bearer $API_TOKEN" http://127.0.0.1:8000/api/v1/resumen
 curl -H "Authorization: Bearer $API_TOKEN" http://127.0.0.1:8000/api/v1/respuestas/1
 ```
 
 Validación mínima antes del corte:
 
 - `GET /api/v1/salud`
-- `GET /api/v1/resumen`
-- `GET /api/v1/resumen.csv`
+- `GET /login`
+- `GET /analitica` redirige a `/login` sin sesión
+- `GET /api/v1/resumen` con `Authorization: Bearer $API_TOKEN`
+- `GET /api/v1/resumen.csv` con `Authorization: Bearer $API_TOKEN`
 - `POST /api/v1/respuestas`
 - `POST /api/v1/pipelines/staging/raw-to-staging`
 - `POST /api/v1/pipelines/operational/staging-to-operational`
