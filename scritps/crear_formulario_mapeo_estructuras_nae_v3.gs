@@ -1,5 +1,6 @@
 /**
- * Crea el Google Form definitivo:
+ * Crea el Google Form definitivo conforme al documento
+ * "Formulario_v4_Mapeo_Estructuras_Apoyo_NAE.docx".
  * "Formulario V1 · Mapeo de estructuras de apoyo a los NAE"
  *
  * Decisiones de implementación:
@@ -10,8 +11,10 @@
  * 4. Las tablas de captura libre (3.2, 4.2 y 8.3) se representan mediante registros repetidos.
  * 5. La pregunta 8.2 se muestra únicamente cuando en 8.1 se responde "Sí".
  * 6. Se añaden textos de ayuda para separar por comas cuando una respuesta puede contener varios valores.
- * 7. La matriz 2.1 y el bloque 3.2 quedan opcionales para evitar respuestas forzadas.
- * 8. Se desactiva la barra de progreso, ya que la ramificación territorial hace que Google Forms
+ * 7. La matriz 2.1 se configura como opcional técnicamente para que Google Forms no obligue
+ *    a responder todas sus filas, aunque conserva el asterisco del cuestionario aprobado.
+ * 8. Los bloques 3.2, 4.2 y 8.3 son opcionales.
+ * 9. Se desactiva la barra de progreso, ya que la ramificación territorial hace que Google Forms
  *    contabilice también las secciones de municipios que cada persona no recorrerá.
  *
  * Ejecute crearFormularioMapeoNAE() desde Google Apps Script.
@@ -272,7 +275,7 @@ function crearFormularioMapeoNAE() {
   form.addPageBreakItem().setTitle('Sección 2 – Servicios de apoyo a NAE');
 
   form.addCheckboxGridItem()
-    .setTitle('2.1 Servicios que ofrece la entidad y servicios que necesita fortalecer')
+    .setTitle('2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer')
     .setHelpText(
       '⚠️ IMPORTANTE: marque solamente las filas que correspondan. No es obligatorio completar todos los servicios. ' +
       'Marque “Ofrece actualmente” si la entidad ya presta el servicio y “Requiere fortalecer” si necesita mejorar capacidades para prestarlo.'
@@ -490,8 +493,8 @@ function crearFormularioMapeoNAE() {
   form.addSectionHeaderItem()
     .setTitle('4.2 Personas formadoras, mentoras o expertas disponibles para apoyar a NAE')
     .setHelpText(
-      'Opcional. Indique perfiles con alta capacidad técnica y disponibilidad real, si los conoce. ' +
-      'Si no identifica perfiles disponibles, deje estos campos en blanco.'
+      'Indique perfiles con alta capacidad técnica y disponibilidad real, si los conoce. ' +
+      'Complete un registro por cada persona que desee informar.'
     );
 
   for (let i = 1; i <= 5; i++) {
@@ -711,8 +714,8 @@ function crearFormularioMapeoNAE() {
   form.addSectionHeaderItem()
     .setTitle('8.3 Recomiende otras estructuras de apoyo a NAE que conozca en el municipio o territorio')
     .setHelpText(
-      'Opcional. Incluya nombre, tipo de servicio y datos de contacto si los tiene. ' +
-      'Si no conoce otras estructuras de apoyo, deje estos campos en blanco.'
+      'Incluya nombre, tipo de servicio y datos de contacto si los tiene. Esta información permitirá ampliar progresivamente el mapeo. ' +
+      'Complete un registro por cada estructura que desee recomendar.'
     );
 
   for (let i = 1; i <= 6; i++) {
