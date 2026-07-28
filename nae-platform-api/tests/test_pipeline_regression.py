@@ -139,6 +139,24 @@ def test_validate_payload_accepts_mapeo_form_with_dynamic_municipio_title():
     assert not result.errors
 
 
+def test_validate_payload_accepts_mapeo_without_optional_profiles_or_recommendations():
+    payload = dict(MAPEO_PAYLOAD)
+
+    for index in range(1, 6):
+        payload.pop(f"4.2 Perfil {index}", None)
+    for index in range(1, 7):
+        payload.pop(f"8.3.{index}.1 Nombre de la estructura", None)
+        payload.pop(f"8.3.{index}.2 Tipo de actor", None)
+        payload.pop(f"8.3.{index}.3 Servicios que ofrece", None)
+        payload.pop(f"8.3.{index}.4 Municipio / territorio", None)
+        payload.pop(f"8.3.{index}.5 Contacto disponible", None)
+
+    result = staging_pipeline.validate_payload(payload)
+
+    assert result.state == "validada"
+    assert not result.errors
+
+
 def test_validate_payload_keeps_current_form_values_when_legacy_aliases_are_missing():
     payload = dict(SAMPLE_PAYLOAD)
     payload.pop("4.1 Nivel de interés de los actores de gobierno en formación sobre NAE")

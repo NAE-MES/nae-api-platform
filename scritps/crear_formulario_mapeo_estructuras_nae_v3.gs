@@ -488,16 +488,16 @@ function crearFormularioMapeoNAE() {
     .setRequired(true);
 
   form.addSectionHeaderItem()
-    .setTitle('4.2* Personas formadoras, mentoras o expertas disponibles para apoyar a NAE')
+    .setTitle('4.2 Personas formadoras, mentoras o expertas disponibles para apoyar a NAE')
     .setHelpText(
-      'Indique perfiles con alta capacidad técnica y disponibilidad real, si los conoce. ' +
-      'Se presentan cinco campos equivalentes a las cinco filas de la encuesta.'
+      'Opcional. Indique perfiles con alta capacidad técnica y disponibilidad real, si los conoce. ' +
+      'Si no identifica perfiles disponibles, deje estos campos en blanco.'
     );
 
   for (let i = 1; i <= 5; i++) {
     form.addTextItem()
       .setTitle('4.2 Perfil ' + i)
-      .setRequired(i === 1);
+      .setRequired(false);
   }
 
   form.addCheckboxItem()
@@ -709,29 +709,29 @@ function crearFormularioMapeoNAE() {
   ]);
 
   form.addSectionHeaderItem()
-    .setTitle('8.3* Recomiende otras estructuras de apoyo a NAE que conozca en el municipio o territorio')
+    .setTitle('8.3 Recomiende otras estructuras de apoyo a NAE que conozca en el municipio o territorio')
     .setHelpText(
-      'Incluya nombre, tipo de servicio y datos de contacto si los tiene. Esta información permitirá ampliar progresivamente el mapeo. ' +
-      'Se presentan seis registros equivalentes a las seis filas de la encuesta.'
+      'Opcional. Incluya nombre, tipo de servicio y datos de contacto si los tiene. ' +
+      'Si no conoce otras estructuras de apoyo, deje estos campos en blanco.'
     );
 
   for (let i = 1; i <= 6; i++) {
     form.addSectionHeaderItem().setTitle('8.3 Estructura recomendada ' + i);
     form.addTextItem()
       .setTitle('8.3.' + i + '.1 Nombre de la estructura')
-      .setRequired(i === 1);
+      .setRequired(false);
     form.addTextItem()
       .setTitle('8.3.' + i + '.2 Tipo de actor')
-      .setRequired(i === 1);
+      .setRequired(false);
     form.addTextItem()
       .setTitle('8.3.' + i + '.3 Servicios que ofrece')
-      .setRequired(i === 1);
+      .setRequired(false);
     form.addTextItem()
       .setTitle('8.3.' + i + '.4 Municipio / territorio')
-      .setRequired(i === 1);
+      .setRequired(false);
     form.addTextItem()
       .setTitle('8.3.' + i + '.5 Contacto disponible')
-      .setRequired(i === 1);
+      .setRequired(false);
   }
 
   form.addParagraphTextItem()
