@@ -21,6 +21,7 @@ from app.config import ANALYTICS_PASSWORD, ANALYTICS_USERNAME, API_TOKEN, SESSIO
 from app.database import SessionLocal
 from app.reporting import (
     build_support_entities_csv,
+    build_support_entities_pdf,
     build_resumen_csv,
     get_dashboard_data,
     get_response_detail,
@@ -329,6 +330,25 @@ def entidades_apoyo_csv(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="nae_entidades_apoyo.csv"'},
+    )
+
+
+@app.get("/api/v1/entidades-apoyo.pdf")
+def entidades_apoyo_pdf(
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    q: Optional[str] = None,
+):
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
+    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
+    pdf_content = build_support_entities_pdf(data)
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="directorio_entidades_apoyo_nae.pdf"'},
     )
 
 

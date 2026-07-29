@@ -193,6 +193,16 @@ def test_response_detail_endpoints(monkeypatch):
     assert html_response.text == "<html>detalle</html>"
 
 
+def test_support_entities_pdf_endpoint(monkeypatch):
+    monkeypatch.setattr(main, "get_support_entities", lambda **kwargs: {"entidades": []})
+
+    response = client.get("/api/v1/entidades-apoyo.pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF-1.4")
+
+
 def test_response_detail_missing_returns_404(monkeypatch):
     monkeypatch.setattr(main, "get_response_detail", lambda respuesta_id: None)
 

@@ -7,7 +7,7 @@ os.environ.setdefault("DB_USER", "nae")
 os.environ.setdefault("DB_PASSWORD", "nae")
 os.environ.setdefault("API_TOKEN", "test-token")
 
-from app.reporting import _with_coordinates
+from app.reporting import _with_coordinates, build_support_entities_pdf, render_support_entities_html
 
 
 def test_with_coordinates_prefers_validated_geocoding():
@@ -44,3 +44,45 @@ def test_with_coordinates_falls_back_to_municipality():
     assert result["lng"] == -82.3853
     assert result["coordinate_source"] == "municipio"
     assert result["coordinate_status"] == "estimada"
+
+
+def test_support_map_popup_uses_filtered_services_only():
+    html = render_support_entities_html({
+        "lookups": {"provincias": ["Villa Clara"], "municipios": ["Santa Clara"], "tipos": ["Universidad"]},
+        "filters": {"limit": 200},
+        "total": 1,
+        "entidades": [{
+            "operational_respuesta_id": 4,
+            "entidad_nombre": "Entidad de prueba",
+            "tipo_estructura_apoyo": "Universidad",
+            "provincia": "Villa Clara",
+            "municipio": "Santa Clara",
+            "cobertura_principal": "Provincial",
+            "persona_contacto_cargo": "Contacto",
+            "telefonos": "123",
+            "correo_electronico": "nae@example.test",
+            "servicios": "Gestión empresarial, Asesoría legal o normativa",
+            "lat": 22.4,
+            "lng": -79.9,
+            "coordinate_source": "geocodificacion",
+            "coordinate_status": "validada",
+        }],
+    })
+
+    assert "Gestión empresarial, Asesoría legal o normativa" in html
+    assert "Acceso a financiamiento o preparación para financiamiento" not in html
+    assert "Directorio PDF" in html
+
+
+def test_support_entities_pdf_starts_with_pdf_header():
+    pdf = build_support_entities_pdf({
+        "entidades": [{
+            "provincia": "Villa Clara",
+            "municipio": "Santa Clara",
+            "entidad_nombre": "Entidad de prueba",
+            "tipo_estructura_apoyo": "Universidad",
+            "servicios": "Gestión empresarial",
+        }]
+    })
+
+    assert pdf.startswith(b"%PDF-1.4")

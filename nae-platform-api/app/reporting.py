@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import csv
 import json
+import textwrap
 from io import StringIO
 from html import escape
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlencode
 
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
@@ -708,6 +710,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>NAE Platform - Respuesta {escape(str(data.get('respuesta_id')))}</title>
+      <link rel="stylesheet" href="/prototype-assets/styles.css" />
       <style>
         :root {{
           --bg: #f5f7fb;
@@ -720,15 +723,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
         }}
         * {{ box-sizing: border-box; }}
         body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }}
-        header {{
-          padding: 18px 24px;
-          background: linear-gradient(180deg, var(--accent-deep) 0%, #133f7a 100%);
-          color: #fff;
-          border-bottom: 1px solid #0b2f5e;
-        }}
-        header h1 {{ margin: 0; font-size: 22px; line-height: 1.2; }}
-        header p {{ margin: 6px 0 0; color: #dbeafe; font-size: 13px; }}
-        main {{ padding: 24px; display: grid; gap: 18px; }}
+        main.detail-main {{ display: grid; gap: 18px; }}
         .back {{
           display: inline-flex;
           align-items: center;
@@ -809,13 +804,30 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
       </style>
     </head>
       <body>
-      <header>
-        <h1>Respuesta {value("respuesta_id")}</h1>
-        <p>{value("provincia_nombre")} - {value("municipio_nombre")} - {value("nombre_institucion")}</p>
-      </header>
-      <main>
+      <nav class="site-nav">
+        <div class="nav-inner">
+          <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
+          <div class="nav-links">
+            <a href="/">Inicio</a>
+            <a href="/encuesta">Encuesta</a>
+            <a href="/mapa-apoyo">Mapa de apoyo</a>
+            <a href="/documentacion">Documentación</a>
+            <a class="active locked" href="/analitica">Analítica</a>
+            <a href="/logout">Salir</a>
+          </div>
+        </div>
+      </nav>
+      <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+      <main class="page detail-main">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Detalle de respuesta</p>
+            <h1>Respuesta {value("respuesta_id")}</h1>
+            <p class="lead">{value("provincia_nombre")} · {value("municipio_nombre")} · {value("nombre_institucion")}</p>
+          </div>
+        </header>
         <div class="nav">
-          <a class="back" href="/">Volver al panel</a>
+          <a class="back" href="/analitica">Volver al panel</a>
           {"<a href='/respuestas/" + str(data["previous_id"]) + "'>Anterior</a>" if data.get("previous_id") else "<a class='disabled' href='#'>Anterior</a>"}
           {"<a href='/respuestas/" + str(data["next_id"]) + "'>Siguiente</a>" if data.get("next_id") else "<a class='disabled' href='#'>Siguiente</a>"}
         </div>
@@ -855,6 +867,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
         </section>
         {mapeo_sections}
       </main>
+      <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
     </body>
     </html>
     """
@@ -1522,9 +1535,166 @@ def build_support_entities_csv(data: Dict[str, Any]) -> str:
     return output.getvalue()
 
 
+def _pdf_escape(value: Any) -> str:
+    text_value = str(value or "")
+    replacements = {
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2022": "-",
+        "\u00a0": " ",
+    }
+    for source, target in replacements.items():
+        text_value = text_value.replace(source, target)
+    encoded = text_value.encode("cp1252", errors="replace").decode("cp1252")
+    return encoded.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _pdf_wrap(value: Any, width: int = 92) -> List[str]:
+    return textwrap.wrap(str(value or "Sin dato"), width=width, break_long_words=True) or ["Sin dato"]
+
+
+def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
+    lines: List[tuple[str, int, bool]] = [
+        ("Directorio de entidades de apoyo a los NAE", 16, True),
+        ("Mapeo de Entidades de Apoyo", 10, False),
+        ("", 10, False),
+    ]
+
+    rows = sorted(
+        data.get("entidades", []),
+        key=lambda row: (
+            str(row.get("provincia") or ""),
+            str(row.get("municipio") or ""),
+            str(row.get("entidad_nombre") or ""),
+        ),
+    )
+    current_group = None
+    if not rows:
+        lines.append(("No hay entidades para los filtros seleccionados.", 10, False))
+
+    for row in rows:
+        group = f"{row.get('provincia') or 'Sin provincia'} / {row.get('municipio') or 'Sin municipio'}"
+        if group != current_group:
+            lines.extend([("", 10, False), (group, 12, True)])
+            current_group = group
+
+        lines.append((str(row.get("entidad_nombre") or "Sin nombre"), 11, True))
+        detail_parts = [
+            f"Tipo: {row.get('tipo_estructura_apoyo') or 'Sin dato'}",
+            f"Cobertura: {row.get('cobertura_principal') or 'Sin dato'}",
+            f"Contacto: {row.get('persona_contacto_cargo') or 'Sin dato'}",
+            f"Telefono: {row.get('telefonos') or 'Sin dato'}",
+            f"Correo: {row.get('correo_electronico') or 'Sin dato'}",
+            f"Direccion: {row.get('direccion_fisica') or 'Sin dato'}",
+            f"Servicios: {row.get('servicios') or 'Sin servicios registrados'}",
+        ]
+        for part in detail_parts:
+            for wrapped in _pdf_wrap(part):
+                lines.append((wrapped, 9, False))
+        lines.append(("", 9, False))
+
+    page_width = 595
+    page_height = 842
+    margin_x = 46
+    top_y = 795
+    bottom_y = 46
+    line_gap = 14
+    pages: List[List[str]] = []
+    page_commands: List[str] = []
+    y = top_y
+
+    def new_page() -> None:
+        nonlocal page_commands, y
+        if page_commands:
+            pages.append(page_commands)
+        page_commands = [
+            "0.000 0.196 0.278 rg 0 792 595 50 re f",
+            f"BT /F2 13 Tf {margin_x} 812 Td (NAE - Directorio de entidades de apoyo) Tj ET",
+            "0.850 0.890 0.920 rg 46 786 503 1 re f",
+        ]
+        y = 766
+
+    new_page()
+    for text_value, size, bold in lines:
+        if y < bottom_y:
+            new_page()
+        if not text_value:
+            y -= line_gap // 2
+            continue
+        font = "F2" if bold else "F1"
+        color = "0.063 0.165 0.263" if bold else "0.180 0.235 0.294"
+        page_commands.append(f"{color} rg BT /{font} {size} Tf {margin_x} {y} Td ({_pdf_escape(text_value)}) Tj ET")
+        y -= line_gap if size <= 10 else line_gap + 3
+    if page_commands:
+        pages.append(page_commands)
+
+    objects: List[bytes] = []
+
+    def add_object(content: bytes) -> int:
+        objects.append(content)
+        return len(objects)
+
+    font_regular = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    font_bold = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+    page_ids: List[int] = []
+    for commands in pages:
+        stream = "\n".join(commands).encode("cp1252", errors="replace")
+        content_id = add_object(b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream")
+        page_id = add_object(
+            (
+                f"<< /Type /Page /Parent 0 0 R /MediaBox [0 0 {page_width} {page_height}] "
+                f"/Resources << /Font << /F1 {font_regular} 0 R /F2 {font_bold} 0 R >> >> "
+                f"/Contents {content_id} 0 R >>"
+            ).encode("ascii")
+        )
+        page_ids.append(page_id)
+
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    pages_id = add_object(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii"))
+    for index, obj in enumerate(objects):
+        if b"/Parent 0 0 R" in obj:
+            objects[index] = obj.replace(b"/Parent 0 0 R", f"/Parent {pages_id} 0 R".encode("ascii"))
+    catalog_id = add_object(f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("ascii"))
+
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref_start = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
+            f"startxref\n{xref_start}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(output)
+
+
 def render_support_entities_html(data: Dict[str, Any]) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
+    pdf_params = {
+        key: value
+        for key, value in {
+            "provincia": selected.get("provincia"),
+            "municipio": selected.get("municipio"),
+            "tipo": selected.get("tipo"),
+            "q": selected.get("q"),
+            "limit": selected.get("limit") or 200,
+        }.items()
+        if value not in (None, "")
+    }
+    pdf_url = "/api/v1/entidades-apoyo.pdf"
+    if pdf_params:
+        pdf_url = f"{pdf_url}?{urlencode(pdf_params)}"
+
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
@@ -1677,6 +1847,21 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
 def render_support_entities_html(data: Dict[str, Any]) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
+    pdf_params = {
+        key: value
+        for key, value in {
+            "provincia": selected.get("provincia"),
+            "municipio": selected.get("municipio"),
+            "tipo": selected.get("tipo"),
+            "q": selected.get("q"),
+            "limit": selected.get("limit") or 200,
+        }.items()
+        if value not in (None, "")
+    }
+    pdf_url = "/api/v1/entidades-apoyo.pdf"
+    if pdf_params:
+        pdf_url = f"{pdf_url}?{urlencode(pdf_params)}"
+
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
         for item in values:
@@ -1704,6 +1889,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         lng = row.get("lng")
         if lat is None or lng is None:
             continue
+        visible_services = str(row.get("servicios") or "").strip() or "Sin servicios registrados"
         map_entities.append({
             "id": row.get("operational_respuesta_id"),
             "name": row.get("entidad_nombre") or "Sin nombre",
@@ -1711,7 +1897,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
             "province": row.get("provincia") or "Sin provincia",
             "municipality": row.get("municipio") or "Sin municipio",
             "coverage": row.get("cobertura_principal") or "Sin dato",
-            "services": row.get("servicios") or "Sin servicios registrados",
+            "services": visible_services,
             "lat": float(lat),
             "lng": float(lng),
             "source": row.get("coordinate_source") or "municipio",
@@ -1797,6 +1983,9 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
           <p class="eyebrow">Consulta pública</p>
           <h1>Mapa de estructuras de apoyo</h1>
           <p class="lead">Visualización territorial de estructuras encuestadas y capacidades de apoyo identificadas para nuevos actores económicos.</p>
+        </div>
+        <div class="actions">
+          <a class="button secondary" href="{escape(pdf_url)}">Directorio PDF</a>
         </div>
       </header>
 
