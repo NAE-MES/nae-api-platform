@@ -1630,7 +1630,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     <body>
       <header>
         <div class="shell topbar">
-          <div class="brand"><strong>NAE Platform</strong><span>Mapeo de estructuras de apoyo a los nuevos actores económicos</span></div>
+          <div class="brand"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></div>
           <nav class="nav"><a href="/mapa-apoyo" class="active">Mapa de apoyo</a><a href="/">Analítica</a><a href="/api/v1/entidades-apoyo">API</a></nav>
         </div>
       </header>
@@ -1778,7 +1778,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
   <body>
     <nav class="site-nav">
       <div class="nav-inner">
-        <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
+        <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
         <div class="nav-links">
           <a href="/">Inicio</a>
           <a href="/encuesta">Encuesta</a>
@@ -1788,7 +1788,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         </div>
       </div>
     </nav>
-    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+    <img class="brand-strip" src="/images/header_color.png" alt="NAE - Proyecto de cooperación internacional" />
 
     <main class="page">
       <header class="page-header">
@@ -2482,7 +2482,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     <body>
       <nav class="site-nav">
         <div class="nav-inner">
-          <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
+          <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
           <div class="nav-links">
             <a href="/">Inicio</a>
             <a href="/encuesta">Encuesta</a>
@@ -2493,7 +2493,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           </div>
         </div>
       </nav>
-      <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+      <img class="brand-strip" src="/images/header_color.png" alt="NAE - Proyecto de cooperación internacional" />
       <main class="analytics-main">
         <div class="shell layout">
           {filters_html}

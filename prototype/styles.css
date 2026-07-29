@@ -45,8 +45,8 @@ a {
 }
 
 .brand-strip {
-  height: 126px;
-  background: var(--nae-navy);
+  height: auto;
+  background: #fff;
 }
 
 .partner-strip {
@@ -539,10 +539,6 @@ th {
 }
 
 @media (max-width: 900px) {
-  .brand-strip {
-    height: 104px;
-  }
-
   .nav-inner,
   .page-header,
   .objective-panel,
@@ -577,10 +573,6 @@ th {
 }
 
 @media (max-width: 560px) {
-  .brand-strip {
-    height: 74px;
-  }
-
   .partner-strip,
   .footer .partner-strip {
     height: 42px;

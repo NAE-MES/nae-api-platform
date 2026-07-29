@@ -138,7 +138,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
 <body>
   <nav class="site-nav">
     <div class="nav-inner">
-      <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
+      <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
       <div class="nav-links">
         <a href="/">Inicio</a>
         <a href="/encuesta">Encuesta</a>
@@ -148,7 +148,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
       </div>
     </div>
   </nav>
-  <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+  <img class="brand-strip" src="/images/header_color.png" alt="NAE - Proyecto de cooperación internacional" />
   <main class="page login-wrap">
     <section class="login-panel card pad">
       <p class="eyebrow">Área privada</p>
@@ -190,7 +190,8 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
     html = (PROJECT_ROOT / "prototype" / filename).read_text(encoding="utf-8")
     replacements = {
         'href="styles.css"': 'href="/prototype-assets/styles.css"',
-        'src="../images/header.png"': 'src="/images/header.png"',
+        'src="../images/header.png"': 'src="/images/header_color.png"',
+        'src="../images/header_color.png"': 'src="/images/header_color.png"',
         'src="../images/footer.png"': 'src="/images/footer.png"',
         'href="index.html"': 'href="/"',
         'href="encuesta.html"': 'href="/encuesta"',
@@ -198,7 +199,8 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
         'href="documentacion.html"': 'href="/documentacion"',
         'href="login.html"': 'href="/analitica"',
         'href="analitica.html"': 'href="/analitica"',
-        'Prototipo institucional': 'Plataforma institucional',
+        '<strong>NAE Platform</strong>': '<strong>NAE</strong>',
+        'Prototipo institucional': 'Mapeo de Entidades de Apoyo',
         'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': '',
         'formulario pendiente de confirmación final': 'formulario aprobado',
         'href="#"': 'href="https://forms.gle/faFwt1dSGdngtXvU7" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
