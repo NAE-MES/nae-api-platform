@@ -2,6 +2,27 @@ const NAE_API_URL = 'https://nae-plataforma.mes.gob.cu/api/v1/respuestas';
 const NAE_API_TOKEN = 'TU_TOKEN_REAL';
 const NAE_FORM_TITLE = 'Formulario V1 · Mapeo de estructuras de apoyo a los NAE';
 const NAE_SURVEY_VERSION = 'mapeo_estructuras_v1';
+const NAE_SERVICE_GRID_TITLE = '2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer';
+const NAE_SERVICE_GRID_ROWS = [
+  'Gestión empresarial',
+  'Asesoría legal o normativa',
+  'Asesoría contable y financiera',
+  'Acompañamiento para formalización',
+  'Asistencia técnica productiva',
+  'Mentoría empresarial',
+  'Incubación, aceleración o acompañamiento intensivo',
+  'Acceso a financiamiento o preparación para financiamiento',
+  'Encadenamientos productivos y articulación con proveedores/clientes',
+  'Comercialización y ventas',
+  'Marketing, comunicación y posicionamiento',
+  'Digitalización y competencias digitales',
+  'Innovación y mejora de productos, servicios o procesos',
+  'Exportación o comercio exterior',
+  'Calidad, certificaciones o normas técnicas',
+  'Formulación de proyectos',
+  'Economía circular, economía social o sostenibilidad',
+  'Género, inclusión, juventud u otros enfoques especializados'
+];
 
 function onFormSubmit(e) {
   if (!e) {
@@ -65,8 +86,20 @@ function buildPayloadFromFormResponse(formResponse) {
   const itemResponses = formResponse.getItemResponses();
 
   itemResponses.forEach(function (itemResponse) {
-    const title = itemResponse.getItem().getTitle();
-    payload[title] = normalizeEventValue(itemResponse.getResponse());
+    const item = itemResponse.getItem();
+    const title = item.getTitle();
+    const response = itemResponse.getResponse();
+
+    if (title === NAE_SERVICE_GRID_TITLE && item.getType() === FormApp.ItemType.CHECKBOX_GRID) {
+      const rows = item.asCheckboxGridItem().getRows() || NAE_SERVICE_GRID_ROWS;
+      rows.forEach(function (rowTitle, index) {
+        const rowResponse = Array.isArray(response) ? response[index] : '';
+        payload[title + ' [' + rowTitle + ']'] = normalizeEventValue(rowResponse || '');
+      });
+      return;
+    }
+
+    payload[title] = normalizeEventValue(response);
   });
 
   payload['Timestamp'] = formResponse.getTimestamp().toISOString();

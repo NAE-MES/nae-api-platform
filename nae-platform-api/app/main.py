@@ -125,10 +125,11 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
   <style>
     .login-wrap {{ min-height: 46vh; display: grid; place-items: center; padding-top: 34px; padding-bottom: 42px; }}
     .login-panel {{ width: min(460px, 100%); }}
+    .login-panel form {{ display: block; width: 100%; }}
     .login-panel h1 {{ font-size: 25px; margin-bottom: 10px; }}
     .login-panel p {{ color: #4b5b6b; }}
-    .login-panel label {{ margin-top: 14px; }}
-    .login-panel input {{ min-height: 42px; }}
+    .login-panel label {{ display: block; width: 100%; margin: 14px 0 6px; color: #657383; font-size: 12px; font-weight: 800; text-transform: uppercase; }}
+    .login-panel input {{ display: block; width: 100%; min-height: 42px; border: 1px solid #d9e1e8; border-radius: 6px; padding: 0 10px; font: inherit; }}
     .login-panel button {{ width: 100%; margin-top: 18px; }}
     .error {{ border:1px solid #f2b8b5; background:#fff0f0; color:#b42318; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:14px; }}
     .login-actions {{ margin-top: 16px; }}

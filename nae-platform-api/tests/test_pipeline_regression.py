@@ -183,6 +183,31 @@ def test_extract_servicios_accepts_v4_required_visual_title():
     } in result
 
 
+def test_extract_servicios_accepts_form_response_grid_matrix():
+    payload = {
+        "2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer": [
+            ["Ofrece actualmente"],
+            [],
+            ["Requiere fortalecer"],
+        ]
+        + [[] for _ in range(len(mapeo_survey.SERVICIOS_GRID_ROWS) - 3)]
+    }
+
+    result = mapeo_survey.extract_servicios(payload)
+
+    assert {
+        "servicio": "Gestión empresarial",
+        "ofrece_actualmente": True,
+        "requiere_fortalecer": False,
+    } in result
+    assert {
+        "servicio": "Asesoría contable y financiera",
+        "ofrece_actualmente": False,
+        "requiere_fortalecer": True,
+    } in result
+    assert len(result) == 2
+
+
 def test_validate_payload_keeps_current_form_values_when_legacy_aliases_are_missing():
     payload = dict(SAMPLE_PAYLOAD)
     payload.pop("4.1 Nivel de interés de los actores de gobierno en formación sobre NAE")

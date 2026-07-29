@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import json
 from io import StringIO
-from urllib.parse import urlencode
 from html import escape
 from typing import Any, Dict, List, Optional
 
@@ -869,21 +868,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     validadas = estado_totals.get("validada", 0)
     observaciones = estado_totals.get("con_observaciones", 0)
     rechazadas = estado_totals.get("rechazada", 0)
-    export_params = {
-        key: value
-        for key, value in {
-            "provincia": selected.get("provincia"),
-            "version_encuesta": selected.get("version_encuesta"),
-            "genero": selected.get("genero"),
-            "tema": selected.get("tema"),
-            "limit": selected.get("limit") or 10,
-        }.items()
-        if value not in (None, "")
-    }
-    export_url = "/api/v1/resumen.csv"
-    if export_params:
-        export_url = f"{export_url}?{urlencode(export_params)}"
-
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
         for value in values:
@@ -905,7 +889,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <div class="filter-actions">
             <button type="submit">Aplicar</button>
             <a href="/">Limpiar</a>
-            <a class="export-inline" href="{escape(export_url)}">Exportar CSV</a>
           </div>
         </form>
     """
@@ -1541,20 +1524,6 @@ def build_support_entities_csv(data: Dict[str, Any]) -> str:
 def render_support_entities_html(data: Dict[str, Any]) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
-    export_params = {
-        key: value
-        for key, value in {
-            "provincia": selected.get("provincia"),
-            "municipio": selected.get("municipio"),
-            "tipo": selected.get("tipo"),
-            "q": selected.get("q"),
-            "limit": selected.get("limit") or 200,
-        }.items()
-        if value not in (None, "")
-    }
-    export_url = "/api/v1/entidades-apoyo.csv"
-    if export_params:
-        export_url = f"{export_url}?{urlencode(export_params)}"
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
@@ -1696,7 +1665,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
           <label>Tipo<select name="tipo">{option_list(lookups.get('tipos', []), selected.get('tipo'))}</select></label>
           <label>Búsqueda<input name="q" value="{escape(str(selected.get('q') or ''))}" placeholder="Entidad, contacto, territorio" /></label>
           <label>Límite<input type="number" min="1" max="1000" name="limit" value="{escape(str(selected.get('limit') or 200))}" /></label>
-          <div class="filter-actions"><button type="submit">Aplicar</button><a class="button secondary" href="/mapa-apoyo">Limpiar</a><a class="button secondary" href="{escape(export_url)}">CSV</a></div>
+          <div class="filter-actions"><button type="submit">Aplicar</button><a class="button secondary" href="/mapa-apoyo">Limpiar</a></div>
         </form>
         <section class="entities">{entity_cards()}</section>
       </main>
@@ -1707,21 +1676,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
 def render_support_entities_html(data: Dict[str, Any]) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
-    export_params = {
-        key: value
-        for key, value in {
-            "provincia": selected.get("provincia"),
-            "municipio": selected.get("municipio"),
-            "tipo": selected.get("tipo"),
-            "q": selected.get("q"),
-            "limit": selected.get("limit") or 200,
-        }.items()
-        if value not in (None, "")
-    }
-    export_url = "/api/v1/entidades-apoyo.csv"
-    if export_params:
-        export_url = f"{export_url}?{urlencode(export_params)}"
-
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
         for item in values:
@@ -1769,7 +1723,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     for row in rows:
         entity_cards.append(f"""
         <article class="doc-item support-item">
-          <div class="doc-icon">NAE</div>
           <div>
             <h3>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</h3>
             <p>{escape(str(row.get('provincia') or ''))} · {escape(str(row.get('municipio') or ''))}</p>
@@ -1780,7 +1733,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
             <p><strong>Correo:</strong> {escape(str(row.get('correo_electronico') or 'Sin dato'))}</p>
             <p><strong>Servicios:</strong> {escape(str(row.get('servicios') or 'Sin servicios registrados'))}</p>
           </div>
-          <a class="button secondary" href="/api/v1/entidades-apoyo.csv">CSV</a>
         </article>
         """)
     if not entity_cards:
@@ -1799,7 +1751,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .support-filters {{ margin-bottom: 18px; }}
       .support-filters .toolbar {{ grid-template-columns: repeat(5, minmax(120px, 1fr)) auto; }}
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
-      .support-item {{ align-items: start; }}
+      .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
       .support-item p {{ margin-bottom: 6px; }}
       .leaflet-panel {{ position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }}
       .map-caption {{ display: flex; justify-content: space-between; gap: 18px; align-items: center; border-bottom: 1px solid var(--line); background: #fff; padding: 14px 16px; }}
@@ -1844,9 +1796,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
           <p class="eyebrow">Consulta pública</p>
           <h1>Mapa de estructuras de apoyo</h1>
           <p class="lead">Visualización territorial de estructuras encuestadas y capacidades de apoyo identificadas para nuevos actores económicos.</p>
-        </div>
-        <div class="actions">
-          <a class="button secondary" href="{escape(export_url)}">Descargar CSV</a>
         </div>
       </header>
 
@@ -2415,21 +2364,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     validadas = estado_totals.get("validada", 0)
     observaciones = estado_totals.get("con_observaciones", 0)
     rechazadas = estado_totals.get("rechazada", 0)
-    export_params = {
-        key: value
-        for key, value in {
-            "provincia": selected.get("provincia"),
-            "version_encuesta": selected.get("version_encuesta"),
-            "tipo": selected.get("tipo"),
-            "servicio": selected.get("servicio"),
-            "limit": selected.get("limit") or 10,
-        }.items()
-        if value not in (None, "")
-    }
-    export_url = "/api/v1/resumen.csv"
-    if export_params:
-        export_url = f"{export_url}?{urlencode(export_params)}"
-
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
         for value in values:
@@ -2451,7 +2385,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <div class="filter-actions">
             <button type="submit">Aplicar</button>
             <a href="/analitica">Limpiar</a>
-            <a class="export-inline" href="{escape(export_url)}">Exportar CSV</a>
           </div>
         </form>
     """
@@ -2485,15 +2418,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         }}
         * {{ box-sizing: border-box; }}
         body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }}
-        .analytics-heading {{ background: var(--accent-deep); color: #fff; border-bottom: 1px solid #06284f; }}
         .shell {{ width: min(1440px, 100%); margin: 0 auto; padding: 0 24px; }}
-        .topbar {{ display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 72px; }}
-        .brand {{ display: flex; align-items: center; gap: 12px; min-width: 0; }}
-        .brand-mark {{ width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; background: #ffffff; color: var(--accent-deep); font-weight: 700; flex: 0 0 auto; }}
-        .brand h1 {{ margin: 0; font-size: 20px; line-height: 1.1; }}
-        .brand p {{ margin: 3px 0 0; color: #c9d9ef; font-size: 13px; }}
-        .header-meta {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
-        .status-pill {{ display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; color: #eaf2ff; font-size: 12px; background: rgba(255,255,255,.08); white-space: nowrap; }}
         main.analytics-main {{ padding: 22px 0 34px; }}
         .layout {{ display: grid; gap: 16px; }}
         .filters {{ display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(5, minmax(120px, 1fr)) auto; gap: 10px; align-items: end; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }}
@@ -2506,7 +2431,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .filter-actions button, .filter-actions a {{ display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; border: 1px solid var(--line-strong); cursor: pointer; }}
         .filter-actions button {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
         .filter-actions a {{ color: var(--text); background: #fff; }}
-        .filter-actions .export-inline {{ background: var(--accent-soft); color: var(--accent-deep); border-color: #bfd5f6; }}
         .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }}
         .kpi, .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }}
         .kpi {{ min-height: 112px; padding: 15px; display: grid; align-content: space-between; border-left: 4px solid #9eb5d1; }}
@@ -2544,7 +2468,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .trend-line {{ fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }}
         .trend-points circle {{ fill: #fff; stroke: var(--accent); stroke-width: 3; }}
         .trend-points circle:hover {{ fill: var(--nae-teal, #20d79f); }}
-        .header-meta a {{ color: var(--accent-deep); text-decoration: none; font-size: 12px; font-weight: 800; text-transform: uppercase; }}
         .tile-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }}
         .tile-row {{ min-height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfdff; }}
         .tile-row strong {{ display: block; color: var(--accent-deep); font-size: 22px; line-height: 1; }}
@@ -2553,7 +2476,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         th {{ background: #f7f9fc; color: var(--muted-strong); font-size: 11px; text-transform: uppercase; }} tr:hover td {{ background: #fbfdff; }} td a {{ color: var(--accent); font-weight: 700; text-decoration: none; }}
         .empty {{ color: var(--muted); margin: 0; }} .wide {{ grid-column: 1 / -1; }} .table-wrap {{ overflow-x: auto; }}
         @media(max-width: 1180px) {{ .filters {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }} .filter-title, .filter-actions {{ grid-column: 1 / -1; }} .kpis {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
-        @media(max-width: 720px) {{ .shell {{ padding: 0 14px; }} .topbar {{ align-items: flex-start; flex-direction: column; padding: 14px 0; }} main {{ padding: 16px 0 26px; }} .filters, .kpis, .tile-grid, .donut-wrap {{ grid-template-columns: 1fr; }} .filter-actions {{ flex-wrap: wrap; }} .filter-actions button, .filter-actions a {{ width: 100%; }} }}
+        @media(max-width: 720px) {{ .shell {{ padding: 0 14px; }} main {{ padding: 16px 0 26px; }} .filters, .kpis, .tile-grid, .donut-wrap {{ grid-template-columns: 1fr; }} .filter-actions {{ flex-wrap: wrap; }} .filter-actions button, .filter-actions a {{ width: 100%; }} }}
       </style>
     </head>
     <body>
@@ -2566,18 +2489,11 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             <a href="/mapa-apoyo">Mapa de apoyo</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
+            <a href="/logout">Salir</a>
           </div>
         </div>
       </nav>
       <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
-      <header class="analytics-heading">
-        <div class="shell">
-          <div class="topbar">
-            <div class="brand"><div class="brand-mark">NAE</div><div><h1>Analítica del mapeo</h1><p>Indicadores operativos de estructuras de apoyo a nuevos actores económicos.</p></div></div>
-            <div class="header-meta"><span class="status-pill">Encuesta mapeo v1</span><span class="status-pill">{data['total_respuestas']} entidades</span><a href="/logout">Cerrar sesión</a></div>
-          </div>
-        </div>
-      </header>
       <main class="analytics-main">
         <div class="shell layout">
           {filters_html}

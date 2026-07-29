@@ -45,12 +45,12 @@ a {
 }
 
 .brand-strip {
-  height: auto;
+  height: 126px;
   background: var(--nae-navy);
 }
 
 .partner-strip {
-  height: auto;
+  height: 50px;
   background: #fff;
   border-top: 1px solid var(--line);
 }
@@ -529,7 +529,7 @@ th {
 }
 
 .footer .partner-strip {
-  height: auto;
+  height: 58px;
   border-top: 0;
   object-fit: contain;
 }
@@ -539,6 +539,10 @@ th {
 }
 
 @media (max-width: 900px) {
+  .brand-strip {
+    height: 104px;
+  }
+
   .nav-inner,
   .page-header,
   .objective-panel,
@@ -573,6 +577,15 @@ th {
 }
 
 @media (max-width: 560px) {
+  .brand-strip {
+    height: 74px;
+  }
+
+  .partner-strip,
+  .footer .partner-strip {
+    height: 42px;
+  }
+
   .page {
     padding: 26px 16px 42px;
   }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 
@@ -71,6 +72,27 @@ SERVICIOS_GRID_TITLES = (
     "2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer",
 )
 
+SERVICIOS_GRID_ROWS = (
+    "Gestión empresarial",
+    "Asesoría legal o normativa",
+    "Asesoría contable y financiera",
+    "Acompañamiento para formalización",
+    "Asistencia técnica productiva",
+    "Mentoría empresarial",
+    "Incubación, aceleración o acompañamiento intensivo",
+    "Acceso a financiamiento o preparación para financiamiento",
+    "Encadenamientos productivos y articulación con proveedores/clientes",
+    "Comercialización y ventas",
+    "Marketing, comunicación y posicionamiento",
+    "Digitalización y competencias digitales",
+    "Innovación y mejora de productos, servicios o procesos",
+    "Exportación o comercio exterior",
+    "Calidad, certificaciones o normas técnicas",
+    "Formulación de proyectos",
+    "Economía circular, economía social o sostenibilidad",
+    "Género, inclusión, juventud u otros enfoques especializados",
+)
+
 
 def scalar_value(value: Any) -> Optional[str]:
     if value is None:
@@ -95,6 +117,38 @@ def coerce_list(value: Any) -> List[str]:
             next_values.extend(item.split(separator))
         values = next_values
     return [item.strip() for item in values if item.strip()]
+
+
+def normalized_key(value: str) -> str:
+    without_accents = "".join(
+        char
+        for char in unicodedata.normalize("NFKD", value)
+        if not unicodedata.combining(char)
+    )
+    return " ".join(without_accents.replace("*", "").lower().split())
+
+
+def is_servicios_grid_key(key: str) -> bool:
+    normalized = normalized_key(key)
+    return any(normalized.startswith(normalized_key(title)) for title in SERVICIOS_GRID_TITLES)
+
+
+def servicio_from_grid_key(key: str) -> Optional[str]:
+    if "[" in key and "]" in key:
+        return scalar_value(key[key.find("[") + 1:key.rfind("]")])
+    if " - " in key:
+        return scalar_value(key.split(" - ", 1)[1])
+    if ":" in key:
+        return scalar_value(key.split(":", 1)[1])
+    return None
+
+
+def selected_service_state(value: Any) -> Dict[str, bool]:
+    selected = coerce_list(value)
+    return {
+        "ofrece_actualmente": "Ofrece actualmente" in selected,
+        "requiere_fortalecer": "Requiere fortalecer" in selected,
+    }
 
 
 def scalar_from_payload(payload: Dict[str, Any], aliases: List[str]) -> Optional[str]:
@@ -164,23 +218,29 @@ def extract_recomendaciones(payload: Dict[str, Any]) -> List[Dict[str, Optional[
 def extract_servicios(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     servicios: Dict[str, Dict[str, Any]] = {}
     for key, value in payload.items():
-        if not any(key.startswith(title) for title in SERVICIOS_GRID_TITLES):
+        if not is_servicios_grid_key(key):
             continue
 
-        servicio = key
-        if "[" in key and "]" in key:
-            servicio = key[key.find("[") + 1:key.rfind("]")]
-        elif " - " in key:
-            servicio = key.split(" - ", 1)[1]
-        elif ":" in key:
-            servicio = key.split(":", 1)[1]
+        servicio = servicio_from_grid_key(key)
+        if servicio:
+            servicios[servicio] = {"servicio": servicio, **selected_service_state(value)}
+            continue
 
-        selected = coerce_list(value)
-        servicios[servicio.strip()] = {
-            "servicio": servicio.strip(),
-            "ofrece_actualmente": "Ofrece actualmente" in selected,
-            "requiere_fortalecer": "Requiere fortalecer" in selected,
-        }
+        if isinstance(value, dict):
+            for servicio, selected in value.items():
+                nombre_servicio = scalar_value(servicio)
+                if nombre_servicio:
+                    servicios[nombre_servicio] = {
+                        "servicio": nombre_servicio,
+                        **selected_service_state(selected),
+                    }
+            continue
+
+        if isinstance(value, list) and len(value) == len(SERVICIOS_GRID_ROWS):
+            for servicio, selected in zip(SERVICIOS_GRID_ROWS, value):
+                state = selected_service_state(selected)
+                if state["ofrece_actualmente"] or state["requiere_fortalecer"]:
+                    servicios[servicio] = {"servicio": servicio, **state}
 
     otro_servicio = scalar_value(payload.get("2.1 Otro servicio: nombre"))
     if otro_servicio:
