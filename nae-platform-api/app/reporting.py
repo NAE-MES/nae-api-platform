@@ -1400,6 +1400,7 @@ def get_support_entities(
                          SELECT STRING_AGG(s.servicio, ', ' ORDER BY s.servicio)
                          FROM operational.respuestas_mapeo_servicios s
                          WHERE s.operational_respuesta_id = op.id
+                           AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
                        ) AS servicios,
                        op.estado_validacion
                 FROM operational.respuestas_encuesta op

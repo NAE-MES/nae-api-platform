@@ -425,6 +425,9 @@ def _replace_mapeo_servicios(db, operational_respuesta_id: int, rows: List[Dict[
         {"operational_respuesta_id": operational_respuesta_id},
     )
     for row in rows:
+        if not row.get("ofrece_actualmente") and not row.get("requiere_fortalecer"):
+            continue
+
         db.execute(
             text("""
                 INSERT INTO operational.respuestas_mapeo_servicios (
