@@ -66,7 +66,10 @@ LIST_FIELDS = {
     "necesidades_fortalecimiento": "4.3 Necesidades prioritarias de fortalecimiento del equipo",
 }
 
-SERVICIOS_GRID_TITLE = "2.1 Servicios que ofrece la entidad y servicios que necesita fortalecer"
+SERVICIOS_GRID_TITLES = (
+    "2.1 Servicios que ofrece la entidad y servicios que necesita fortalecer",
+    "2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer",
+)
 
 
 def scalar_value(value: Any) -> Optional[str]:
@@ -161,7 +164,7 @@ def extract_recomendaciones(payload: Dict[str, Any]) -> List[Dict[str, Optional[
 def extract_servicios(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     servicios: Dict[str, Dict[str, Any]] = {}
     for key, value in payload.items():
-        if not key.startswith(SERVICIOS_GRID_TITLE):
+        if not any(key.startswith(title) for title in SERVICIOS_GRID_TITLES):
             continue
 
         servicio = key

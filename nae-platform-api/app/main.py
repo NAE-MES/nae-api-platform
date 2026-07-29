@@ -121,31 +121,36 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Acceso | NAE Platform</title>
+  <link rel="stylesheet" href="/prototype-assets/styles.css" />
   <style>
-    :root {{ color-scheme: light; --blue:#0b4f8a; --ink:#162033; --muted:#667085; --line:#d9e2ec; --bg:#f4f7fb; }}
-    * {{ box-sizing: border-box; }}
-    body {{ margin:0; min-height:100vh; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }}
-    header, footer {{ background:#fff; }}
-    header {{ border-bottom:1px solid var(--line); }}
-    footer {{ border-top:1px solid var(--line); margin-top:auto; }}
-    .image-strip {{ width:100%; display:block; object-fit:contain; }}
-    .header-strip {{ min-height:128px; padding:14px 0 10px; background:#003247; }}
-    .footer-strip {{ min-height:82px; padding:18px 0 20px; background:#fff; }}
-    main {{ width:100%; max-width:420px; margin:46px auto; padding:0 20px; }}
-    .panel {{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:28px; box-shadow:0 16px 40px rgba(22,32,51,.08); }}
-    h1 {{ margin:0 0 8px; font-size:24px; line-height:1.2; color:var(--blue); }}
-    p {{ margin:0 0 22px; color:var(--muted); line-height:1.5; }}
-    label {{ display:block; font-size:13px; font-weight:700; margin:16px 0 6px; }}
-    input {{ width:100%; border:1px solid var(--line); border-radius:6px; padding:12px; font-size:15px; }}
-    button {{ width:100%; margin-top:22px; border:0; border-radius:6px; padding:12px 14px; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; }}
+    .login-wrap {{ min-height: 46vh; display: grid; place-items: center; padding-top: 34px; padding-bottom: 42px; }}
+    .login-panel {{ width: min(460px, 100%); }}
+    .login-panel h1 {{ font-size: 25px; margin-bottom: 10px; }}
+    .login-panel p {{ color: #4b5b6b; }}
+    .login-panel label {{ margin-top: 14px; }}
+    .login-panel input {{ min-height: 42px; }}
+    .login-panel button {{ width: 100%; margin-top: 18px; }}
     .error {{ border:1px solid #f2b8b5; background:#fff0f0; color:#b42318; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:14px; }}
-    .back {{ display:inline-block; margin-top:16px; color:var(--blue); text-decoration:none; font-size:14px; }}
+    .login-actions {{ margin-top: 16px; }}
   </style>
 </head>
 <body>
-  <header><img class="image-strip header-strip" src="/images/header.png" alt="NAE" /></header>
-  <main>
-    <section class="panel">
+  <nav class="site-nav">
+    <div class="nav-inner">
+      <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
+      <div class="nav-links">
+        <a href="/">Inicio</a>
+        <a href="/encuesta">Encuesta</a>
+        <a href="/mapa-apoyo">Mapa de apoyo</a>
+        <a href="/documentacion">Documentación</a>
+        <a class="active locked" href="/analitica">Analítica</a>
+      </div>
+    </div>
+  </nav>
+  <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+  <main class="page login-wrap">
+    <section class="login-panel card pad">
+      <p class="eyebrow">Área privada</p>
       <h1>Acceso a analítica</h1>
       <p>Ingrese sus credenciales para consultar el panel operativo.</p>
       {error_html}
@@ -155,12 +160,12 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
         <input id="username" name="username" autocomplete="username" required />
         <label for="password">Contraseña</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required />
-        <button type="submit">Entrar</button>
+        <button class="button primary" type="submit">Entrar</button>
       </form>
-      <a class="back" href="/">Volver al inicio</a>
+      <div class="login-actions"><a class="button secondary" href="/">Volver al inicio</a></div>
     </section>
   </main>
-  <footer><img class="image-strip footer-strip" src="/images/footer.png" alt="" /></footer>
+  <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
 </body>
 </html>"""
     return HTMLResponse(html)

@@ -2476,6 +2476,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>NAE Platform - Analítica</title>
+      <link rel="stylesheet" href="/prototype-assets/styles.css" />
       <style>
         :root {{
           --bg: #f4f6f9; --panel: #ffffff; --panel-soft: #f8fafc; --line: #d8dee8; --line-strong: #b8c2d1;
@@ -2484,7 +2485,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         }}
         * {{ box-sizing: border-box; }}
         body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }}
-        header {{ background: var(--accent-deep); color: #fff; border-bottom: 1px solid #06284f; }}
+        .analytics-heading {{ background: var(--accent-deep); color: #fff; border-bottom: 1px solid #06284f; }}
         .shell {{ width: min(1440px, 100%); margin: 0 auto; padding: 0 24px; }}
         .topbar {{ display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 72px; }}
         .brand {{ display: flex; align-items: center; gap: 12px; min-width: 0; }}
@@ -2493,7 +2494,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
         .brand p {{ margin: 3px 0 0; color: #c9d9ef; font-size: 13px; }}
         .header-meta {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
         .status-pill {{ display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; color: #eaf2ff; font-size: 12px; background: rgba(255,255,255,.08); white-space: nowrap; }}
-        main {{ padding: 22px 0 34px; }}
+        main.analytics-main {{ padding: 22px 0 34px; }}
         .layout {{ display: grid; gap: 16px; }}
         .filters {{ display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(5, minmax(120px, 1fr)) auto; gap: 10px; align-items: end; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }}
         .filter-title {{ display: grid; gap: 2px; align-self: center; }}
@@ -2556,7 +2557,20 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
       </style>
     </head>
     <body>
-      <header>
+      <nav class="site-nav">
+        <div class="nav-inner">
+          <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
+          <div class="nav-links">
+            <a href="/">Inicio</a>
+            <a href="/encuesta">Encuesta</a>
+            <a href="/mapa-apoyo">Mapa de apoyo</a>
+            <a href="/documentacion">Documentación</a>
+            <a class="active locked" href="/analitica">Analítica</a>
+          </div>
+        </div>
+      </nav>
+      <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+      <header class="analytics-heading">
         <div class="shell">
           <div class="topbar">
             <div class="brand"><div class="brand-mark">NAE</div><div><h1>Analítica del mapeo</h1><p>Indicadores operativos de estructuras de apoyo a nuevos actores económicos.</p></div></div>
@@ -2564,7 +2578,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           </div>
         </div>
       </header>
-      <main>
+      <main class="analytics-main">
         <div class="shell layout">
           {filters_html}
           {metrics}
@@ -2596,6 +2610,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <section class="card wide"><div class="card-head"><p class="section-lead">Detalle</p><h2>Últimas entidades procesadas</h2></div><div class="card-body table-wrap">{_table_with_links(['id', 'fecha_respuesta', 'estado_validacion', 'provincia_nombre', 'municipio_nombre', 'nombre_institucion', 'tipo_estructura', 'cobertura', 'actualizacion_mapa'], data['ultimas_respuestas'], 'id', '/respuestas/')}</div></section>
         </div>
       </main>
+      <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
     </body>
     </html>
     """

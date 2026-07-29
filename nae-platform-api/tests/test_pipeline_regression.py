@@ -11,6 +11,7 @@ os.environ.setdefault("DB_PASSWORD", "nae")
 os.environ.setdefault("API_TOKEN", "test-token")
 
 import app.analytics_pipeline as analytics_pipeline
+import app.mapeo_survey as mapeo_survey
 import app.operational_pipeline as operational_pipeline
 import app.staging_pipeline as staging_pipeline
 
@@ -155,6 +156,31 @@ def test_validate_payload_accepts_mapeo_without_optional_profiles_or_recommendat
 
     assert result.state == "validada"
     assert not result.errors
+
+
+def test_extract_servicios_accepts_v4_required_visual_title():
+    payload = {
+        "2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer [Gestión empresarial]": [
+            "Ofrece actualmente",
+            "Requiere fortalecer",
+        ],
+        "2.1* Servicios que ofrece la entidad y servicios que necesita fortalecer [Asesoría jurídica]": [
+            "Ofrece actualmente",
+        ],
+    }
+
+    result = mapeo_survey.extract_servicios(payload)
+
+    assert {
+        "servicio": "Gestión empresarial",
+        "ofrece_actualmente": True,
+        "requiere_fortalecer": True,
+    } in result
+    assert {
+        "servicio": "Asesoría jurídica",
+        "ofrece_actualmente": True,
+        "requiere_fortalecer": False,
+    } in result
 
 
 def test_validate_payload_keeps_current_form_values_when_legacy_aliases_are_missing():

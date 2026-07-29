@@ -30,6 +30,7 @@ PLUS_CODE_SEPARATOR = "+"
 PLUS_CODE_SEPARATOR_POSITION = 8
 PAIR_RESOLUTIONS = (20.0, 1.0, 0.05, 0.0025, 0.000125)
 PLUS_CODE_PATTERN = re.compile(r"\b([23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{2,})\b", re.IGNORECASE)
+COORDINATE_PATTERN = re.compile(r"(?<!\d)(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?!\d)")
 
 
 @dataclass
@@ -70,6 +71,18 @@ def build_query(entity: PendingEntity) -> str:
 def extract_plus_code(value: str | None) -> str | None:
     match = PLUS_CODE_PATTERN.search(compact(value).upper())
     return match.group(1) if match else None
+
+
+def extract_coordinates(value: str | None) -> tuple[float, float] | None:
+    match = COORDINATE_PATTERN.search(compact(value))
+    if not match:
+        return None
+
+    lat = float(match.group(1))
+    lng = float(match.group(2))
+    if 19.0 <= lat <= 24.0 and -86.0 <= lng <= -73.0:
+        return lat, lng
+    return None
 
 
 def encode_plus_code(lat: float, lng: float, code_length: int = 10) -> str:
@@ -168,6 +181,23 @@ def geocode_plus_code(entity: PendingEntity) -> GeocodeResult | None:
     )
 
 
+def geocode_coordinates(entity: PendingEntity) -> GeocodeResult | None:
+    coordinates = extract_coordinates(entity.direccion_fisica)
+    if coordinates is None:
+        return None
+
+    lat, lng = coordinates
+    return GeocodeResult(
+        lat=round(lat, 7),
+        lng=round(lng, 7),
+        confidence=1.0,
+        status="geocodificada",
+        display_name=f"Coordenadas explícitas en dirección: {lat}, {lng}",
+        raw={"coordinates": {"lat": lat, "lng": lng}},
+        source="coordenadas",
+    )
+
+
 def score_result(result: dict[str, Any], entity: PendingEntity) -> float:
     display_name = compact(result.get("display_name")).lower()
     importance = float(result.get("importance") or 0)
@@ -233,6 +263,9 @@ def geocode_nominatim(entity: PendingEntity, user_agent: str, timeout: int = 30)
 
 
 def geocode_entity(entity: PendingEntity, user_agent: str) -> GeocodeResult:
+    coordinate_result = geocode_coordinates(entity)
+    if coordinate_result is not None:
+        return coordinate_result
     plus_code_result = geocode_plus_code(entity)
     if plus_code_result is not None:
         return plus_code_result
