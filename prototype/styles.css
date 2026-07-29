@@ -41,16 +41,20 @@ a {
 .partner-strip {
   width: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .brand-strip {
-  height: 156px;
+  height: auto;
+  min-height: 128px;
+  padding: 14px 0 10px;
   background: var(--nae-navy);
 }
 
 .partner-strip {
-  height: 72px;
+  height: auto;
+  min-height: 74px;
+  padding: 14px 0 16px;
   background: #fff;
   border-top: 1px solid var(--line);
 }
@@ -529,22 +533,20 @@ th {
 }
 
 .footer .partner-strip {
-  height: 86px;
+  height: auto;
+  min-height: 86px;
+  padding: 18px 0 20px;
   border-top: 0;
   object-fit: contain;
 }
 
 .footer-text {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 14px 24px 24px;
-  color: var(--muted);
-  font-size: 13px;
+  display: none;
 }
 
 @media (max-width: 900px) {
   .brand-strip {
-    height: 112px;
+    min-height: 104px;
   }
 
   .nav-inner,
@@ -582,11 +584,13 @@ th {
 
 @media (max-width: 560px) {
   .brand-strip {
-    height: 86px;
+    min-height: 74px;
+    padding: 10px 0 8px;
   }
 
   .partner-strip {
-    height: 52px;
+    min-height: 54px;
+    padding: 10px 0 12px;
   }
 
   .page {

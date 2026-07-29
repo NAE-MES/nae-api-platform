@@ -125,11 +125,13 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
     :root {{ color-scheme: light; --blue:#0b4f8a; --ink:#162033; --muted:#667085; --line:#d9e2ec; --bg:#f4f7fb; }}
     * {{ box-sizing: border-box; }}
     body {{ margin:0; min-height:100vh; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }}
-    header, footer {{ background:#fff; border-bottom:1px solid var(--line); }}
-    footer {{ border-top:1px solid var(--line); border-bottom:0; margin-top:auto; }}
-    .brand {{ max-width:1040px; margin:0 auto; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px; }}
-    .brand img {{ max-height:52px; max-width:100%; object-fit:contain; }}
-    main {{ width:100%; max-width:420px; margin:56px auto; padding:0 20px; }}
+    header, footer {{ background:#fff; }}
+    header {{ border-bottom:1px solid var(--line); }}
+    footer {{ border-top:1px solid var(--line); margin-top:auto; }}
+    .image-strip {{ width:100%; display:block; object-fit:contain; }}
+    .header-strip {{ min-height:128px; padding:14px 0 10px; background:#003247; }}
+    .footer-strip {{ min-height:82px; padding:18px 0 20px; background:#fff; }}
+    main {{ width:100%; max-width:420px; margin:46px auto; padding:0 20px; }}
     .panel {{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:28px; box-shadow:0 16px 40px rgba(22,32,51,.08); }}
     h1 {{ margin:0 0 8px; font-size:24px; line-height:1.2; color:var(--blue); }}
     p {{ margin:0 0 22px; color:var(--muted); line-height:1.5; }}
@@ -141,7 +143,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
   </style>
 </head>
 <body>
-  <header><div class="brand"><img src="/images/header.png" alt="NAE" /></div></header>
+  <header><img class="image-strip header-strip" src="/images/header.png" alt="NAE" /></header>
   <main>
     <section class="panel">
       <h1>Acceso a analítica</h1>
@@ -158,7 +160,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
       <a class="back" href="/">Volver al inicio</a>
     </section>
   </main>
-  <footer><div class="brand"><img src="/images/footer.png" alt="" /></div></footer>
+  <footer><img class="image-strip footer-strip" src="/images/footer.png" alt="" /></footer>
 </body>
 </html>"""
     return HTMLResponse(html)
@@ -191,9 +193,9 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
         'href="login.html"': 'href="/analitica"',
         'href="analitica.html"': 'href="/analitica"',
         'Prototipo institucional': 'Plataforma institucional',
-        'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': 'Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.',
+        'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': '',
         'formulario pendiente de confirmación final': 'formulario aprobado',
-        'href="#"': 'href="https://forms.gle/viPXknF1shJ22yWW7" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
+        'href="#"': 'href="https://forms.gle/faFwt1dSGdngtXvU7" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
     }
     for old, new in replacements.items():
         html = html.replace(old, new)

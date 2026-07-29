@@ -1824,7 +1824,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     </style>
   </head>
   <body>
-    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
     <nav class="site-nav">
       <div class="nav-inner">
         <a class="nav-title" href="/"><strong>NAE Platform</strong><span>Plataforma institucional</span></a>
@@ -1837,6 +1836,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         </div>
       </div>
     </nav>
+    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
 
     <main class="page">
       <header class="page-header">
@@ -1881,7 +1881,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
 
     <footer class="footer">
       <img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" />
-      <div class="footer-text">Proyecto NAE. Mapeo de estructuras de apoyo a los nuevos actores económicos.</div>
     </footer>
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
     <script>
