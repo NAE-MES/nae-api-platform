@@ -148,7 +148,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
       </div>
     </div>
   </nav>
-  <img class="brand-strip" src="/images/header_color.png" alt="NAE - Proyecto de cooperación internacional" />
+  <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
   <main class="page login-wrap">
     <section class="login-panel card pad">
       <p class="eyebrow">Área privada</p>
@@ -190,8 +190,7 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
     html = (PROJECT_ROOT / "prototype" / filename).read_text(encoding="utf-8")
     replacements = {
         'href="styles.css"': 'href="/prototype-assets/styles.css"',
-        'src="../images/header.png"': 'src="/images/header_color.png"',
-        'src="../images/header_color.png"': 'src="/images/header_color.png"',
+        'src="../images/header.png"': 'src="/images/header.png"',
         'src="../images/footer.png"': 'src="/images/footer.png"',
         'href="index.html"': 'href="/"',
         'href="encuesta.html"': 'href="/encuesta"',

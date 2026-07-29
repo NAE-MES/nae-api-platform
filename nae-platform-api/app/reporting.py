@@ -1788,7 +1788,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         </div>
       </div>
     </nav>
-    <img class="brand-strip" src="/images/header_color.png" alt="NAE - Proyecto de cooperación internacional" />
+    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
 
     <main class="page">
       <header class="page-header">
@@ -2493,7 +2493,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           </div>
         </div>
       </nav>
-      <img class="brand-strip" src="/images/header_color.png" alt="NAE - Proyecto de cooperación internacional" />
+      <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
       <main class="analytics-main">
         <div class="shell layout">
           {filters_html}
