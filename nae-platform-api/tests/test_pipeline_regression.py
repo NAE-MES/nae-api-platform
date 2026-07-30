@@ -412,7 +412,7 @@ def test_process_staging_to_operational_maps_mapeo_multiselects(monkeypatch):
     monkeypatch.setattr(operational_pipeline, "_resolve_municipio", lambda db, provincia_id, municipio: 202)
     monkeypatch.setattr(operational_pipeline, "_upsert_operational_response", lambda db, row, provincia_id, municipio_id: 303)
     monkeypatch.setattr(operational_pipeline, "_upsert_mapeo_detail", lambda db, operational_respuesta_id, raw_payload: None)
-    monkeypatch.setattr(operational_pipeline, "_upsert_mapeo_children", lambda db, operational_respuesta_id, raw_payload: None)
+    monkeypatch.setattr(operational_pipeline, "_upsert_mapeo_children", lambda db, operational_respuesta_id, raw_payload, provincia_contexto=None: None)
     monkeypatch.setattr(
         operational_pipeline,
         "_insert_child_values",

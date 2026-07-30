@@ -19,6 +19,8 @@ from app.mapeo_survey import (
 )
 
 
+from app.territory_normalization import MunicipalityMatch, normalize_service_territories
+
 PIPELINE_NAME = "staging_to_operational"
 
 MULTISELECT_FIELDS = {
@@ -567,7 +569,83 @@ def _replace_mapeo_recomendaciones(db, operational_respuesta_id: int, rows: List
         )
 
 
-def _upsert_mapeo_children(db, operational_respuesta_id: int, raw_payload: Dict[str, Any]) -> None:
+def _resolve_existing_municipio_id(db, province_name: Optional[str], municipality_name: Optional[str]) -> Optional[int]:
+    if not province_name or not municipality_name:
+        return None
+    return db.execute(
+        text("""
+            SELECT mu.id
+            FROM operational.municipios mu
+            JOIN operational.provincias p ON p.id = mu.provincia_id
+            WHERE p.nombre = :provincia
+              AND mu.nombre = :municipio
+            LIMIT 1
+        """),
+        {"provincia": province_name, "municipio": municipality_name},
+    ).scalar_one_or_none()
+
+
+def _replace_mapeo_territorios_servicio(
+    db,
+    operational_respuesta_id: int,
+    matches: List[MunicipalityMatch],
+) -> None:
+    db.execute(
+        text("""
+            DELETE FROM operational.respuestas_mapeo_territorios_servicio
+            WHERE operational_respuesta_id = :operational_respuesta_id
+        """),
+        {"operational_respuesta_id": operational_respuesta_id},
+    )
+    for match in matches:
+        municipio_id = _resolve_existing_municipio_id(
+            db,
+            match.provincia_resuelta,
+            match.municipio_resuelto,
+        )
+        db.execute(
+            text("""
+                INSERT INTO operational.respuestas_mapeo_territorios_servicio (
+                    operational_respuesta_id,
+                    texto_original,
+                    provincia_resuelta,
+                    municipio_resuelto,
+                    municipio_id,
+                    metodo_resolucion,
+                    confianza,
+                    requiere_revision
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :texto_original,
+                    :provincia_resuelta,
+                    :municipio_resuelto,
+                    :municipio_id,
+                    :metodo_resolucion,
+                    :confianza,
+                    :requiere_revision
+                )
+                ON CONFLICT (operational_respuesta_id, texto_original, provincia_resuelta, municipio_resuelto)
+                DO UPDATE SET
+                    municipio_id = EXCLUDED.municipio_id,
+                    metodo_resolucion = EXCLUDED.metodo_resolucion,
+                    confianza = EXCLUDED.confianza,
+                    requiere_revision = EXCLUDED.requiere_revision
+            """),
+            {
+                "operational_respuesta_id": operational_respuesta_id,
+                "texto_original": match.texto_original,
+                "provincia_resuelta": match.provincia_resuelta,
+                "municipio_resuelto": match.municipio_resuelto,
+                "municipio_id": municipio_id,
+                "metodo_resolucion": match.metodo_resolucion,
+                "confianza": match.confianza,
+                "requiere_revision": match.requiere_revision,
+            },
+        )
+
+
+def _upsert_mapeo_children(db, operational_respuesta_id: int, raw_payload: Dict[str, Any], provincia_contexto: Optional[str] = None) -> None:
     named_lists = extract_named_lists(raw_payload)
     _replace_mapeo_list_values(
         db,
@@ -589,6 +667,12 @@ def _upsert_mapeo_children(db, operational_respuesta_id: int, raw_payload: Dict[
         "respuestas_mapeo_necesidades_fortalecimiento",
         "necesidad_fortalecimiento",
         named_lists["necesidades_fortalecimiento"],
+    )
+    scalar_fields = extract_scalar_fields(raw_payload)
+    _replace_mapeo_territorios_servicio(
+        db,
+        operational_respuesta_id,
+        normalize_service_territories(scalar_fields.get("territorios_servicio"), provincia_contexto),
     )
     _replace_mapeo_servicios(db, operational_respuesta_id, extract_servicios(raw_payload))
     _replace_mapeo_espacios(db, operational_respuesta_id, extract_espacios(raw_payload))
@@ -731,7 +815,7 @@ def process_staging_to_operational(limit: int = 100, only_pending: bool = False)
 
             if row_data.get("version_encuesta") == "mapeo_estructuras_v1":
                 _upsert_mapeo_detail(db, operational_id, raw_payload)
-                _upsert_mapeo_children(db, operational_id, raw_payload)
+                _upsert_mapeo_children(db, operational_id, raw_payload, provincia)
 
             stats["cargada"] += 1
             db.execute(
