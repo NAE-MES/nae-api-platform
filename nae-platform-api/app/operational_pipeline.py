@@ -19,6 +19,12 @@ from app.mapeo_survey import (
 )
 
 
+from app.entity_resolution import (
+    REVIEW_THRESHOLD,
+    classify_entity_match,
+    entity_similarity,
+    normalize_entity_name,
+)
 from app.territory_normalization import MunicipalityMatch, normalize_service_territories
 
 PIPELINE_NAME = "staging_to_operational"
@@ -645,6 +651,196 @@ def _replace_mapeo_territorios_servicio(
         )
 
 
+def _entity_resolution_tables_exist(db) -> bool:
+    return bool(
+        db.execute(
+            text("SELECT to_regclass('operational.entidades_apoyo') IS NOT NULL")
+        ).scalar()
+    )
+
+
+def _find_best_entity_candidate(
+    db,
+    nombre_reportado: str,
+    provincia_id: int,
+    municipio_id: int,
+) -> tuple[Optional[int], Optional[str], float]:
+    candidates = db.execute(
+        text("""
+            SELECT id, nombre_canonico
+            FROM operational.entidades_apoyo
+            WHERE provincia_id = :provincia_id
+              AND municipio_id = :municipio_id
+              AND estado_revision <> 'descartada'
+        """),
+        {"provincia_id": provincia_id, "municipio_id": municipio_id},
+    ).mappings().all()
+
+    best_id: Optional[int] = None
+    best_name: Optional[str] = None
+    best_score = 0.0
+    for candidate in candidates:
+        score = entity_similarity(nombre_reportado, candidate["nombre_canonico"])
+        if score > best_score:
+            best_id = candidate["id"]
+            best_name = candidate["nombre_canonico"]
+            best_score = score
+    return best_id, best_name, best_score
+
+
+def _upsert_canonical_entity(
+    db,
+    values: Dict[str, Any],
+    provincia_id: int,
+    municipio_id: int,
+) -> int:
+    nombre = values.get("entidad_nombre") or "Sin nombre"
+    nombre_normalizado = normalize_entity_name(nombre)
+    return db.execute(
+        text("""
+            INSERT INTO operational.entidades_apoyo (
+                nombre_canonico,
+                nombre_normalizado,
+                provincia_id,
+                municipio_id,
+                tipo_estructura_apoyo,
+                cobertura_principal,
+                direccion_fisica,
+                telefonos,
+                correo_electronico,
+                sitio_web,
+                redes_sociales,
+                persona_contacto_cargo,
+                updated_at
+            )
+            VALUES (
+                :nombre_canonico,
+                :nombre_normalizado,
+                :provincia_id,
+                :municipio_id,
+                :tipo_estructura_apoyo,
+                :cobertura_principal,
+                :direccion_fisica,
+                :telefonos,
+                :correo_electronico,
+                :sitio_web,
+                :redes_sociales,
+                :persona_contacto_cargo,
+                NOW()
+            )
+            ON CONFLICT (provincia_id, municipio_id, nombre_normalizado)
+            DO UPDATE SET
+                tipo_estructura_apoyo = COALESCE(EXCLUDED.tipo_estructura_apoyo, operational.entidades_apoyo.tipo_estructura_apoyo),
+                cobertura_principal = COALESCE(EXCLUDED.cobertura_principal, operational.entidades_apoyo.cobertura_principal),
+                direccion_fisica = COALESCE(EXCLUDED.direccion_fisica, operational.entidades_apoyo.direccion_fisica),
+                telefonos = COALESCE(EXCLUDED.telefonos, operational.entidades_apoyo.telefonos),
+                correo_electronico = COALESCE(EXCLUDED.correo_electronico, operational.entidades_apoyo.correo_electronico),
+                sitio_web = COALESCE(EXCLUDED.sitio_web, operational.entidades_apoyo.sitio_web),
+                redes_sociales = COALESCE(EXCLUDED.redes_sociales, operational.entidades_apoyo.redes_sociales),
+                persona_contacto_cargo = COALESCE(EXCLUDED.persona_contacto_cargo, operational.entidades_apoyo.persona_contacto_cargo),
+                updated_at = NOW()
+            RETURNING id
+        """),
+        {
+            "nombre_canonico": nombre,
+            "nombre_normalizado": nombre_normalizado,
+            "provincia_id": provincia_id,
+            "municipio_id": municipio_id,
+            "tipo_estructura_apoyo": values.get("tipo_estructura_apoyo"),
+            "cobertura_principal": values.get("cobertura_principal"),
+            "direccion_fisica": values.get("direccion_fisica"),
+            "telefonos": values.get("telefonos"),
+            "correo_electronico": values.get("correo_electronico"),
+            "sitio_web": values.get("sitio_web"),
+            "redes_sociales": values.get("redes_sociales"),
+            "persona_contacto_cargo": values.get("persona_contacto_cargo"),
+        },
+    ).scalar_one()
+
+
+def _upsert_entity_resolution(
+    db,
+    operational_respuesta_id: int,
+    raw_payload: Dict[str, Any],
+    provincia_id: int,
+    municipio_id: int,
+) -> None:
+    if not _entity_resolution_tables_exist(db):
+        return
+
+    values = extract_scalar_fields(raw_payload)
+    nombre_reportado = values.get("entidad_nombre")
+    if not nombre_reportado:
+        return
+
+    best_id, best_name, best_score = _find_best_entity_candidate(
+        db,
+        nombre_reportado,
+        provincia_id,
+        municipio_id,
+    )
+    match = classify_entity_match(best_id, best_name, best_score)
+    should_auto_link = match.entidad_apoyo_id is not None and not match.requiere_revision
+
+    if should_auto_link:
+        entidad_apoyo_id = match.entidad_apoyo_id
+        entidad_sugerida_id = None
+    else:
+        entidad_apoyo_id = _upsert_canonical_entity(db, values, provincia_id, municipio_id)
+        entidad_sugerida_id = best_id if best_score >= REVIEW_THRESHOLD else None
+
+    requiere_revision = bool(match.requiere_revision)
+    if entidad_sugerida_id and entidad_sugerida_id != entidad_apoyo_id:
+        requiere_revision = True
+
+    db.execute(
+        text("""
+            INSERT INTO operational.respuestas_entidades_apoyo (
+                entidad_apoyo_id,
+                entidad_sugerida_id,
+                operational_respuesta_id,
+                nombre_reportado,
+                nombre_normalizado,
+                metodo_resolucion,
+                confianza,
+                requiere_revision,
+                updated_at
+            )
+            VALUES (
+                :entidad_apoyo_id,
+                :entidad_sugerida_id,
+                :operational_respuesta_id,
+                :nombre_reportado,
+                :nombre_normalizado,
+                :metodo_resolucion,
+                :confianza,
+                :requiere_revision,
+                NOW()
+            )
+            ON CONFLICT (operational_respuesta_id)
+            DO UPDATE SET
+                entidad_apoyo_id = EXCLUDED.entidad_apoyo_id,
+                entidad_sugerida_id = EXCLUDED.entidad_sugerida_id,
+                nombre_reportado = EXCLUDED.nombre_reportado,
+                nombre_normalizado = EXCLUDED.nombre_normalizado,
+                metodo_resolucion = EXCLUDED.metodo_resolucion,
+                confianza = EXCLUDED.confianza,
+                requiere_revision = EXCLUDED.requiere_revision,
+                updated_at = NOW()
+        """),
+        {
+            "entidad_apoyo_id": entidad_apoyo_id,
+            "entidad_sugerida_id": entidad_sugerida_id,
+            "operational_respuesta_id": operational_respuesta_id,
+            "nombre_reportado": nombre_reportado,
+            "nombre_normalizado": normalize_entity_name(nombre_reportado),
+            "metodo_resolucion": match.metodo_resolucion,
+            "confianza": match.confianza,
+            "requiere_revision": requiere_revision,
+        },
+    )
+
+
 def _upsert_mapeo_children(db, operational_respuesta_id: int, raw_payload: Dict[str, Any], provincia_contexto: Optional[str] = None) -> None:
     named_lists = extract_named_lists(raw_payload)
     _replace_mapeo_list_values(
@@ -816,6 +1012,7 @@ def process_staging_to_operational(limit: int = 100, only_pending: bool = False)
             if row_data.get("version_encuesta") == "mapeo_estructuras_v1":
                 _upsert_mapeo_detail(db, operational_id, raw_payload)
                 _upsert_mapeo_children(db, operational_id, raw_payload, provincia)
+                _upsert_entity_resolution(db, operational_id, raw_payload, provincia_id, municipio_id)
 
             stats["cargada"] += 1
             db.execute(

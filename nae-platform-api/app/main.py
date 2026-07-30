@@ -23,9 +23,11 @@ from app.reporting import (
     build_support_entities_csv,
     build_support_entities_pdf,
     build_resumen_csv,
+    get_admin_review_data,
     get_dashboard_data,
     get_response_detail,
     get_support_entities,
+    render_admin_review_html,
     render_dashboard_html,
     render_response_detail_html,
     render_support_entities_html,
@@ -442,6 +444,258 @@ def panel_dashboard(
         tipo=tipo,
         servicio=servicio,
     )
+
+
+@app.get("/admin/revision", response_class=HTMLResponse)
+def admin_revision(request: Request):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    return render_admin_review_html(get_admin_review_data())
+
+
+@app.post("/admin/revision/territorios/{territorio_id}")
+async def admin_revision_territorio(request: Request, territorio_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    action = form.get("action", [""])[0]
+    municipio_id_raw = form.get("municipio_id", [""])[0]
+    observacion = form.get("observacion", [""])[0] or None
+
+    db = SessionLocal()
+    try:
+        current = db.execute(
+            text("""
+                SELECT id, texto_original, provincia_resuelta, municipio_resuelto
+                FROM operational.respuestas_mapeo_territorios_servicio
+                WHERE id = :id
+            """),
+            {"id": territorio_id},
+        ).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="Territorio pendiente no encontrado")
+
+        if action == "resolve":
+            if not municipio_id_raw:
+                raise HTTPException(status_code=400, detail="Debe seleccionar un municipio")
+            municipio = db.execute(
+                text("""
+                    SELECT mu.id, mu.nombre AS municipio, p.nombre AS provincia
+                    FROM operational.municipios mu
+                    JOIN operational.provincias p ON p.id = mu.provincia_id
+                    WHERE mu.id = :id
+                """),
+                {"id": int(municipio_id_raw)},
+            ).mappings().one_or_none()
+            if municipio is None:
+                raise HTTPException(status_code=400, detail="Municipio no válido")
+
+            approved_value = f"{municipio['provincia']} / {municipio['municipio']}"
+            db.execute(
+                text("""
+                    UPDATE operational.respuestas_mapeo_territorios_servicio
+                    SET provincia_resuelta = :provincia,
+                        municipio_resuelto = :municipio,
+                        municipio_id = :municipio_id,
+                        metodo_resolucion = 'manual',
+                        confianza = 1,
+                        requiere_revision = FALSE
+                    WHERE id = :id
+                """),
+                {
+                    "id": territorio_id,
+                    "provincia": municipio["provincia"],
+                    "municipio": municipio["municipio"],
+                    "municipio_id": municipio["id"],
+                },
+            )
+        elif action == "descriptive":
+            approved_value = "Territorio descriptivo"
+            db.execute(
+                text("""
+                    UPDATE operational.respuestas_mapeo_territorios_servicio
+                    SET metodo_resolucion = 'territorio_descriptivo',
+                        requiere_revision = FALSE
+                    WHERE id = :id
+                """),
+                {"id": territorio_id},
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Acción no válida")
+
+        db.execute(
+            text("""
+                INSERT INTO operational.revisiones_datos (
+                    tipo_revision,
+                    tabla_origen,
+                    registro_origen_id,
+                    valor_original,
+                    valor_sugerido,
+                    valor_aprobado,
+                    accion,
+                    usuario,
+                    observacion
+                )
+                VALUES (
+                    'territorio_servicio',
+                    'operational.respuestas_mapeo_territorios_servicio',
+                    :registro_origen_id,
+                    :valor_original,
+                    :valor_sugerido,
+                    :valor_aprobado,
+                    :accion,
+                    :usuario,
+                    :observacion
+                )
+            """),
+            {
+                "registro_origen_id": territorio_id,
+                "valor_original": current["texto_original"],
+                "valor_sugerido": " / ".join(
+                    value for value in [current["provincia_resuelta"], current["municipio_resuelto"]] if value
+                ),
+                "valor_aprobado": approved_value,
+                "accion": action,
+                "usuario": ANALYTICS_USERNAME,
+                "observacion": observacion,
+            },
+        )
+        db.commit()
+        return RedirectResponse(url="/admin/revision", status_code=303)
+    except HTTPException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.post("/admin/revision/entidades/{revision_id}")
+async def admin_revision_entidad(request: Request, revision_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    action = form.get("action", [""])[0]
+    observacion = form.get("observacion", [""])[0] or None
+
+    db = SessionLocal()
+    try:
+        current = db.execute(
+            text("""
+                SELECT rel.id,
+                       rel.entidad_apoyo_id,
+                       rel.entidad_sugerida_id,
+                       rel.nombre_reportado,
+                       actual.nombre_canonico AS entidad_actual,
+                       sugerida.nombre_canonico AS entidad_sugerida
+                FROM operational.respuestas_entidades_apoyo rel
+                JOIN operational.entidades_apoyo actual ON actual.id = rel.entidad_apoyo_id
+                LEFT JOIN operational.entidades_apoyo sugerida ON sugerida.id = rel.entidad_sugerida_id
+                WHERE rel.id = :id
+            """),
+            {"id": revision_id},
+        ).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="Revisión de entidad no encontrada")
+
+        if action == "merge":
+            if current["entidad_sugerida_id"] is None:
+                raise HTTPException(status_code=400, detail="No hay entidad sugerida para unir")
+            approved_value = current["entidad_sugerida"]
+            old_entity_id = current["entidad_apoyo_id"]
+            db.execute(
+                text("""
+                    UPDATE operational.respuestas_entidades_apoyo
+                    SET entidad_apoyo_id = :entidad_sugerida_id,
+                        entidad_sugerida_id = NULL,
+                        metodo_resolucion = 'manual_unida',
+                        confianza = 1,
+                        requiere_revision = FALSE,
+                        updated_at = NOW()
+                    WHERE id = :id
+                """),
+                {"id": revision_id, "entidad_sugerida_id": current["entidad_sugerida_id"]},
+            )
+            remaining_links = db.execute(
+                text("""
+                    SELECT COUNT(*)
+                    FROM operational.respuestas_entidades_apoyo
+                    WHERE entidad_apoyo_id = :entidad_apoyo_id
+                """),
+                {"entidad_apoyo_id": old_entity_id},
+            ).scalar_one()
+            if remaining_links == 0:
+                db.execute(
+                    text("""
+                        UPDATE operational.entidades_apoyo
+                        SET estado_revision = 'fusionada',
+                            updated_at = NOW()
+                        WHERE id = :id
+                    """),
+                    {"id": old_entity_id},
+                )
+        elif action == "separate":
+            approved_value = current["entidad_actual"]
+            db.execute(
+                text("""
+                    UPDATE operational.respuestas_entidades_apoyo
+                    SET entidad_sugerida_id = NULL,
+                        metodo_resolucion = 'manual_separada',
+                        requiere_revision = FALSE,
+                        updated_at = NOW()
+                    WHERE id = :id
+                """),
+                {"id": revision_id},
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Acción no válida")
+
+        db.execute(
+            text("""
+                INSERT INTO operational.revisiones_datos (
+                    tipo_revision,
+                    tabla_origen,
+                    registro_origen_id,
+                    valor_original,
+                    valor_sugerido,
+                    valor_aprobado,
+                    accion,
+                    usuario,
+                    observacion
+                )
+                VALUES (
+                    'entidad_duplicada',
+                    'operational.respuestas_entidades_apoyo',
+                    :registro_origen_id,
+                    :valor_original,
+                    :valor_sugerido,
+                    :valor_aprobado,
+                    :accion,
+                    :usuario,
+                    :observacion
+                )
+            """),
+            {
+                "registro_origen_id": revision_id,
+                "valor_original": current["entidad_actual"],
+                "valor_sugerido": current["entidad_sugerida"],
+                "valor_aprobado": approved_value,
+                "accion": action,
+                "usuario": ANALYTICS_USERNAME,
+                "observacion": observacion,
+            },
+        )
+        db.commit()
+        return RedirectResponse(url="/admin/revision", status_code=303)
+    except HTTPException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
 
 @app.get("/respuestas/{respuesta_id}", response_class=HTMLResponse)
 def detalle_respuesta_html(request: Request, respuesta_id: int):

@@ -813,6 +813,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
             <a href="/mapa-apoyo">Mapa de apoyo</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
+            <a class="locked" href="/admin/revision">Revisión</a>
             <a href="/logout">Salir</a>
           </div>
         </div>
@@ -1359,6 +1360,12 @@ def get_support_entities(
     where_clause = " AND ".join(clauses)
     db = SessionLocal()
     try:
+        has_entity_resolution = db.execute(
+            text("SELECT to_regclass('operational.entidades_apoyo') IS NOT NULL")
+        ).scalar()
+        if has_entity_resolution:
+            return _get_support_entities_canonical(db, limit, provincia, municipio, tipo, q)
+
         has_geocoding_table = db.execute(
             text("SELECT to_regclass('operational.geocodificacion_entidades') IS NOT NULL")
         ).scalar()
@@ -1467,6 +1474,186 @@ def get_support_entities(
         }
     finally:
         db.close()
+
+
+def _get_support_entities_canonical(
+    db,
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    q: Optional[str] = None,
+) -> Dict[str, Any]:
+    clauses = ["ea.estado_revision <> 'descartada'"]
+    params: Dict[str, Any] = {"limit": limit}
+    if provincia:
+        clauses.append("p.nombre = :provincia")
+        params["provincia"] = provincia
+    if municipio:
+        clauses.append("mu.nombre = :municipio")
+        params["municipio"] = municipio
+    if tipo:
+        clauses.append("COALESCE(ea.tipo_estructura_apoyo, '') = :tipo")
+        params["tipo"] = tipo
+    if q:
+        clauses.append("""
+            (
+                COALESCE(ea.nombre_canonico, '') ILIKE :q
+                OR COALESCE(ea.tipo_estructura_apoyo, '') ILIKE :q
+                OR COALESCE(ea.direccion_fisica, '') ILIKE :q
+                OR COALESCE(ea.persona_contacto_cargo, '') ILIKE :q
+                OR COALESCE(mu.nombre, '') ILIKE :q
+                OR COALESCE(p.nombre, '') ILIKE :q
+            )
+        """)
+        params["q"] = f"%{q}%"
+
+    where_clause = " AND ".join(clauses)
+    has_geocoding_table = db.execute(
+        text("SELECT to_regclass('operational.geocodificacion_entidades') IS NOT NULL")
+    ).scalar()
+    geocoding_select = """
+                       (
+                         SELECT g.lat
+                         FROM operational.respuestas_entidades_apoyo rel_geo
+                         JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_geo.operational_respuesta_id
+                         WHERE rel_geo.entidad_apoyo_id = ea.id
+                           AND g.estado IN ('geocodificada', 'validada')
+                           AND g.lat IS NOT NULL
+                           AND g.lng IS NOT NULL
+                         ORDER BY g.confianza DESC NULLS LAST, g.fecha_validacion DESC NULLS LAST
+                         LIMIT 1
+                       ) AS geocoding_lat,
+                       (
+                         SELECT g.lng
+                         FROM operational.respuestas_entidades_apoyo rel_geo
+                         JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_geo.operational_respuesta_id
+                         WHERE rel_geo.entidad_apoyo_id = ea.id
+                           AND g.estado IN ('geocodificada', 'validada')
+                           AND g.lat IS NOT NULL
+                           AND g.lng IS NOT NULL
+                         ORDER BY g.confianza DESC NULLS LAST, g.fecha_validacion DESC NULLS LAST
+                         LIMIT 1
+                       ) AS geocoding_lng,
+                       (
+                         SELECT g.fuente
+                         FROM operational.respuestas_entidades_apoyo rel_geo
+                         JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_geo.operational_respuesta_id
+                         WHERE rel_geo.entidad_apoyo_id = ea.id
+                           AND g.estado IN ('geocodificada', 'validada')
+                           AND g.lat IS NOT NULL
+                           AND g.lng IS NOT NULL
+                         ORDER BY g.confianza DESC NULLS LAST, g.fecha_validacion DESC NULLS LAST
+                         LIMIT 1
+                       ) AS geocoding_fuente,
+                       (
+                         SELECT g.confianza
+                         FROM operational.respuestas_entidades_apoyo rel_geo
+                         JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_geo.operational_respuesta_id
+                         WHERE rel_geo.entidad_apoyo_id = ea.id
+                           AND g.estado IN ('geocodificada', 'validada')
+                           AND g.lat IS NOT NULL
+                           AND g.lng IS NOT NULL
+                         ORDER BY g.confianza DESC NULLS LAST, g.fecha_validacion DESC NULLS LAST
+                         LIMIT 1
+                       ) AS geocoding_confianza,
+                       (
+                         SELECT g.estado
+                         FROM operational.respuestas_entidades_apoyo rel_geo
+                         JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_geo.operational_respuesta_id
+                         WHERE rel_geo.entidad_apoyo_id = ea.id
+                           AND g.estado IN ('geocodificada', 'validada')
+                           AND g.lat IS NOT NULL
+                           AND g.lng IS NOT NULL
+                         ORDER BY g.confianza DESC NULLS LAST, g.fecha_validacion DESC NULLS LAST
+                         LIMIT 1
+                       ) AS geocoding_estado,
+                       NULL::timestamp AS geocoding_fecha_validacion,
+    """ if has_geocoding_table else """
+                       NULL::numeric AS geocoding_lat,
+                       NULL::numeric AS geocoding_lng,
+                       NULL::text AS geocoding_fuente,
+                       NULL::numeric AS geocoding_confianza,
+                       NULL::text AS geocoding_estado,
+                       NULL::timestamp AS geocoding_fecha_validacion,
+    """
+
+    rows = db.execute(
+        text(f"""
+            SELECT ea.id AS entidad_apoyo_id,
+                   MIN(op.id) AS operational_respuesta_id,
+                   MIN(op.raw_respuesta_id) AS raw_respuesta_id,
+                   MIN(op.id_respuesta_origen) AS id_respuesta_origen,
+                   MAX(op.fecha_respuesta) AS fecha_respuesta,
+                   p.nombre AS provincia,
+                   mu.nombre AS municipio,
+                   ea.nombre_canonico AS entidad_nombre,
+                   ea.tipo_estructura_apoyo,
+                   ea.cobertura_principal,
+                   NULL::text AS modalidad_atencion,
+                   ea.direccion_fisica,
+                   ea.telefonos,
+                   ea.correo_electronico,
+                   ea.sitio_web,
+                   ea.redes_sociales,
+                   ea.persona_contacto_cargo,
+                   NULL::text AS territorios_servicio,
+                   NULL::text AS presta_servicios_actualmente,
+                   NULL::text AS capacidad_ampliar_cobertura,
+                   NULL::text AS condiciones_conectividad,
+                   NULL::text AS autonomia_energetica,
+                   {geocoding_select}
+                   (
+                     SELECT STRING_AGG(DISTINCT s.servicio, ', ' ORDER BY s.servicio)
+                     FROM operational.respuestas_entidades_apoyo rel_s
+                     JOIN operational.respuestas_mapeo_servicios s ON s.operational_respuesta_id = rel_s.operational_respuesta_id
+                     WHERE rel_s.entidad_apoyo_id = ea.id
+                       AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
+                   ) AS servicios,
+                   CASE WHEN BOOL_OR(rel.requiere_revision) THEN 'requiere_revision' ELSE 'validada' END AS estado_validacion,
+                   COUNT(DISTINCT op.id)::int AS respuestas_recibidas,
+                   BOOL_OR(rel.requiere_revision) AS requiere_revision
+            FROM operational.entidades_apoyo ea
+            JOIN operational.provincias p ON p.id = ea.provincia_id
+            JOIN operational.municipios mu ON mu.id = ea.municipio_id
+            LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+            LEFT JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
+            WHERE {where_clause}
+            GROUP BY ea.id, p.nombre, mu.nombre
+            ORDER BY p.nombre, mu.nombre, ea.nombre_canonico
+            LIMIT :limit
+        """),
+        params,
+    ).mappings().all()
+
+    lookups = db.execute(
+        text("""
+            SELECT DISTINCT p.nombre AS provincia,
+                   mu.nombre AS municipio,
+                   ea.tipo_estructura_apoyo AS tipo
+            FROM operational.entidades_apoyo ea
+            JOIN operational.provincias p ON p.id = ea.provincia_id
+            JOIN operational.municipios mu ON mu.id = ea.municipio_id
+            WHERE ea.estado_revision <> 'descartada'
+        """)
+    ).mappings().all()
+
+    return {
+        "lookups": {
+            "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}),
+            "municipios": sorted({row["municipio"] for row in lookups if row["municipio"]}),
+            "tipos": sorted({row["tipo"] for row in lookups if row["tipo"]}),
+        },
+        "filters": {
+            "provincia": provincia,
+            "municipio": municipio,
+            "tipo": tipo,
+            "q": q,
+            "limit": limit,
+        },
+        "total": len(rows),
+        "entidades": [_with_coordinates(dict(row)) for row in rows],
+    }
 
 
 def _with_coordinates(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1675,6 +1862,245 @@ def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
         ).encode("ascii")
     )
     return bytes(output)
+
+
+def get_admin_review_data() -> Dict[str, Any]:
+    db = SessionLocal()
+    try:
+        has_entity_resolution = db.execute(
+            text("SELECT to_regclass('operational.respuestas_entidades_apoyo') IS NOT NULL")
+        ).scalar()
+
+        territories = db.execute(
+            text("""
+                SELECT ts.id,
+                       ts.operational_respuesta_id,
+                       ts.texto_original,
+                       ts.provincia_resuelta,
+                       ts.municipio_resuelto,
+                       ts.metodo_resolucion,
+                       ts.confianza,
+                       ts.requiere_revision,
+                       p.nombre AS provincia_contexto,
+                       mu.nombre AS municipio_contexto,
+                       op.nombre_institucion
+                FROM operational.respuestas_mapeo_territorios_servicio ts
+                JOIN operational.respuestas_encuesta op ON op.id = ts.operational_respuesta_id
+                LEFT JOIN operational.provincias p ON p.id = op.provincia_id
+                LEFT JOIN operational.municipios mu ON mu.id = op.municipio_id
+                WHERE ts.requiere_revision = TRUE
+                ORDER BY ts.confianza DESC, ts.id DESC
+                LIMIT 100
+            """)
+        ).mappings().all()
+
+        municipalities = db.execute(
+            text("""
+                SELECT mu.id,
+                       p.nombre AS provincia,
+                       mu.nombre AS municipio
+                FROM operational.municipios mu
+                JOIN operational.provincias p ON p.id = mu.provincia_id
+                ORDER BY p.nombre, mu.nombre
+            """)
+        ).mappings().all()
+
+        entity_reviews = []
+        if has_entity_resolution:
+            entity_reviews = db.execute(
+                text("""
+                    SELECT rel.id,
+                           rel.operational_respuesta_id,
+                           rel.nombre_reportado,
+                           rel.metodo_resolucion,
+                           rel.confianza,
+                           actual.id AS entidad_actual_id,
+                           actual.nombre_canonico AS entidad_actual,
+                           sugerida.id AS entidad_sugerida_id,
+                           sugerida.nombre_canonico AS entidad_sugerida,
+                           p.nombre AS provincia,
+                           mu.nombre AS municipio
+                    FROM operational.respuestas_entidades_apoyo rel
+                    JOIN operational.entidades_apoyo actual ON actual.id = rel.entidad_apoyo_id
+                    LEFT JOIN operational.entidades_apoyo sugerida ON sugerida.id = rel.entidad_sugerida_id
+                    LEFT JOIN operational.provincias p ON p.id = actual.provincia_id
+                    LEFT JOIN operational.municipios mu ON mu.id = actual.municipio_id
+                    WHERE rel.requiere_revision = TRUE
+                    ORDER BY rel.confianza DESC, rel.id DESC
+                    LIMIT 100
+                """)
+            ).mappings().all()
+
+        recent_decisions = []
+        if has_entity_resolution:
+            recent_decisions = db.execute(
+                text("""
+                    SELECT tipo_revision,
+                           valor_original,
+                           valor_sugerido,
+                           valor_aprobado,
+                           accion,
+                           usuario,
+                           created_at
+                    FROM operational.revisiones_datos
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                """)
+            ).mappings().all()
+
+        return {
+            "territories": [dict(row) for row in territories],
+            "municipalities": [dict(row) for row in municipalities],
+            "entity_reviews": [dict(row) for row in entity_reviews],
+            "recent_decisions": [dict(row) for row in recent_decisions],
+        }
+    except ProgrammingError:
+        db.rollback()
+        return {"territories": [], "municipalities": [], "entity_reviews": [], "recent_decisions": []}
+    finally:
+        db.close()
+
+
+def render_admin_review_html(data: Dict[str, Any]) -> str:
+    municipalities = data.get("municipalities", [])
+
+    def municipality_options(selected_name: Optional[str] = None) -> str:
+        options = ['<option value="">Seleccionar municipio</option>']
+        for row in municipalities:
+            label = f"{row.get('provincia')} / {row.get('municipio')}"
+            selected = " selected" if selected_name and row.get("municipio") == selected_name else ""
+            options.append(f"<option value='{row.get('id')}'{selected}>{escape(label)}</option>")
+        return "".join(options)
+
+    territory_rows = []
+    for row in data.get("territories", []):
+        suggested = " / ".join(
+            value for value in [row.get("provincia_resuelta"), row.get("municipio_resuelto")] if value
+        ) or "Sin sugerencia"
+        territory_rows.append(f"""
+          <article class="review-card">
+            <div>
+              <p class="eyebrow">Territorio pendiente</p>
+              <h3>{escape(str(row.get('texto_original') or 'Sin texto'))}</h3>
+              <p>{escape(str(row.get('nombre_institucion') or 'Sin entidad'))} · {escape(str(row.get('provincia_contexto') or 'Sin provincia'))}</p>
+              <p><strong>Sugerencia:</strong> {escape(suggested)} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
+            </div>
+            <form method="post" action="/admin/revision/territorios/{row.get('id')}">
+              <label class="field"><span>Municipio correcto</span><select name="municipio_id">{municipality_options(row.get('municipio_resuelto'))}</select></label>
+              <label class="field"><span>Observación</span><input name="observacion" placeholder="Opcional" /></label>
+              <div class="actions">
+                <button class="button primary" name="action" value="resolve" type="submit">Guardar municipio</button>
+                <button class="button secondary" name="action" value="descriptive" type="submit">Es territorio descriptivo</button>
+              </div>
+            </form>
+          </article>
+        """)
+    if not territory_rows:
+        territory_rows.append("<article class='card pad'><h3>Sin territorios pendientes</h3><p>No hay municipios o territorios por revisar.</p></article>")
+
+    entity_rows = []
+    for row in data.get("entity_reviews", []):
+        entity_rows.append(f"""
+          <article class="review-card">
+            <div>
+              <p class="eyebrow">Posible duplicado</p>
+              <h3>{escape(str(row.get('nombre_reportado') or 'Sin nombre'))}</h3>
+              <p>{escape(str(row.get('provincia') or 'Sin provincia'))} · {escape(str(row.get('municipio') or 'Sin municipio'))}</p>
+              <p><strong>Entidad actual:</strong> {escape(str(row.get('entidad_actual') or 'Sin dato'))}</p>
+              <p><strong>Sugerida:</strong> {escape(str(row.get('entidad_sugerida') or 'Sin sugerencia'))} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
+            </div>
+            <form method="post" action="/admin/revision/entidades/{row.get('id')}">
+              <label class="field"><span>Observación</span><input name="observacion" placeholder="Opcional" /></label>
+              <div class="actions">
+                <button class="button primary" name="action" value="merge" type="submit">Unir con sugerida</button>
+                <button class="button secondary" name="action" value="separate" type="submit">Mantener separada</button>
+              </div>
+            </form>
+          </article>
+        """)
+    if not entity_rows:
+        entity_rows.append("<article class='card pad'><h3>Sin duplicados pendientes</h3><p>No hay entidades que requieran decisión manual.</p></article>")
+
+    decision_rows = []
+    for row in data.get("recent_decisions", []):
+        decision_rows.append(f"""
+          <tr>
+            <td>{escape(str(row.get('created_at') or ''))}</td>
+            <td>{escape(str(row.get('tipo_revision') or ''))}</td>
+            <td>{escape(str(row.get('accion') or ''))}</td>
+            <td>{escape(str(row.get('valor_original') or ''))}</td>
+            <td>{escape(str(row.get('valor_aprobado') or ''))}</td>
+          </tr>
+        """)
+    if not decision_rows:
+        decision_rows.append("<tr><td colspan='5'>Aún no hay decisiones registradas.</td></tr>")
+
+    return f"""
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NAE - Revisión de datos</title>
+    <link rel="stylesheet" href="/prototype-assets/styles.css" />
+    <style>
+      .review-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }}
+      .review-stack {{ display: grid; gap: 12px; }}
+      .review-card {{ display: grid; gap: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow); padding: 16px; }}
+      .review-card h3 {{ margin-bottom: 6px; color: var(--nae-navy); }}
+      .review-card p {{ margin-bottom: 6px; color: #435466; }}
+      .review-card form {{ display: grid; gap: 10px; }}
+      .review-card .actions {{ justify-content: flex-start; }}
+      .review-history {{ margin-top: 22px; }}
+      @media (max-width: 900px) {{ .review-grid {{ grid-template-columns: 1fr; }} }}
+    </style>
+  </head>
+  <body>
+    <nav class="site-nav">
+      <div class="nav-inner">
+        <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
+        <div class="nav-links">
+          <a href="/">Inicio</a>
+          <a href="/mapa-apoyo">Mapa de apoyo</a>
+          <a href="/analitica">Analítica</a>
+          <a class="active" href="/admin/revision">Revisión</a>
+          <a href="/logout">Salir</a>
+        </div>
+      </div>
+    </nav>
+    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Administración</p>
+          <h1>Revisión de datos pendientes</h1>
+          <p class="lead">Corrección controlada de municipios escritos de forma ambigua y consolidación de entidades posiblemente duplicadas.</p>
+        </div>
+      </header>
+      <section class="review-grid">
+        <div>
+          <h2>Territorios</h2>
+          <div class="review-stack">{''.join(territory_rows)}</div>
+        </div>
+        <div>
+          <h2>Entidades duplicadas</h2>
+          <div class="review-stack">{''.join(entity_rows)}</div>
+        </div>
+      </section>
+      <section class="card pad review-history">
+        <h2>Historial reciente</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Acción</th><th>Original</th><th>Aprobado</th></tr></thead>
+            <tbody>{''.join(decision_rows)}</tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
+  </body>
+</html>
+    """
 
 
 def render_support_entities_html(data: Dict[str, Any]) -> str:
@@ -2679,6 +3105,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             <a href="/mapa-apoyo">Mapa de apoyo</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
+            <a class="locked" href="/admin/revision">Revisión</a>
             <a href="/logout">Salir</a>
           </div>
         </div>

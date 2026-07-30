@@ -144,6 +144,25 @@ def test_login_sets_session_cookie():
     assert main.AUTH_COOKIE_NAME in response.cookies
 
 
+def test_admin_revision_requires_login():
+    client.cookies.clear()
+    response = client.get("/admin/revision", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login?")
+
+
+def test_admin_revision_page_uses_renderer(monkeypatch):
+    monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
+    monkeypatch.setattr(main, "get_admin_review_data", lambda: {"territories": [], "entity_reviews": []})
+    monkeypatch.setattr(main, "render_admin_review_html", lambda data: "<html>revision</html>")
+
+    response = client.get("/admin/revision")
+
+    assert response.status_code == 200
+    assert response.text == "<html>revision</html>"
+
+
 def test_response_detail_endpoints(monkeypatch):
     detail = {
         "respuesta_id": 3,
