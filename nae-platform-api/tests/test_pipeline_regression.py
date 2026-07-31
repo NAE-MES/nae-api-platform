@@ -485,3 +485,26 @@ def test_process_operational_to_analytics_maps_dimensions(monkeypatch):
 
     assert result["stats"] == {"total": 1, "cargada": 1, "saltada": 0, "errores_registrados": 0}
     assert resolved == [(1001, 1002, 1003, 1004, 1005)]
+
+
+def test_upsert_entity_resolution_logs_automatic_match_history():
+    payload = {"0.1* Entidad a la que pertenece": "uci"}
+    fake_db = FakeDB([
+        FakeResult(scalar_value=True),
+        FakeResult(rows=[{"id": 44, "nombre_canonico": "Universidad de las Ciencias Informáticas"}]),
+        FakeResult(),
+        FakeResult(scalar_one_or_none_value=None),
+        FakeResult(),
+    ])
+
+    operational_pipeline._upsert_entity_resolution(fake_db, 9, payload, 1, 2)
+
+    link_call = next(call for call in fake_db.calls if "INSERT INTO operational.respuestas_entidades_apoyo" in call["query"])
+    history_call = next(call for call in fake_db.calls if "INSERT INTO operational.revisiones_datos" in call["query"])
+
+    assert link_call["params"]["entidad_apoyo_id"] == 44
+    assert link_call["params"]["metodo_resolucion"] == "similitud"
+    assert link_call["params"]["requiere_revision"] is False
+    assert history_call["params"]["accion"] == "auto_link"
+    assert history_call["params"]["valor_original"] == "uci"
+    assert history_call["params"]["valor_aprobado"] == "Universidad de las Ciencias Informáticas"

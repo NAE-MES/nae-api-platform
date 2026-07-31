@@ -793,6 +793,18 @@ def _upsert_entity_resolution(
     if entidad_sugerida_id and entidad_sugerida_id != entidad_apoyo_id:
         requiere_revision = True
 
+    revision_action = None
+    revision_suggested = None
+    revision_approved = None
+    if should_auto_link and match.metodo_resolucion in {"exacta", "similitud"}:
+        revision_action = "auto_link"
+        revision_suggested = match.nombre_canonico
+        revision_approved = match.nombre_canonico
+    elif entidad_sugerida_id and requiere_revision:
+        revision_action = "auto_review"
+        revision_suggested = match.nombre_canonico
+        revision_approved = None
+
     db.execute(
         text("""
             INSERT INTO operational.respuestas_entidades_apoyo (
@@ -839,6 +851,55 @@ def _upsert_entity_resolution(
             "requiere_revision": requiere_revision,
         },
     )
+
+    if revision_action:
+        already_logged = db.execute(
+            text("""
+                SELECT 1
+                FROM operational.revisiones_datos
+                WHERE tipo_revision = 'entidad_duplicada'
+                  AND tabla_origen = 'operational.respuestas_entidades_apoyo'
+                  AND registro_origen_id = :registro_origen_id
+                  AND accion = :accion
+                LIMIT 1
+            """),
+            {"registro_origen_id": operational_respuesta_id, "accion": revision_action},
+        ).scalar_one_or_none()
+        if already_logged is None:
+            db.execute(
+                text("""
+                    INSERT INTO operational.revisiones_datos (
+                        tipo_revision,
+                        tabla_origen,
+                        registro_origen_id,
+                        valor_original,
+                        valor_sugerido,
+                        valor_aprobado,
+                        accion,
+                        usuario,
+                        observacion
+                    )
+                    VALUES (
+                        'entidad_duplicada',
+                        'operational.respuestas_entidades_apoyo',
+                        :registro_origen_id,
+                        :valor_original,
+                        :valor_sugerido,
+                        :valor_aprobado,
+                        :accion,
+                        'sistema',
+                        :observacion
+                    )
+                """),
+                {
+                    "registro_origen_id": operational_respuesta_id,
+                    "valor_original": nombre_reportado,
+                    "valor_sugerido": revision_suggested,
+                    "valor_aprobado": revision_approved,
+                    "accion": revision_action,
+                    "observacion": f"Resolucion automatica con confianza {match.confianza}",
+                },
+            )
 
 
 def _upsert_mapeo_children(db, operational_respuesta_id: int, raw_payload: Dict[str, Any], provincia_contexto: Optional[str] = None) -> None:
