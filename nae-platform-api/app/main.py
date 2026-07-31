@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
 from app.config import ANALYTICS_PASSWORD, ANALYTICS_USERNAME, API_TOKEN, SESSION_SECRET
+from app.cuba_geo import CUBA_GEO
 from app.database import SessionLocal
 from app.reporting import (
     build_support_entities_csv,
@@ -461,6 +462,7 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
     body = (await request.body()).decode("utf-8")
     form = parse_qs(body)
     action = form.get("action", [""])[0]
+    municipio_key = form.get("municipio_key", [""])[0]
     municipio_id_raw = form.get("municipio_id", [""])[0]
     observacion = form.get("observacion", [""])[0] or None
 
@@ -478,17 +480,55 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
             raise HTTPException(status_code=404, detail="Territorio pendiente no encontrado")
 
         if action == "resolve":
-            if not municipio_id_raw:
+            if not municipio_key and not municipio_id_raw:
                 raise HTTPException(status_code=400, detail="Debe seleccionar un municipio")
-            municipio = db.execute(
-                text("""
-                    SELECT mu.id, mu.nombre AS municipio, p.nombre AS provincia
-                    FROM operational.municipios mu
-                    JOIN operational.provincias p ON p.id = mu.provincia_id
-                    WHERE mu.id = :id
-                """),
-                {"id": int(municipio_id_raw)},
-            ).mappings().one_or_none()
+
+            if municipio_key:
+                if "||" not in municipio_key:
+                    raise HTTPException(status_code=400, detail="Municipio no válido")
+                provincia_nombre, municipio_nombre = municipio_key.split("||", 1)
+                valid_municipality = any(
+                    provincia_nombre == province_name and municipio_nombre == item["nombre"]
+                    for province_name, items in CUBA_GEO.items()
+                    for item in items
+                )
+                if not valid_municipality:
+                    raise HTTPException(status_code=400, detail="Municipio no válido")
+                provincia_id = db.execute(
+                    text("""
+                        INSERT INTO operational.provincias (nombre)
+                        VALUES (:nombre)
+                        ON CONFLICT (nombre)
+                        DO UPDATE SET nombre = EXCLUDED.nombre
+                        RETURNING id
+                    """),
+                    {"nombre": provincia_nombre},
+                ).scalar_one()
+                municipio_id = db.execute(
+                    text("""
+                        INSERT INTO operational.municipios (provincia_id, nombre)
+                        VALUES (:provincia_id, :nombre)
+                        ON CONFLICT (provincia_id, nombre)
+                        DO UPDATE SET nombre = EXCLUDED.nombre
+                        RETURNING id
+                    """),
+                    {"provincia_id": provincia_id, "nombre": municipio_nombre},
+                ).scalar_one()
+                municipio = {
+                    "id": municipio_id,
+                    "provincia": provincia_nombre,
+                    "municipio": municipio_nombre,
+                }
+            else:
+                municipio = db.execute(
+                    text("""
+                        SELECT mu.id, mu.nombre AS municipio, p.nombre AS provincia
+                        FROM operational.municipios mu
+                        JOIN operational.provincias p ON p.id = mu.provincia_id
+                        WHERE mu.id = :id
+                    """),
+                    {"id": int(municipio_id_raw)},
+                ).mappings().one_or_none()
             if municipio is None:
                 raise HTTPException(status_code=400, detail="Municipio no válido")
 

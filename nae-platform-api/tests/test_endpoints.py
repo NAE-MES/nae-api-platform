@@ -289,3 +289,31 @@ def test_recibir_respuesta_dispara_pipelines_automaticamente(monkeypatch):
     assert order == [("raw", 100, None), ("operational", 100, True), ("analytics", 100, True)]
     assert fake_db.commits == 1
     assert fake_db.closed is True
+
+
+def test_admin_review_municipality_selector_uses_full_catalog():
+    from app.cuba_geo import CUBA_GEO
+    from app.reporting import render_admin_review_html
+
+    municipalities = [
+        {"provincia": province_name, "municipio": item["nombre"]}
+        for province_name, items in CUBA_GEO.items()
+        for item in items
+    ]
+    html = render_admin_review_html({
+        "territories": [{
+            "id": 1,
+            "texto_original": "Plalla",
+            "provincia_resuelta": "La Habana",
+            "municipio_resuelto": "Playa",
+            "confianza": 0.7273,
+            "nombre_institucion": "UCI",
+            "provincia_contexto": "La Habana",
+        }],
+        "municipalities": municipalities,
+        "entity_reviews": [],
+        "recent_decisions": [],
+    })
+
+    assert "La Habana / Playa" in html
+    assert "value='La Habana||Playa' selected" in html

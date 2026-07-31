@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
-from app.cuba_geo import get_coordinates
+from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 
 
@@ -1894,16 +1894,11 @@ def get_admin_review_data() -> Dict[str, Any]:
             """)
         ).mappings().all()
 
-        municipalities = db.execute(
-            text("""
-                SELECT mu.id,
-                       p.nombre AS provincia,
-                       mu.nombre AS municipio
-                FROM operational.municipios mu
-                JOIN operational.provincias p ON p.id = mu.provincia_id
-                ORDER BY p.nombre, mu.nombre
-            """)
-        ).mappings().all()
+        municipalities = [
+            {"provincia": province_name, "municipio": item["nombre"]}
+            for province_name, items in CUBA_GEO.items()
+            for item in items
+        ]
 
         entity_reviews = []
         if has_entity_resolution:
@@ -1950,7 +1945,7 @@ def get_admin_review_data() -> Dict[str, Any]:
 
         return {
             "territories": [dict(row) for row in territories],
-            "municipalities": [dict(row) for row in municipalities],
+            "municipalities": municipalities,
             "entity_reviews": [dict(row) for row in entity_reviews],
             "recent_decisions": [dict(row) for row in recent_decisions],
         }
@@ -1969,7 +1964,8 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
         for row in municipalities:
             label = f"{row.get('provincia')} / {row.get('municipio')}"
             selected = " selected" if selected_name and row.get("municipio") == selected_name else ""
-            options.append(f"<option value='{row.get('id')}'{selected}>{escape(label)}</option>")
+            value = f"{row.get('provincia')}||{row.get('municipio')}"
+            options.append(f"<option value='{escape(value, quote=True)}'{selected}>{escape(label)}</option>")
         return "".join(options)
 
     territory_rows = []
@@ -1986,7 +1982,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
               <p><strong>Sugerencia:</strong> {escape(suggested)} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
             </div>
             <form method="post" action="/admin/revision/territorios/{row.get('id')}">
-              <label class="field"><span>Municipio correcto</span><select name="municipio_id">{municipality_options(row.get('municipio_resuelto'))}</select></label>
+              <label class="field"><span>Municipio correcto</span><select name="municipio_key">{municipality_options(row.get('municipio_resuelto'))}</select></label>
               <label class="field"><span>Observación</span><input name="observacion" placeholder="Opcional" /></label>
               <div class="actions">
                 <button class="button primary" name="action" value="resolve" type="submit">Guardar municipio</button>
