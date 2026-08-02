@@ -2290,19 +2290,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         return "".join(options)
 
     rows = data.get("entidades", [])
-    if rows:
-        featured_items = "".join(
-            f"""
-            <li>
-              <strong>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</strong><br />
-              {escape(str(row.get('tipo_estructura_apoyo') or 'Sin tipo'))} · {escape(str(row.get('municipio') or 'Sin municipio'))}
-            </li>
-            """
-            for row in rows[:6]
-        )
-    else:
-        featured_items = "<li><strong>Sin entidades visibles</strong><br />Aún no hay registros para los filtros seleccionados.</li>"
-
     map_entities = []
     for row in rows:
         lat = row.get("lat")
@@ -2360,12 +2347,13 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
       .support-item p {{ margin-bottom: 6px; }}
+      .map-shell {{ display: block; }}
       .leaflet-panel {{ position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }}
       .map-caption {{ display: flex; justify-content: space-between; gap: 18px; align-items: center; border-bottom: 1px solid var(--line); background: #fff; padding: 14px 16px; }}
       .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .map-caption .map-note {{ max-width: 620px; }}
-      #support-map {{ width: 100%; height: 560px; min-height: 420px; background: #eaf3f8; }}
+      #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #eaf3f8; }}
       .map-legend {{ position: absolute; left: 18px; bottom: 18px; z-index: 500; display: flex; flex-wrap: wrap; gap: 8px; }}
       .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); color: #435466; font-size: 12px; font-weight: 800; }}
       .entity-dot, .fallback-dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; background: #cf142b; box-shadow: 0 0 0 3px rgba(207,20,43,.16); }}
@@ -2429,10 +2417,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
           <div class="map-legend"><span><i class="entity-dot"></i>Entidad ubicada</span><span><i class="fallback-dot"></i>Ubicación municipal estimada</span></div>
         </div>
-        <aside class="card pad">
-          <h2>Estructuras destacadas</h2>
-          <ul class="list-clean">{featured_items}</ul>
-        </aside>
       </section>
 
       <section class="support-list">{''.join(entity_cards)}</section>

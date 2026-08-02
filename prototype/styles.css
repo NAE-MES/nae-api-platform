@@ -411,9 +411,7 @@ th {
 
 .map-shell {
   min-height: 520px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
-  gap: 18px;
+  display: block;
 }
 
 .cuba-map {
