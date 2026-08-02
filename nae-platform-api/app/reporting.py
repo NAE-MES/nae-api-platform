@@ -2099,7 +2099,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
     """
 
 
-def render_support_entities_html(data: Dict[str, Any]) -> str:
+def render_support_entities_html(data: Dict[str, Any], authenticated: bool = False) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
     pdf_params = {
@@ -2116,6 +2116,11 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     pdf_url = "/api/v1/entidades-apoyo.pdf"
     if pdf_params:
         pdf_url = f"{pdf_url}?{urlencode(pdf_params)}"
+    private_nav = ""
+    if authenticated:
+        private_nav = """
+          <a class="locked" href="/admin/revision">Revisión</a>
+          <a class="locked" href="/logout">Cerrar sesión</a>"""
 
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
@@ -2266,7 +2271,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     </html>
     """
 
-def render_support_entities_html(data: Dict[str, Any]) -> str:
+def render_support_entities_html(data: Dict[str, Any], authenticated: bool = False) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
     pdf_params = {
@@ -2283,6 +2288,11 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
     pdf_url = "/api/v1/entidades-apoyo.pdf"
     if pdf_params:
         pdf_url = f"{pdf_url}?{urlencode(pdf_params)}"
+    private_nav = ""
+    if authenticated:
+        private_nav = """
+          <a class="locked" href="/admin/revision">Revisión</a>
+          <a class="locked" href="/logout">Cerrar sesión</a>"""
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
         options = ['<option value="">Todos</option>']
@@ -2378,6 +2388,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
           <a class="active" href="/mapa-apoyo">Mapa de apoyo</a>
           <a href="/documentacion">Documentación</a>
           <a class="locked" href="/analitica">Analítica</a>
+          {private_nav}
         </div>
       </div>
     </nav>

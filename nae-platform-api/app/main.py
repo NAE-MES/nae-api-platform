@@ -17,7 +17,15 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
-from app.config import ANALYTICS_PASSWORD, ANALYTICS_USERNAME, API_TOKEN, SESSION_SECRET
+from app.config import (
+    ANALYTICS_PASSWORD,
+    ANALYTICS_USERNAME,
+    ANALYTICS_USERS,
+    API_TOKEN,
+    SESSION_COOKIE_SECURE,
+    SESSION_MAX_AGE_SECONDS,
+    SESSION_SECRET,
+)
 from app.cuba_geo import CUBA_GEO
 from app.database import SessionLocal
 from app.reporting import (
@@ -49,7 +57,7 @@ app.mount("/prototype-assets", StaticFiles(directory=str(PROJECT_ROOT / "prototy
 
 logger = logging.getLogger(__name__)
 AUTH_COOKIE_NAME = "nae_analytics_session"
-AUTH_COOKIE_MAX_AGE = 8 * 60 * 60
+AUTH_COOKIE_MAX_AGE = SESSION_MAX_AGE_SECONDS
 
 
 class RespuestaFormulario(BaseModel):
@@ -80,22 +88,57 @@ def _create_session_cookie(username: str) -> str:
     return f"{payload}.{_session_signature(payload)}"
 
 
-def _is_valid_session_cookie(cookie_value: Optional[str]) -> bool:
-    if not cookie_value or "." not in cookie_value:
+def _configured_analytics_users() -> Dict[str, str]:
+    users = {ANALYTICS_USERNAME: ANALYTICS_PASSWORD}
+    for item in ANALYTICS_USERS.split(";"):
+        if not item.strip():
+            continue
+        if ":" not in item:
+            logger.warning("Ignoring invalid ANALYTICS_USERS entry without ':'")
+            continue
+        username, password = item.split(":", 1)
+        username = username.strip()
+        password = password.strip()
+        if username and password:
+            users[username] = password
+    return users
+
+
+def _valid_analytics_credentials(username: str, password: str) -> bool:
+    configured_password = _configured_analytics_users().get(username)
+    if configured_password is None:
         return False
+    return hmac.compare_digest(password, configured_password)
+
+
+def _session_username_from_cookie(cookie_value: Optional[str]) -> Optional[str]:
+    if not cookie_value or "." not in cookie_value:
+        return None
 
     payload, signature = cookie_value.rsplit(".", 1)
     if not hmac.compare_digest(signature, _session_signature(payload)):
-        return False
+        return None
 
     try:
         raw_payload = _b64decode(payload).decode("utf-8")
         username, issued_at = raw_payload.rsplit(":", 1)
         age = int(time.time()) - int(issued_at)
     except Exception:
-        return False
+        return None
 
-    return username == ANALYTICS_USERNAME and 0 <= age <= AUTH_COOKIE_MAX_AGE
+    if username not in _configured_analytics_users():
+        return None
+    if not 0 <= age <= AUTH_COOKIE_MAX_AGE:
+        return None
+    return username
+
+
+def _is_valid_session_cookie(cookie_value: Optional[str]) -> bool:
+    return _session_username_from_cookie(cookie_value) is not None
+
+
+def _session_username(request: Request) -> Optional[str]:
+    return _session_username_from_cookie(request.cookies.get(AUTH_COOKIE_NAME))
 
 
 def _has_analytics_access(request: Request, authorization: Optional[str] = None) -> bool:
@@ -189,7 +232,13 @@ def _run_pipeline_chain(limit: int = 100) -> None:
 
 
 
-def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
+def _private_nav_links(is_authenticated: bool) -> str:
+    if not is_authenticated:
+        return ""
+    return '\n          <a class="locked" href="/admin/revision">Revisión</a>\n          <a class="locked" href="/logout">Cerrar sesión</a>'
+
+
+def _render_prototype_page(filename: str, active_path: str, request: Optional[Request] = None) -> HTMLResponse:
     html = (PROJECT_ROOT / "prototype" / filename).read_text(encoding="utf-8")
     replacements = {
         'href="styles.css"': 'href="/prototype-assets/styles.css"',
@@ -209,6 +258,14 @@ def _render_prototype_page(filename: str, active_path: str) -> HTMLResponse:
     }
     for old, new in replacements.items():
         html = html.replace(old, new)
+    if request is not None and _has_analytics_access(request):
+        analytics_link = '<a class="locked" href="/analitica">Analítica</a>'
+        active_analytics_link = '<a class="active locked" href="/analitica">Analítica</a>'
+        private_links = _private_nav_links(True)
+        if active_analytics_link in html and "/admin/revision" not in html:
+            html = html.replace(active_analytics_link, f"{active_analytics_link}{private_links}")
+        elif analytics_link in html and "/admin/revision" not in html:
+            html = html.replace(analytics_link, f"{analytics_link}{private_links}")
     return HTMLResponse(html)
 
 
@@ -233,9 +290,7 @@ async def login_submit(request: Request):
     if not next_url.startswith("/") or next_url.startswith("//"):
         next_url = "/analitica"
 
-    valid_user = hmac.compare_digest(username, ANALYTICS_USERNAME)
-    valid_password = hmac.compare_digest(password, ANALYTICS_PASSWORD)
-    if not valid_user or not valid_password:
+    if not _valid_analytics_credentials(username, password):
         return _render_login_html(error="Usuario o contraseña incorrectos.", next_url=next_url)
 
     response = RedirectResponse(url=next_url, status_code=303)
@@ -244,7 +299,7 @@ async def login_submit(request: Request):
         _create_session_cookie(username),
         max_age=AUTH_COOKIE_MAX_AGE,
         httponly=True,
-        secure=False,
+        secure=SESSION_COOKIE_SECURE,
         samesite="lax",
     )
     return response
@@ -357,6 +412,7 @@ def entidades_apoyo_pdf(
 
 @app.get("/mapa-apoyo", response_class=HTMLResponse)
 def mapa_apoyo(
+    request: Request,
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
@@ -366,7 +422,7 @@ def mapa_apoyo(
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
-    return render_support_entities_html(data)
+    return render_support_entities_html(data, authenticated=_has_analytics_access(request))
 
 @app.get("/api/v1/respuestas/{respuesta_id}")
 def detalle_respuesta_api(
@@ -382,18 +438,18 @@ def detalle_respuesta_api(
 
 
 @app.get("/", response_class=HTMLResponse)
-def inicio_publico():
-    return _render_prototype_page("index.html", "/")
+def inicio_publico(request: Request):
+    return _render_prototype_page("index.html", "/", request)
 
 
 @app.get("/encuesta", response_class=HTMLResponse)
-def encuesta_publica():
-    return _render_prototype_page("encuesta.html", "/encuesta")
+def encuesta_publica(request: Request):
+    return _render_prototype_page("encuesta.html", "/encuesta", request)
 
 
 @app.get("/documentacion", response_class=HTMLResponse)
-def documentacion_publica():
-    return _render_prototype_page("documentacion.html", "/documentacion")
+def documentacion_publica(request: Request):
+    return _render_prototype_page("documentacion.html", "/documentacion", request)
 
 
 @app.get("/analitica", response_class=HTMLResponse)
@@ -457,6 +513,7 @@ def admin_revision(request: Request):
 async def admin_revision_territorio(request: Request, territorio_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
+    review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
     form = parse_qs(body)
@@ -597,7 +654,7 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
                 ),
                 "valor_aprobado": approved_value,
                 "accion": action,
-                "usuario": ANALYTICS_USERNAME,
+                "usuario": review_user,
                 "observacion": observacion,
             },
         )
@@ -614,6 +671,7 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
 async def admin_revision_entidad(request: Request, revision_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
+    review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
     form = parse_qs(body)
@@ -723,7 +781,7 @@ async def admin_revision_entidad(request: Request, revision_id: int):
                 "valor_sugerido": current["entidad_sugerida"],
                 "valor_aprobado": approved_value,
                 "accion": action,
-                "usuario": ANALYTICS_USERNAME,
+                "usuario": review_user,
                 "observacion": observacion,
             },
         )

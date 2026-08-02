@@ -86,8 +86,17 @@ DB_PASSWORD=tu_password_real
 API_TOKEN=tu_token_real
 ANALYTICS_USERNAME=admin
 ANALYTICS_PASSWORD=tu_password_panel
+# Cuentas adicionales para jefes/responsables, separadas por punto y coma.
+# Ejemplo: jefe1:clave_larga_1;jefe2:clave_larga_2
+ANALYTICS_USERS=
 SESSION_SECRET=una_cadena_larga_aleatoria
+SESSION_MAX_AGE_SECONDS=28800
+SESSION_COOKIE_SECURE=false
 ```
+
+`SESSION_MAX_AGE_SECONDS=28800` equivale a 8 horas. Para una sesión más corta puede usarse, por ejemplo, `7200` para 2 horas.
+
+Si la plataforma se accede por HTTPS desde el navegador, `SESSION_COOKIE_SECURE=true` mejora la seguridad de la cookie. Si al activarlo el login no queda persistente por la configuración del proxy, volver temporalmente a `false` y revisar el paso HTTPS/HAProxy/Nginx.
 
 Permisos recomendados:
 

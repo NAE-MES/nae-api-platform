@@ -8,7 +8,10 @@ os.environ.setdefault("DB_PASSWORD", "nae")
 os.environ.setdefault("API_TOKEN", "test-token")
 os.environ.setdefault("ANALYTICS_USERNAME", "admin")
 os.environ.setdefault("ANALYTICS_PASSWORD", "secret")
+os.environ.setdefault("ANALYTICS_USERS", "")
 os.environ.setdefault("SESSION_SECRET", "test-session-secret")
+os.environ.setdefault("SESSION_MAX_AGE_SECONDS", "28800")
+os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
 
 from fastapi.testclient import TestClient
 
@@ -126,6 +129,7 @@ def test_resumen_html_endpoint_uses_renderer(monkeypatch):
 
 
 def test_analitica_requires_login():
+    client.cookies.clear()
     response = client.get("/analitica", follow_redirects=False)
 
     assert response.status_code == 303
@@ -133,6 +137,7 @@ def test_analitica_requires_login():
 
 
 def test_login_sets_session_cookie():
+    client.cookies.clear()
     response = client.post(
         "/login",
         data={"username": "admin", "password": "secret", "next": "/analitica"},
@@ -142,6 +147,52 @@ def test_login_sets_session_cookie():
     assert response.status_code == 303
     assert response.headers["location"] == "/analitica"
     assert main.AUTH_COOKIE_NAME in response.cookies
+
+
+def test_login_accepts_additional_configured_users(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1;jefe2:clave-jefe-2")
+
+    response = client.post(
+        "/login",
+        data={"username": "jefe1", "password": "clave-jefe-1", "next": "/admin/revision"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/revision"
+    assert main.AUTH_COOKIE_NAME in response.cookies
+
+
+def test_session_cookie_expires(monkeypatch):
+    monkeypatch.setattr(main, "AUTH_COOKIE_MAX_AGE", 1)
+    issued_at = int(main.time.time()) - 10
+    payload = main._b64encode(f"admin:{issued_at}".encode("utf-8"))
+    cookie = f"{payload}.{main._session_signature(payload)}"
+
+    assert main._is_valid_session_cookie(cookie) is False
+
+
+def test_public_navigation_keeps_private_links_when_logged_in():
+    client.cookies.clear()
+    cookie = main._create_session_cookie("admin")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Revisión" in response.text
+    assert "Cerrar sesión" in response.text
+
+
+def test_public_navigation_hides_private_links_without_login():
+    client.cookies.clear()
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Revisión" not in response.text
+    assert "Cerrar sesión" not in response.text
 
 
 def test_admin_revision_requires_login():
