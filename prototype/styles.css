@@ -45,7 +45,7 @@ a {
 }
 
 .brand-strip {
-  height: 178px;
+  height: clamp(120px, 25vw, 300px);
   object-fit: cover;
   object-position: center;
   background: #002b41;
@@ -526,8 +526,7 @@ th {
 }
 
 .footer {
-  background: #fff;
-  border-top: 1px solid var(--line);
+  display: none;
 }
 
 .footer .partner-strip {
@@ -541,9 +540,6 @@ th {
 }
 
 @media (max-width: 900px) {
-  .brand-strip {
-    height: 130px;
-  }
 
   .nav-inner,
   .page-header,
@@ -579,14 +575,6 @@ th {
 }
 
 @media (max-width: 560px) {
-  .brand-strip {
-    height: 84px;
-  }
-
-  .partner-strip,
-  .footer .partner-strip {
-    height: 42px;
-  }
 
   .page {
     padding: 26px 16px 42px;

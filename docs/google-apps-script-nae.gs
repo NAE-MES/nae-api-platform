@@ -29,15 +29,39 @@ function onFormSubmit(e) {
     throw new Error('Evento onFormSubmit no disponible');
   }
 
-  const payload = buildPayloadFromEvent(e);
-  const body = {
+  const body = buildBodyFromEvent(e);
+
+  try {
+    const content = sendBodyToNaeApi(body);
+    clearPendingSubmission(body.id_respuesta_origen);
+    Logger.log('Respuesta enviada correctamente: ' + content);
+  } catch (error) {
+    queuePendingSubmission(body, error);
+    Logger.log('Respuesta pendiente por fallo de API: ' + body.id_respuesta_origen + ' - ' + error.message);
+  }
+}
+
+function buildBodyFromEvent(e) {
+  return {
     id_respuesta_origen: buildResponseId(e),
     formulario_origen: NAE_FORM_TITLE,
     fecha_respuesta: getSubmittedAt(e),
     version_encuesta: NAE_SURVEY_VERSION,
-    payload: payload
+    payload: buildPayloadFromEvent(e)
   };
+}
 
+function buildBodyFromFormResponse(formResponse) {
+  return {
+    id_respuesta_origen: formResponse.getId(),
+    formulario_origen: NAE_FORM_TITLE,
+    fecha_respuesta: formResponse.getTimestamp().toISOString(),
+    version_encuesta: NAE_SURVEY_VERSION,
+    payload: buildPayloadFromFormResponse(formResponse)
+  };
+}
+
+function sendBodyToNaeApi(body) {
   const response = UrlFetchApp.fetch(NAE_API_URL, {
     method: 'post',
     contentType: 'application/json',
@@ -51,11 +75,103 @@ function onFormSubmit(e) {
   const code = response.getResponseCode();
   const content = response.getContentText();
 
+  if (code === 409) {
+    return 'Respuesta ya registrada en API: ' + body.id_respuesta_origen;
+  }
+
   if (code < 200 || code >= 300) {
     throw new Error('NAE API respondió ' + code + ': ' + content);
   }
 
-  Logger.log('Respuesta enviada correctamente: ' + content);
+  return content;
+}
+
+function queuePendingSubmission(body, error) {
+  const properties = PropertiesService.getScriptProperties();
+  const key = pendingKey(body.id_respuesta_origen);
+  const current = properties.getProperty(key);
+  let attempts = 0;
+  if (current) {
+    try {
+      attempts = JSON.parse(current).attempts || 0;
+    } catch (ignored) {
+      attempts = 0;
+    }
+  }
+
+  properties.setProperty(key, JSON.stringify({
+    body: body,
+    attempts: attempts + 1,
+    lastError: error && error.message ? error.message : String(error),
+    updatedAt: new Date().toISOString()
+  }));
+}
+
+function clearPendingSubmission(responseId) {
+  PropertiesService.getScriptProperties().deleteProperty(pendingKey(responseId));
+}
+
+function pendingKey(responseId) {
+  return 'NAE_PENDING_' + responseId;
+}
+
+function reenviarPendientesNae() {
+  const properties = PropertiesService.getScriptProperties();
+  const all = properties.getProperties();
+  let sent = 0;
+  let failed = 0;
+
+  Object.keys(all).forEach(function (key) {
+    if (key.indexOf('NAE_PENDING_') !== 0) {
+      return;
+    }
+
+    const record = JSON.parse(all[key]);
+    try {
+      const content = sendBodyToNaeApi(record.body);
+      properties.deleteProperty(key);
+      sent += 1;
+      Logger.log('Pendiente reenviado correctamente: ' + record.body.id_respuesta_origen + ' - ' + content);
+    } catch (error) {
+      failed += 1;
+      record.attempts = (record.attempts || 0) + 1;
+      record.lastError = error && error.message ? error.message : String(error);
+      record.updatedAt = new Date().toISOString();
+      properties.setProperty(key, JSON.stringify(record));
+      Logger.log('Pendiente sigue fallando: ' + record.body.id_respuesta_origen + ' - ' + record.lastError);
+    }
+  });
+
+  Logger.log('Reenvío de pendientes finalizado. Enviadas: ' + sent + '. Fallidas: ' + failed + '.');
+}
+
+function reenviarTodasLasRespuestasNae() {
+  const form = FormApp.getActiveForm();
+  const responses = form.getResponses();
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  responses.forEach(function (formResponse) {
+    const body = buildBodyFromFormResponse(formResponse);
+    try {
+      const content = sendBodyToNaeApi(body);
+      clearPendingSubmission(body.id_respuesta_origen);
+      sent += 1;
+      Logger.log('Respuesta sincronizada: ' + body.id_respuesta_origen + ' - ' + content);
+    } catch (error) {
+      if (String(error.message || error).indexOf('409') >= 0) {
+        skipped += 1;
+        clearPendingSubmission(body.id_respuesta_origen);
+        return;
+      }
+      failed += 1;
+      queuePendingSubmission(body, error);
+      Logger.log('No se pudo sincronizar: ' + body.id_respuesta_origen + ' - ' + error.message);
+    }
+  });
+
+  Logger.log('Reenvío total finalizado. Enviadas: ' + sent + '. Ya existentes: ' + skipped + '. Fallidas: ' + failed + '.');
 }
 
 function buildPayloadFromEvent(e) {

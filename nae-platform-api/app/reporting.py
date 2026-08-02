@@ -818,7 +818,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
           </div>
         </div>
       </nav>
-      <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+      <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
       <main class="page detail-main">
         <header class="page-header">
           <div>
@@ -868,7 +868,6 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
         </section>
         {mapeo_sections}
       </main>
-      <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
     </body>
     </html>
     """
@@ -2064,7 +2063,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
         </div>
       </div>
     </nav>
-    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+    <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
     <main class="page">
       <header class="page-header">
         <div>
@@ -2093,7 +2092,6 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
         </div>
       </section>
     </main>
-    <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
   </body>
 </html>
     """
@@ -2397,7 +2395,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         </div>
       </div>
     </nav>
-    <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+    <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
 
     <main class="page">
       <header class="page-header">
@@ -2439,10 +2437,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
 
       <section class="support-list">{''.join(entity_cards)}</section>
     </main>
-
-    <footer class="footer">
-      <img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" />
-    </footer>
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
     <script>
       const supportEntities = {map_entities_json};
@@ -2589,6 +2583,349 @@ def _fetch_mapeo_lookup_options() -> Dict[str, List[str]]:
         db.close()
 
 
+
+
+def _mapeo_entity_filters_clause(
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
+) -> tuple[str, Dict[str, Any]]:
+    clauses = ["ea.estado_revision <> 'descartada'"]
+    params: Dict[str, Any] = {}
+
+    if provincia:
+        clauses.append("p.nombre = :provincia")
+        params["provincia"] = provincia
+
+    if version_encuesta:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM operational.respuestas_entidades_apoyo rel_v
+                JOIN operational.respuestas_encuesta o_v ON o_v.id = rel_v.operational_respuesta_id
+                WHERE rel_v.entidad_apoyo_id = ea.id
+                  AND COALESCE(o_v.version_encuesta, '1.0') = :version_encuesta
+            )
+            """
+        )
+        params["version_encuesta"] = version_encuesta
+    else:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM operational.respuestas_entidades_apoyo rel_v
+                JOIN operational.respuestas_encuesta o_v ON o_v.id = rel_v.operational_respuesta_id
+                WHERE rel_v.entidad_apoyo_id = ea.id
+                  AND COALESCE(o_v.version_encuesta, '') = 'mapeo_estructuras_v1'
+            )
+            """
+        )
+
+    if tipo:
+        clauses.append("COALESCE(ea.tipo_estructura_apoyo, '') = :tipo")
+        params["tipo"] = tipo
+
+    if servicio:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM operational.respuestas_entidades_apoyo rel_s
+                JOIN operational.respuestas_mapeo_servicios s ON s.operational_respuesta_id = rel_s.operational_respuesta_id
+                WHERE rel_s.entidad_apoyo_id = ea.id
+                  AND s.servicio = :servicio
+                  AND (s.ofrece_actualmente IS TRUE OR s.requiere_fortalecer IS TRUE)
+            )
+            """
+        )
+        params["servicio"] = servicio
+
+    return " AND ".join(clauses), params
+
+
+def _query_rows(db, sql: str, params: Dict[str, Any], extra: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    return [dict(row) for row in db.execute(text(sql), {**params, **(extra or {})}).mappings().all()]
+
+
+def _get_dashboard_data_canonical(
+    db,
+    limit: int = 10,
+    provincia: Optional[str] = None,
+    version_encuesta: Optional[str] = None,
+    genero: Optional[str] = None,
+    tema: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
+) -> Dict[str, Any]:
+    entity_where, entity_params = _mapeo_entity_filters_clause(provincia, version_encuesta, tipo, servicio)
+    response_where, response_params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
+
+    total_entities = db.execute(
+        text(f"""
+            SELECT COUNT(DISTINCT ea.id)::int
+            FROM operational.entidades_apoyo ea
+            JOIN operational.provincias p ON p.id = ea.provincia_id
+            JOIN operational.municipios mu ON mu.id = ea.municipio_id
+            WHERE {entity_where}
+        """),
+        entity_params,
+    ).scalar_one()
+
+    total_responses = db.execute(
+        text(f"""
+            SELECT COUNT(*)::int
+            FROM analytics.f_respuestas_encuesta f
+            JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+            JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+            LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+            WHERE {response_where}
+        """),
+        response_params,
+    ).scalar_one()
+
+    kpis = dict(db.execute(
+        text(f"""
+            SELECT COUNT(DISTINCT p.nombre)::int AS provincias,
+                   COUNT(DISTINCT mu.nombre)::int AS municipios,
+                   COUNT(DISTINCT ea.tipo_estructura_apoyo)::int AS tipos_estructura,
+                   COUNT(DISTINCT ea.id) FILTER (WHERE NULLIF(TRIM(COALESCE(ea.telefonos, ea.correo_electronico, '')), '') IS NOT NULL)::int AS con_contacto,
+                   COUNT(DISTINCT ea.id) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM operational.respuestas_entidades_apoyo rel_a
+                       JOIN operational.respuestas_mapeo_entidad m_a ON m_a.operational_respuesta_id = rel_a.operational_respuesta_id
+                       WHERE rel_a.entidad_apoyo_id = ea.id AND COALESCE(m_a.capacidad_actualizar_mapeo, '') ILIKE 'Sí%%'
+                   ))::int AS actualizan_mapeo,
+                   COUNT(DISTINCT ea.id) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM operational.respuestas_entidades_apoyo rel_c
+                       JOIN operational.respuestas_mapeo_entidad m_c ON m_c.operational_respuesta_id = rel_c.operational_respuesta_id
+                       WHERE rel_c.entidad_apoyo_id = ea.id AND COALESCE(m_c.capacidad_ampliar_cobertura, '') ILIKE 'Sí%%'
+                   ))::int AS amplian_cobertura
+            FROM operational.entidades_apoyo ea
+            JOIN operational.provincias p ON p.id = ea.provincia_id
+            JOIN operational.municipios mu ON mu.id = ea.municipio_id
+            WHERE {entity_where}
+        """),
+        entity_params,
+    ).mappings().one())
+    kpis["envios_recibidos"] = int(total_responses)
+
+    def entity_rows(sql: str, extra: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        return _query_rows(db, sql, entity_params, extra)
+
+    def response_rows(sql: str, extra: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        return _query_rows(db, sql, response_params, extra)
+
+    respuestas_por_dia = response_rows(f"""
+        SELECT f.fecha_respuesta::date AS fecha, COUNT(*)::int AS total
+        FROM analytics.f_respuestas_encuesta f
+        JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+        JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+        WHERE {response_where}
+        GROUP BY f.fecha_respuesta::date
+        ORDER BY fecha ASC
+    """)
+
+    por_estado = response_rows(f"""
+        SELECT e.estado_validacion AS label, COUNT(*)::int AS total
+        FROM analytics.f_respuestas_encuesta f
+        JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+        JOIN analytics.dim_estado_validacion e ON e.id = f.estado_validacion_id
+        JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+        WHERE {response_where}
+        GROUP BY e.estado_validacion
+        ORDER BY total DESC, label ASC
+    """)
+
+    por_provincia = entity_rows(f"""
+        SELECT p.nombre AS provincia, mu.nombre AS municipio, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        WHERE {entity_where}
+        GROUP BY p.nombre, mu.nombre
+        ORDER BY total DESC, provincia ASC, municipio ASC
+    """)
+
+    simple_entity_groups = {
+        "tipos_estructura": ("COALESCE(ea.tipo_estructura_apoyo, 'Sin dato')", "operational.entidades_apoyo ea JOIN operational.provincias p ON p.id = ea.provincia_id JOIN operational.municipios mu ON mu.id = ea.municipio_id", ""),
+        "cobertura": ("COALESCE(ea.cobertura_principal, 'Sin dato')", "operational.entidades_apoyo ea JOIN operational.provincias p ON p.id = ea.provincia_id JOIN operational.municipios mu ON mu.id = ea.municipio_id", ""),
+    }
+    grouped = {}
+    for key, (expr, joins, extra_where) in simple_entity_groups.items():
+        grouped[key] = entity_rows(f"""
+            SELECT {expr} AS label, COUNT(DISTINCT ea.id)::int AS total
+            FROM {joins}
+            WHERE {entity_where} {extra_where}
+            GROUP BY {expr}
+            ORDER BY total DESC, label ASC
+            LIMIT 12
+        """)
+
+    modalidad_atencion = entity_rows(f"""
+        SELECT COALESCE(m.modalidad_atencion, 'Sin dato') AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY COALESCE(m.modalidad_atencion, 'Sin dato')
+        ORDER BY total DESC, label ASC
+    """)
+
+    servicios_ofrecidos = entity_rows(f"""
+        SELECT s.servicio AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        JOIN operational.respuestas_mapeo_servicios s ON s.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where} AND s.ofrece_actualmente IS TRUE
+        GROUP BY s.servicio
+        ORDER BY total DESC, label ASC
+        LIMIT 12
+    """)
+
+    servicios_fortalecer = entity_rows(f"""
+        SELECT s.servicio AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        JOIN operational.respuestas_mapeo_servicios s ON s.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where} AND s.requiere_fortalecer IS TRUE
+        GROUP BY s.servicio
+        ORDER BY total DESC, label ASC
+        LIMIT 12
+    """)
+
+    tipos_nae = entity_rows(f"""
+        SELECT tn.tipo_nae AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        JOIN operational.respuestas_mapeo_tipos_nae tn ON tn.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY tn.tipo_nae
+        ORDER BY total DESC, label ASC
+        LIMIT 12
+    """)
+
+    capacidades = entity_rows(f"""
+        SELECT ct.capacidad_tecnica AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        JOIN operational.respuestas_mapeo_capacidades_tecnicas ct ON ct.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY ct.capacidad_tecnica
+        ORDER BY total DESC, label ASC
+        LIMIT 12
+    """)
+
+    limitaciones = entity_rows(f"""
+        SELECT rl.limitacion AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        JOIN operational.respuestas_limitaciones rl ON rl.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY rl.limitacion
+        ORDER BY total DESC, label ASC
+        LIMIT 12
+    """)
+
+    conectividad = entity_rows(f"""
+        SELECT COALESCE(m.condiciones_conectividad, 'Sin dato') AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY COALESCE(m.condiciones_conectividad, 'Sin dato')
+        ORDER BY total DESC, label ASC
+    """)
+
+    sostenibilidad = entity_rows(f"""
+        SELECT COALESCE(m.capacidad_sostener_servicios, 'Sin dato') AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY COALESCE(m.capacidad_sostener_servicios, 'Sin dato')
+        ORDER BY total DESC, label ASC
+    """)
+
+    actualizacion_mapa = entity_rows(f"""
+        SELECT COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato') AS label, COUNT(DISTINCT ea.id)::int AS total
+        FROM operational.entidades_apoyo ea
+        JOIN operational.provincias p ON p.id = ea.provincia_id
+        JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = rel.operational_respuesta_id
+        WHERE {entity_where}
+        GROUP BY COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato')
+        ORDER BY total DESC, label ASC
+    """)
+
+    ultimas_respuestas = response_rows(f"""
+        SELECT f.id,
+               COALESCE(f.version_encuesta, '1.0') AS version_encuesta,
+               f.fecha_respuesta,
+               t.provincia_nombre,
+               t.municipio_nombre,
+               COALESCE(m.entidad_nombre, o.nombre_institucion) AS nombre_institucion,
+               COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion) AS tipo_estructura,
+               COALESCE(m.cobertura_principal, o.ambito_actuacion) AS cobertura,
+               COALESCE(m.capacidad_actualizar_mapeo, 'Sin dato') AS actualizacion_mapa,
+               e.estado_validacion
+        FROM analytics.f_respuestas_encuesta f
+        JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
+        JOIN analytics.dim_territorio t ON t.id = f.territorio_id
+        JOIN analytics.dim_estado_validacion e ON e.id = f.estado_validacion_id
+        LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
+        WHERE {response_where}
+        ORDER BY f.id DESC
+        LIMIT :limit
+    """, {"limit": limit})
+
+    return {
+        "filters": {"provincia": provincia, "version_encuesta": version_encuesta, "genero": genero, "tema": tema, "tipo": tipo, "servicio": servicio},
+        "lookups": _fetch_mapeo_lookup_options(),
+        "total_respuestas": int(total_entities),
+        "total_envios": int(total_responses),
+        "kpis": kpis,
+        "respuestas_por_dia": respuestas_por_dia,
+        "por_estado": por_estado,
+        "por_provincia": por_provincia,
+        "tipos_estructura": grouped["tipos_estructura"],
+        "cobertura": grouped["cobertura"],
+        "modalidad_atencion": modalidad_atencion,
+        "servicios_ofrecidos": servicios_ofrecidos,
+        "servicios_fortalecer": servicios_fortalecer,
+        "tipos_nae": tipos_nae,
+        "capacidades": capacidades,
+        "limitaciones": limitaciones,
+        "conectividad": conectividad,
+        "sostenibilidad": sostenibilidad,
+        "actualizacion_mapa": actualizacion_mapa,
+        "instituciones": [{"label": row["nombre_institucion"], "total": 1} for row in ultimas_respuestas[:10]],
+        "temas_formacion": servicios_fortalecer,
+        "por_genero": grouped["tipos_estructura"],
+        "por_nivel_instruccion": grouped["cobertura"],
+        "ultimas_respuestas": ultimas_respuestas,
+    }
+
 def get_dashboard_data(
     limit: int = 10,
     provincia: Optional[str] = None,
@@ -2600,6 +2937,21 @@ def get_dashboard_data(
 ) -> Dict[str, Any]:
     db = SessionLocal()
     try:
+        has_entity_resolution = db.execute(
+            text("SELECT to_regclass('operational.entidades_apoyo') IS NOT NULL")
+        ).scalar()
+        if has_entity_resolution:
+            return _get_dashboard_data_canonical(
+                db,
+                limit=limit,
+                provincia=provincia,
+                version_encuesta=version_encuesta,
+                genero=genero,
+                tema=tema,
+                tipo=tipo,
+                servicio=servicio,
+            )
+
         where_clause, params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
 
         total = db.execute(
@@ -3003,7 +3355,8 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
 
     metrics = f"""
         <section class="kpis">
-          <div class="kpi primary"><span>Entidades mapeadas</span><strong>{data['total_respuestas']}</strong><small>Registros visibles de la encuesta aprobada</small></div>
+          <div class="kpi primary"><span>Entidades mapeadas</span><strong>{data['total_respuestas']}</strong><small>Entidades consolidadas, sin duplicar envíos</small></div>
+          <div class="kpi"><span>Envíos recibidos</span><strong>{kpis.get('envios_recibidos', data.get('total_envios', data['total_respuestas']))}</strong><small>Respuestas individuales conservadas</small></div>
           <div class="kpi"><span>Provincias</span><strong>{kpis.get('provincias', 0)}</strong><small>Cobertura territorial capturada</small></div>
           <div class="kpi"><span>Municipios</span><strong>{kpis.get('municipios', 0)}</strong><small>Ubicaciones con estructuras reportadas</small></div>
           <div class="kpi"><span>Tipos de estructura</span><strong>{kpis.get('tipos_estructura', 0)}</strong><small>Diversidad institucional registrada</small></div>
@@ -3106,7 +3459,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           </div>
         </div>
       </nav>
-      <img class="brand-strip" src="/images/header.png" alt="NAE - Proyecto de cooperación internacional" />
+      <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
       <main class="analytics-main">
         <div class="shell layout">
           {filters_html}
@@ -3139,7 +3492,6 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <section class="card wide"><div class="card-head"><p class="section-lead">Detalle</p><h2>Últimas entidades procesadas</h2></div><div class="card-body table-wrap">{_table_with_links(['id', 'fecha_respuesta', 'estado_validacion', 'provincia_nombre', 'municipio_nombre', 'nombre_institucion', 'tipo_estructura', 'cobertura', 'actualizacion_mapa'], data['ultimas_respuestas'], 'id', '/respuestas/')}</div></section>
         </div>
       </main>
-      <footer class="footer"><img class="partner-strip" src="/images/footer.png" alt="Instituciones asociadas" /></footer>
     </body>
     </html>
     """
