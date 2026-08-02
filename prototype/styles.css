@@ -45,8 +45,9 @@ a {
 }
 
 .brand-strip {
-  height: clamp(120px, 25vw, 300px);
-  object-fit: cover;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
   object-position: center;
   background: #002b41;
 }

@@ -152,7 +152,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
       </div>
     </div>
   </nav>
-  <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+  <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
   <main class="page login-wrap">
     <section class="login-panel card pad">
       <p class="eyebrow">Área privada</p>

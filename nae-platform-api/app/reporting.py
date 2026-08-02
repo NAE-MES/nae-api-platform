@@ -814,11 +814,11 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
             <a class="locked" href="/admin/revision">Revisión</a>
-            <a href="/logout">Salir</a>
+            <a class="locked" href="/logout">Cerrar sesión</a>
           </div>
         </div>
       </nav>
-      <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+      <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
       <main class="page detail-main">
         <header class="page-header">
           <div>
@@ -2056,14 +2056,16 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
         <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
         <div class="nav-links">
           <a href="/">Inicio</a>
+          <a href="/encuesta">Encuesta</a>
           <a href="/mapa-apoyo">Mapa de apoyo</a>
+          <a href="/documentacion">Documentación</a>
           <a href="/analitica">Analítica</a>
           <a class="active" href="/admin/revision">Revisión</a>
-          <a href="/logout">Salir</a>
+          <a class="locked" href="/logout">Cerrar sesión</a>
         </div>
       </div>
     </nav>
-    <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+    <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
     <main class="page">
       <header class="page-header">
         <div>
@@ -2354,10 +2356,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .map-caption .map-note {{ max-width: 620px; }}
       #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #eaf3f8; }}
-      .map-legend {{ position: absolute; left: 18px; bottom: 18px; z-index: 500; display: flex; flex-wrap: wrap; gap: 8px; }}
-      .map-legend span {{ display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); color: #435466; font-size: 12px; font-weight: 800; }}
-      .entity-dot, .fallback-dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; background: #cf142b; box-shadow: 0 0 0 3px rgba(207,20,43,.16); }}
-      .fallback-dot {{ opacity: .72; }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
@@ -2367,7 +2365,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
       .leaflet-popup-content .popup-services {{ max-height: 70px; overflow-y: auto; padding-right: 4px; }}
       .leaflet-container {{ font-family: Arial, Helvetica, sans-serif; }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .map-caption {{ align-items: flex-start; flex-direction: column; }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .map-legend {{ left: 12px; bottom: 12px; }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} }}
     </style>
   </head>
   <body>
@@ -2383,7 +2381,7 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
         </div>
       </div>
     </nav>
-    <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+    <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
 
     <main class="page">
       <header class="page-header">
@@ -2415,7 +2413,6 @@ def render_support_entities_html(data: Dict[str, Any]) -> str:
             <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
           </div>
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
-          <div class="map-legend"><span><i class="entity-dot"></i>Entidad ubicada</span><span><i class="fallback-dot"></i>Ubicación municipal estimada</span></div>
         </div>
       </section>
 
@@ -3439,11 +3436,11 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
             <a class="locked" href="/admin/revision">Revisión</a>
-            <a href="/logout">Salir</a>
+            <a class="locked" href="/logout">Cerrar sesión</a>
           </div>
         </div>
       </nav>
-      <img class="brand-strip" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+      <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
       <main class="analytics-main">
         <div class="shell layout">
           {filters_html}
