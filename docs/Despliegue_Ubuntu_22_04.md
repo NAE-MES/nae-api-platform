@@ -89,6 +89,8 @@ ANALYTICS_PASSWORD=tu_password_panel
 # Cuentas adicionales para jefes/responsables, separadas por punto y coma.
 # Ejemplo: jefe1:clave_larga_1;jefe2:clave_larga_2
 ANALYTICS_USERS=
+# Solo estos usuarios adicionales pueden entrar a Revisión. El ANALYTICS_USERNAME principal siempre puede revisar.
+ANALYTICS_REVIEW_USERS=jefe1;jefe2
 SESSION_SECRET=una_cadena_larga_aleatoria
 SESSION_MAX_AGE_SECONDS=28800
 SESSION_COOKIE_SECURE=false
@@ -207,3 +209,28 @@ Validación mínima antes del corte:
 - HAProxy remoto apuntando al servidor
 - smoke test verde
 - Google Apps Script apuntando a la URL pública
+
+## Backup y limpieza de datos
+
+Preparar directorio de salvas una sola vez:
+
+```bash
+sudo mkdir -p /srv/nae/backups
+sudo chown postgres:postgres /srv/nae/backups
+```
+
+Crear una salva completa:
+
+```bash
+cd /srv/nae/nae-api-platform/nae-platform-api
+sudo -u postgres BACKUP_PREFIX=piloto_nacional DB_NAME=nae ./scripts/backup_database.sh
+```
+
+Limpiar datos de la base, después de confirmar que existe una salva:
+
+```bash
+cd /srv/nae/nae-api-platform/nae-platform-api
+sudo -u postgres DB_NAME=nae ./scripts/clean_database.sh --confirm
+```
+
+La limpieza borra datos de `raw`, `staging`, `operational`, `analytics` y `control`, reinicia IDs y conserva la estructura de la base.

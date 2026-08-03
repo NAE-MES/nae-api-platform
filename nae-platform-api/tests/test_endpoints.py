@@ -9,6 +9,7 @@ os.environ.setdefault("API_TOKEN", "test-token")
 os.environ.setdefault("ANALYTICS_USERNAME", "admin")
 os.environ.setdefault("ANALYTICS_PASSWORD", "secret")
 os.environ.setdefault("ANALYTICS_USERS", "")
+os.environ.setdefault("ANALYTICS_REVIEW_USERS", "")
 os.environ.setdefault("SESSION_SECRET", "test-session-secret")
 os.environ.setdefault("SESSION_MAX_AGE_SECONDS", "28800")
 os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
@@ -110,7 +111,7 @@ def test_resumen_html_endpoint_uses_renderer(monkeypatch):
         }
 
     monkeypatch.setattr(main, "get_dashboard_data", fake_get_dashboard_data)
-    monkeypatch.setattr(main, "render_dashboard_html", lambda data: "<html>panel</html>")
+    monkeypatch.setattr(main, "render_dashboard_html", lambda data, can_review=True: "<html>panel</html>")
     monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
 
     response = client.get("/analitica?limit=4")
@@ -194,6 +195,31 @@ def test_public_navigation_hides_private_links_without_login():
     assert "Revisión" not in response.text
     assert "Cerrar sesión" not in response.text
 
+def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1")
+    monkeypatch.setattr(main, "ANALYTICS_REVIEW_USERS", "")
+    cookie = main._create_session_cookie("jefe1")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Revisión" not in response.text
+    assert "Cerrar sesión" in response.text
+
+
+def test_admin_revision_forbidden_for_non_reviewer(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1")
+    monkeypatch.setattr(main, "ANALYTICS_REVIEW_USERS", "")
+    cookie = main._create_session_cookie("jefe1")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+
+    response = client.get("/admin/revision", follow_redirects=False)
+
+    assert response.status_code == 403
+
 
 def test_admin_revision_requires_login():
     client.cookies.clear()
@@ -205,6 +231,7 @@ def test_admin_revision_requires_login():
 
 def test_admin_revision_page_uses_renderer(monkeypatch):
     monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
+    monkeypatch.setattr(main, "_has_review_access", lambda request: True)
     monkeypatch.setattr(main, "get_admin_review_data", lambda: {"territories": [], "entity_reviews": []})
     monkeypatch.setattr(main, "render_admin_review_html", lambda data: "<html>revision</html>")
 
@@ -368,3 +395,4 @@ def test_admin_review_municipality_selector_uses_full_catalog():
 
     assert "La Habana / Playa" in html
     assert "value='La Habana||Playa' selected" in html
+

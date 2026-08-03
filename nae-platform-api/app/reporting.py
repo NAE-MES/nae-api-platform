@@ -874,7 +874,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
 
 
 
-def render_dashboard_html(data: Dict[str, Any]) -> str:
+def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
     estado_totals = {row.get("label"): row.get("total", 0) for row in data["por_estado"]}
@@ -914,6 +914,10 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <div class="kpi danger"><span>Rechazadas</span><strong>{rechazadas}</strong><small>No avanzan al análisis</small></div>
         </section>
     """
+
+    review_nav = ""
+    if can_review:
+        review_nav = '\n            <a class="locked" href="/admin/revision">Revisión</a>'
 
     html = f"""
     <!doctype html>
@@ -2099,7 +2103,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
     """
 
 
-def render_support_entities_html(data: Dict[str, Any], authenticated: bool = False) -> str:
+def render_support_entities_html(data: Dict[str, Any], authenticated: bool = False, can_review: bool = False) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
     pdf_params = {
@@ -2118,8 +2122,10 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         pdf_url = f"{pdf_url}?{urlencode(pdf_params)}"
     private_nav = ""
     if authenticated:
-        private_nav = """
-          <a class="locked" href="/admin/revision">Revisión</a>
+        if can_review:
+            private_nav += """
+          <a class="locked" href="/admin/revision">Revisión</a>"""
+        private_nav += """
           <a class="locked" href="/logout">Cerrar sesión</a>"""
 
 
@@ -2271,7 +2277,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     </html>
     """
 
-def render_support_entities_html(data: Dict[str, Any], authenticated: bool = False) -> str:
+def render_support_entities_html(data: Dict[str, Any], authenticated: bool = False, can_review: bool = False) -> str:
     lookups = data.get("lookups", {})
     selected = data.get("filters", {})
     pdf_params = {
@@ -2290,8 +2296,10 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         pdf_url = f"{pdf_url}?{urlencode(pdf_params)}"
     private_nav = ""
     if authenticated:
-        private_nav = """
-          <a class="locked" href="/admin/revision">Revisión</a>
+        if can_review:
+            private_nav += """
+          <a class="locked" href="/admin/revision">Revisión</a>"""
+        private_nav += """
           <a class="locked" href="/logout">Cerrar sesión</a>"""
 
     def option_list(values: List[str], selected_value: Optional[str]) -> str:
@@ -3312,7 +3320,7 @@ def _daily_chart(rows: List[Dict[str, Any]]) -> str:
     """
 
 
-def render_dashboard_html(data: Dict[str, Any]) -> str:
+def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
     lookups = data["lookups"]
     selected = data["filters"]
     kpis = data.get("kpis", {})
@@ -3358,6 +3366,10 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
           <div class="kpi attention"><span>Observaciones</span><strong>{observaciones}</strong><small>Revisar calidad del dato</small></div>
         </section>
     """
+
+    review_nav = ""
+    if can_review:
+        review_nav = '\n            <a class="locked" href="/admin/revision">Revisión</a>'
 
     html = f"""
     <!doctype html>
@@ -3446,7 +3458,7 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
             <a href="/mapa-apoyo">Mapa de apoyo</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
-            <a class="locked" href="/admin/revision">Revisión</a>
+            {review_nav}
             <a class="locked" href="/logout">Cerrar sesión</a>
           </div>
         </div>
@@ -3488,5 +3500,8 @@ def render_dashboard_html(data: Dict[str, Any]) -> str:
     </html>
     """
     return html
+
+
+
 
 

@@ -19,6 +19,7 @@ from sqlalchemy import text
 
 from app.config import (
     ANALYTICS_PASSWORD,
+    ANALYTICS_REVIEW_USERS,
     ANALYTICS_USERNAME,
     ANALYTICS_USERS,
     API_TOKEN,
@@ -133,6 +134,22 @@ def _session_username_from_cookie(cookie_value: Optional[str]) -> Optional[str]:
     return username
 
 
+
+def _configured_review_users() -> set[str]:
+    users = {ANALYTICS_USERNAME}
+    for item in ANALYTICS_REVIEW_USERS.split(";"):
+        username = item.strip()
+        if username:
+            users.add(username)
+    return users
+
+
+def _user_can_review(username: Optional[str]) -> bool:
+    return bool(username and username in _configured_review_users())
+
+
+def _has_review_access(request: Request) -> bool:
+    return _user_can_review(_session_username(request))
 def _is_valid_session_cookie(cookie_value: Optional[str]) -> bool:
     return _session_username_from_cookie(cookie_value) is not None
 
@@ -232,10 +249,14 @@ def _run_pipeline_chain(limit: int = 100) -> None:
 
 
 
-def _private_nav_links(is_authenticated: bool) -> str:
+def _private_nav_links(is_authenticated: bool, can_review: bool = False) -> str:
     if not is_authenticated:
         return ""
-    return '\n          <a class="locked" href="/admin/revision">Revisión</a>\n          <a class="locked" href="/logout">Cerrar sesión</a>'
+    links = ""
+    if can_review:
+        links += '\n          <a class="locked" href="/admin/revision">Revisión</a>'
+    links += '\n          <a class="locked" href="/logout">Cerrar sesión</a>'
+    return links
 
 
 def _render_prototype_page(filename: str, active_path: str, request: Optional[Request] = None) -> HTMLResponse:
@@ -261,7 +282,7 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
     if request is not None and _has_analytics_access(request):
         analytics_link = '<a class="locked" href="/analitica">Analítica</a>'
         active_analytics_link = '<a class="active locked" href="/analitica">Analítica</a>'
-        private_links = _private_nav_links(True)
+        private_links = _private_nav_links(True, _has_review_access(request))
         if active_analytics_link in html and "/admin/revision" not in html:
             html = html.replace(active_analytics_link, f"{active_analytics_link}{private_links}")
         elif analytics_link in html and "/admin/revision" not in html:
@@ -422,7 +443,7 @@ def mapa_apoyo(
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
-    return render_support_entities_html(data, authenticated=_has_analytics_access(request))
+    return render_support_entities_html(data, authenticated=_has_analytics_access(request), can_review=_has_review_access(request))
 
 @app.get("/api/v1/respuestas/{respuesta_id}")
 def detalle_respuesta_api(
@@ -476,7 +497,7 @@ def panel_analitico(
         servicio=servicio,
     )
     data["filters"]["limit"] = limit
-    return render_dashboard_html(data)
+    return render_dashboard_html(data, can_review=_has_review_access(request))
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -506,6 +527,8 @@ def panel_dashboard(
 def admin_revision(request: Request):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
     return render_admin_review_html(get_admin_review_data())
 
 
@@ -513,6 +536,8 @@ def admin_revision(request: Request):
 async def admin_revision_territorio(request: Request, territorio_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
     review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
@@ -671,6 +696,8 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
 async def admin_revision_entidad(request: Request, revision_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
     review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
@@ -925,3 +952,6 @@ def ejecutar_operational_a_analytics(limit: int = 100, authorization: Optional[s
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
 
     return process_operational_to_analytics(limit=limit)
+
+
+
