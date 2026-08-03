@@ -89,19 +89,25 @@ def _create_session_cookie(username: str) -> str:
     return f"{payload}.{_session_signature(payload)}"
 
 
-def _configured_analytics_users() -> Dict[str, str]:
-    users = {ANALYTICS_USERNAME: ANALYTICS_PASSWORD}
-    for item in ANALYTICS_USERS.split(";"):
+def _parse_user_password_entries(raw_value: str) -> Dict[str, str]:
+    users: Dict[str, str] = {}
+    for item in raw_value.split(";"):
         if not item.strip():
             continue
         if ":" not in item:
-            logger.warning("Ignoring invalid ANALYTICS_USERS entry without ':'")
             continue
         username, password = item.split(":", 1)
         username = username.strip()
         password = password.strip()
         if username and password:
             users[username] = password
+    return users
+
+
+def _configured_analytics_users() -> Dict[str, str]:
+    users = {ANALYTICS_USERNAME: ANALYTICS_PASSWORD}
+    users.update(_parse_user_password_entries(ANALYTICS_USERS))
+    users.update(_parse_user_password_entries(ANALYTICS_REVIEW_USERS))
     return users
 
 
@@ -138,7 +144,10 @@ def _session_username_from_cookie(cookie_value: Optional[str]) -> Optional[str]:
 def _configured_review_users() -> set[str]:
     users = {ANALYTICS_USERNAME}
     for item in ANALYTICS_REVIEW_USERS.split(";"):
-        username = item.strip()
+        item = item.strip()
+        if not item:
+            continue
+        username = item.split(":", 1)[0].strip()
         if username:
             users.add(username)
     return users
@@ -952,6 +961,7 @@ def ejecutar_operational_a_analytics(limit: int = 100, authorization: Optional[s
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
 
     return process_operational_to_analytics(limit=limit)
+
 
 
 

@@ -90,7 +90,8 @@ ANALYTICS_PASSWORD=tu_password_panel
 # Ejemplo: jefe1:clave_larga_1;jefe2:clave_larga_2
 ANALYTICS_USERS=
 # Solo estos usuarios adicionales pueden entrar a Revisión. El ANALYTICS_USERNAME principal siempre puede revisar.
-ANALYTICS_REVIEW_USERS=jefe1;jefe2
+# Puede usarse solo usuario si ya está en ANALYTICS_USERS, o usuario:clave si debe autenticar desde aquí.
+ANALYTICS_REVIEW_USERS=jefe1:clave_larga_1;jefe2:clave_larga_2
 SESSION_SECRET=una_cadena_larga_aleatoria
 SESSION_MAX_AGE_SECONDS=28800
 SESSION_COOKIE_SECURE=false
@@ -234,3 +235,4 @@ sudo -u postgres DB_NAME=nae ./scripts/clean_database.sh --confirm
 ```
 
 La limpieza borra datos de `raw`, `staging`, `operational`, `analytics` y `control`, reinicia IDs y conserva la estructura de la base.
+

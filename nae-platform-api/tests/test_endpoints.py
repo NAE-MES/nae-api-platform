@@ -150,6 +150,26 @@ def test_login_sets_session_cookie():
     assert main.AUTH_COOKIE_NAME in response.cookies
 
 
+def test_login_accepts_review_users_with_password(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setattr(main, "ANALYTICS_USERS", "")
+    monkeypatch.setattr(main, "ANALYTICS_REVIEW_USERS", "denys:clave-denys;julia:clave-julia")
+
+    response = client.post(
+        "/login",
+        data={"username": "denys", "password": "clave-denys", "next": "/admin/revision"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/revision"
+    assert main.AUTH_COOKIE_NAME in response.cookies
+
+    cookie = response.cookies[main.AUTH_COOKIE_NAME]
+    assert main._session_username_from_cookie(cookie) == "denys"
+    assert "denys" in main._configured_review_users()
+
+
 def test_login_accepts_additional_configured_users(monkeypatch):
     client.cookies.clear()
     monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1;jefe2:clave-jefe-2")
@@ -395,4 +415,5 @@ def test_admin_review_municipality_selector_uses_full_catalog():
 
     assert "La Habana / Playa" in html
     assert "value='La Habana||Playa' selected" in html
+
 
