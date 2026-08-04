@@ -3544,7 +3544,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
             <section class="card"><div class="card-head"><p class="section-lead">Cobertura</p><h2>Tipos de estructura</h2></div><div class="card-body">{_donut_chart(data['tipos_estructura'])}</div></section>
           </section>
           <section class="grid">
-            <section class="card"><div class="card-head"><p class="section-lead">Territorio</p><h2>Provincias y municipios</h2></div><div class="card-body table-wrap">{_table(['provincia', 'municipio', 'total'], data['por_provincia'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Territorio</p><h2>Provincias y municipios</h2></div><div class="card-body">{_table(['provincia', 'municipio', 'total'], data['por_provincia'])}</div></section>
             <section class="card"><div class="card-head"><p class="section-lead">Atención</p><h2>Cobertura principal</h2></div><div class="card-body">{_bar_rows(data['cobertura'])}</div></section>
           </section>
           <section class="grid">
