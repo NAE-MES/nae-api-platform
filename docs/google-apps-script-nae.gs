@@ -1,4 +1,4 @@
-const NAE_API_URL = 'https://nae-plataforma.mes.gob.cu/api/v1/respuestas';
+const NAE_API_URL = 'https://mapeo-plataforma.mes.gob.cu/api/v1/respuestas';
 const NAE_API_TOKEN = 'TU_TOKEN_REAL';
 const NAE_FORM_TITLE = 'Formulario V1 · Mapeo de estructuras de apoyo a los NAE';
 const NAE_SURVEY_VERSION = 'mapeo_estructuras_v1';
@@ -274,3 +274,4 @@ function getSubmittedAt(e) {
 
   return new Date().toISOString();
 }
+

@@ -6,7 +6,7 @@ Fecha: 2026-06-21
 
 La plataforma quedó visible en la URL externa:
 
-- `https://nae-plataforma.mes.gob.cu`
+- `https://mapeo-plataforma.mes.gob.cu`
 
 El despliegue quedó montado con este esquema:
 
@@ -52,4 +52,5 @@ Lo siguiente ya es gestión de operación:
 - respaldo de base antes de cambios futuros
 - ajuste del formulario solo si cambian preguntas o catálogos
 - promoción formal de `main` como rama estable de referencia
+
 

@@ -2,7 +2,7 @@
 
 Fecha: 23 de junio de 2026  
 Estado: corte funcional para piloto  
-URL de producción: https://nae-plataforma.mes.gob.cu
+URL de producción: https://mapeo-plataforma.mes.gob.cu
 
 ## 1. Resumen ejecutivo
 
@@ -72,7 +72,7 @@ Cuando una persona envía el formulario:
 1. Google Forms dispara el trigger instalable `onFormSubmit`.
 2. El script toma `e.namedValues` y construye un JSON con las respuestas.
 3. Se genera un identificador único con `Utilities.getUuid()`.
-4. Se envía un `POST` a `https://nae-plataforma.mes.gob.cu/api/v1/respuestas`.
+4. Se envía un `POST` a `https://mapeo-plataforma.mes.gob.cu/api/v1/respuestas`.
 5. La API guarda la respuesta en `raw.respuestas_formulario`.
 6. La API ejecuta automáticamente la cadena de pipelines.
 7. La respuesta queda disponible en el dashboard si supera las validaciones críticas.
@@ -286,7 +286,7 @@ Durante el piloto se detectaron diferencias reales entre la encuesta, el script 
 El dashboard está disponible en:
 
 ```text
-https://nae-plataforma.mes.gob.cu
+https://mapeo-plataforma.mes.gob.cu
 ```
 
 Incluye:
@@ -321,7 +321,7 @@ Internet / usuarios
 La URL pública es:
 
 ```text
-https://nae-plataforma.mes.gob.cu
+https://mapeo-plataforma.mes.gob.cu
 ```
 
 El servidor de aplicación usa:
@@ -412,4 +412,5 @@ Al 23 de junio de 2026, el sistema se encuentra listo para piloto operativo con 
 NAE Platform ya cuenta con una base técnica sólida para operar el piloto. La solución cubre el ciclo completo desde la encuesta hasta el dashboard, preserva datos originales, permite control de calidad y ofrece una vista operativa para seguimiento institucional.
 
 El sistema no es solo un formulario publicado: es una plataforma de datos con trazabilidad, procesamiento por capas, controles de error, analítica y despliegue productivo. Esto deja al equipo en condiciones de iniciar el piloto, monitorear las respuestas y tomar decisiones de mejora sobre datos reales.
+
 

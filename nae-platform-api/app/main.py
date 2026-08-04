@@ -215,7 +215,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
       <div class="nav-links">
         <a href="/">Inicio</a>
         <a href="/encuesta">Encuesta</a>
-        <a href="/mapa-apoyo">Mapa de apoyo</a>
+        <a href="/mapa-apoyo">Mapa</a>
         <a href="/documentacion">Documentación</a>
         <a class="active locked" href="/analitica">Analítica</a>
       </div>
@@ -961,6 +961,7 @@ def ejecutar_operational_a_analytics(limit: int = 100, authorization: Optional[s
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
 
     return process_operational_to_analytics(limit=limit)
+
 
 
 

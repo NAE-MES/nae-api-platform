@@ -810,7 +810,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
           <div class="nav-links">
             <a href="/">Inicio</a>
             <a href="/encuesta">Encuesta</a>
-            <a href="/mapa-apoyo">Mapa de apoyo</a>
+            <a href="/mapa-apoyo">Mapa</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
             <a class="locked" href="/admin/revision">Revisión</a>
@@ -2061,7 +2061,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
         <div class="nav-links">
           <a href="/">Inicio</a>
           <a href="/encuesta">Encuesta</a>
-          <a href="/mapa-apoyo">Mapa de apoyo</a>
+          <a href="/mapa-apoyo">Mapa</a>
           <a href="/documentacion">Documentación</a>
           <a href="/analitica">Analítica</a>
           <a class="active" href="/admin/revision">Revisión</a>
@@ -2178,7 +2178,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>NAE Platform - Mapa de apoyo</title>
+      <title>NAE Platform - Mapa</title>
       <style>
         :root {{
           --bg:#f4f6f9; --panel:#fff; --line:#d8dee8; --text:#172033; --muted:#66758a;
@@ -2235,7 +2235,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       <header>
         <div class="shell topbar">
           <div class="brand"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></div>
-          <nav class="nav"><a href="/mapa-apoyo" class="active">Mapa de apoyo</a><a href="/">Analítica</a><a href="/api/v1/entidades-apoyo">API</a></nav>
+          <nav class="nav"><a href="/mapa-apoyo" class="active">Mapa</a><a href="/">Analítica</a><a href="/api/v1/entidades-apoyo">API</a></nav>
         </div>
       </header>
       <main class="shell">
@@ -2358,7 +2358,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>NAE Platform - Mapa de apoyo</title>
+    <title>NAE Platform - Mapa</title>
     <link rel="stylesheet" href="/prototype-assets/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/prototype-assets/styles.css" />
     <style>
@@ -2393,7 +2393,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         <div class="nav-links">
           <a href="/">Inicio</a>
           <a href="/encuesta">Encuesta</a>
-          <a class="active" href="/mapa-apoyo">Mapa de apoyo</a>
+          <a class="active" href="/mapa-apoyo">Mapa</a>
           <a href="/documentacion">Documentación</a>
           <a class="locked" href="/analitica">Analítica</a>
           {private_nav}
@@ -3455,7 +3455,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
           <div class="nav-links">
             <a href="/">Inicio</a>
             <a href="/encuesta">Encuesta</a>
-            <a href="/mapa-apoyo">Mapa de apoyo</a>
+            <a href="/mapa-apoyo">Mapa</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
             {review_nav}
@@ -3500,6 +3500,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
     </html>
     """
     return html
+
 
 
 

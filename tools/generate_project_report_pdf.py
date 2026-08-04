@@ -292,7 +292,7 @@ class ReportRenderer:
             self.text(MARGIN_X, cy, line, 14, "F2", DARK)
             cy -= 18
         self.text(MARGIN_X, 86, "Corte funcional para piloto - 23 de junio de 2026", 11, "F1", MUTED)
-        self.text(MARGIN_X, 62, "URL de produccion: https://nae-plataforma.mes.gob.cu", 10, "F1", MUTED)
+        self.text(MARGIN_X, 62, "URL de produccion: https://mapeo-plataforma.mes.gob.cu", 10, "F1", MUTED)
 
     def architecture_page(self) -> None:
         self.new_page()
@@ -412,3 +412,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

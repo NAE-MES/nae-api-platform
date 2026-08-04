@@ -14,7 +14,7 @@ El certificado TLS lo termina un HAProxy remoto.
 
 ## Supuestos
 
-- El dominio público es `nae-plataforma.mes.gob.cu`.
+- El dominio público es `mapeo-plataforma.mes.gob.cu`.
 - HAProxy remoto recibe HTTPS y reenvía tráfico HTTP al puerto 8080 de este servidor.
 - PostgreSQL está disponible en el mismo servidor o en una red accesible.
 - La base de datos de producción se crea antes de levantar la API.
@@ -178,7 +178,7 @@ sudo systemctl reload nginx
 ```
 
 Nginx escucha en el puerto `8080` y reenvía a `127.0.0.1:8000`.
-HAProxy remoto debe apuntar a `http://nae-plataforma.mes.gob.cu:8080` o a la IP privada de este servidor en ese mismo puerto.
+HAProxy remoto debe apuntar a `http://mapeo-plataforma.mes.gob.cu:8080` o a la IP privada de este servidor en ese mismo puerto.
 
 ## 8. Validación
 
@@ -235,4 +235,5 @@ sudo -u postgres DB_NAME=nae ./scripts/clean_database.sh --confirm
 ```
 
 La limpieza borra datos de `raw`, `staging`, `operational`, `analytics` y `control`, reinicia IDs y conserva la estructura de la base.
+
 
