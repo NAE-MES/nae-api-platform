@@ -417,3 +417,105 @@ def test_admin_review_municipality_selector_uses_full_catalog():
     assert "value='La Habana||Playa' selected" in html
 
 
+
+def test_admin_review_coordinates_form_is_rendered():
+    from app.reporting import render_admin_review_html
+
+    html = render_admin_review_html({
+        "territories": [],
+        "municipalities": [],
+        "entity_reviews": [],
+        "coordinate_reviews": [{
+            "operational_respuesta_id": 4,
+            "entidad_nombre": "Universidad de prueba",
+            "provincia": "La Habana",
+            "municipio": "Playa",
+            "direccion_fisica": "Calle de prueba",
+            "lat": 23.1,
+            "lng": -82.4,
+            "fuente": "municipio",
+            "estado_coordenada": "estimada",
+        }],
+        "recent_decisions": [],
+    })
+
+    assert "Coordenadas de entidades" in html
+    assert "/admin/revision/coordenadas/4" in html
+    assert "23.1" in html
+    assert "-82.4" in html
+
+
+def test_admin_revision_coordinates_post_updates_geocoding(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
+    monkeypatch.setattr(main, "_has_review_access", lambda request: True)
+    monkeypatch.setattr(main, "_session_username", lambda request: "denys")
+
+    class OneOrNoneResult:
+        def __init__(self, row):
+            self.row = row
+
+        def mappings(self):
+            return self
+
+        def one_or_none(self):
+            return self.row
+
+    class ExecuteResult:
+        def mappings(self):
+            return self
+
+        def one_or_none(self):
+            return None
+
+    class FakeDB:
+        def __init__(self):
+            self.calls = []
+            self.commits = 0
+            self.rollbacks = 0
+            self.closed = False
+
+        def execute(self, query, params=None):
+            self.calls.append({"query": str(query), "params": params or {}})
+            if "FROM operational.respuestas_encuesta op" in str(query):
+                return OneOrNoneResult({
+                    "id": 4,
+                    "nombre_institucion": "Universidad de prueba",
+                    "provincia": "La Habana",
+                    "municipio": "Playa",
+                    "direccion_fisica": "Calle de prueba",
+                    "lat_actual": None,
+                    "lng_actual": None,
+                    "fuente_actual": None,
+                    "estado_actual": None,
+                })
+            return ExecuteResult()
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+        def close(self):
+            self.closed = True
+
+    fake_db = FakeDB()
+    monkeypatch.setattr(main, "SessionLocal", lambda: fake_db)
+
+    response = client.post(
+        "/admin/revision/coordenadas/4",
+        data={"lat": "22.446234", "lng": "-79.894646", "observacion": "Validado en Google Maps"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/revision"
+    geocoding_call = next(call for call in fake_db.calls if "INSERT INTO operational.geocodificacion_entidades" in call["query"])
+    history_call = next(call for call in fake_db.calls if "INSERT INTO operational.revisiones_datos" in call["query"])
+    assert geocoding_call["params"]["lat"] == 22.446234
+    assert geocoding_call["params"]["lng"] == -79.894646
+    assert geocoding_call["params"]["validado_por"] == "denys"
+    assert history_call["params"]["valor_aprobado"] == "22.4462340, -79.8946460"
+    assert fake_db.commits == 1
+    assert fake_db.closed is True

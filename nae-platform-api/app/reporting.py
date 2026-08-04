@@ -1929,6 +1929,44 @@ def get_admin_review_data() -> Dict[str, Any]:
                 """)
             ).mappings().all()
 
+        coordinate_reviews = []
+        if has_entity_resolution:
+            coordinate_reviews = db.execute(
+                text("""
+                    SELECT ea.id AS entidad_apoyo_id,
+                           MIN(op.id) AS operational_respuesta_id,
+                           ea.nombre_canonico AS entidad_nombre,
+                           p.nombre AS provincia,
+                           mu.nombre AS municipio,
+                           ea.direccion_fisica,
+                           g.lat,
+                           g.lng,
+                           g.fuente,
+                           g.estado AS estado_coordenada
+                    FROM operational.entidades_apoyo ea
+                    JOIN operational.provincias p ON p.id = ea.provincia_id
+                    JOIN operational.municipios mu ON mu.id = ea.municipio_id
+                    JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+                    JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
+                    LEFT JOIN LATERAL (
+                        SELECT g.lat, g.lng, g.fuente, g.estado
+                        FROM operational.respuestas_entidades_apoyo rel_geo
+                        JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_geo.operational_respuesta_id
+                        WHERE rel_geo.entidad_apoyo_id = ea.id
+                          AND g.lat IS NOT NULL
+                          AND g.lng IS NOT NULL
+                        ORDER BY CASE WHEN g.fuente = 'revision_manual' THEN 0 ELSE 1 END,
+                                 g.confianza DESC NULLS LAST,
+                                 g.fecha_validacion DESC NULLS LAST
+                        LIMIT 1
+                    ) g ON TRUE
+                    WHERE ea.estado_revision <> 'descartada'
+                    GROUP BY ea.id, ea.nombre_canonico, p.nombre, mu.nombre, ea.direccion_fisica, g.lat, g.lng, g.fuente, g.estado
+                    ORDER BY CASE WHEN g.fuente = 'revision_manual' THEN 1 ELSE 0 END, ea.nombre_canonico
+                    LIMIT 100
+                """)
+            ).mappings().all()
+
         recent_decisions = []
         if has_entity_resolution:
             recent_decisions = db.execute(
@@ -1950,11 +1988,12 @@ def get_admin_review_data() -> Dict[str, Any]:
             "territories": [dict(row) for row in territories],
             "municipalities": municipalities,
             "entity_reviews": [dict(row) for row in entity_reviews],
+            "coordinate_reviews": [dict(row) for row in coordinate_reviews],
             "recent_decisions": [dict(row) for row in recent_decisions],
         }
     except ProgrammingError:
         db.rollback()
-        return {"territories": [], "municipalities": [], "entity_reviews": [], "recent_decisions": []}
+        return {"territories": [], "municipalities": [], "entity_reviews": [], "coordinate_reviews": [], "recent_decisions": []}
     finally:
         db.close()
 
@@ -2020,6 +2059,33 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
     if not entity_rows:
         entity_rows.append("<article class='card pad'><h3>Sin duplicados pendientes</h3><p>No hay entidades que requieran decisión manual.</p></article>")
 
+    coordinate_rows = []
+    for row in data.get("coordinate_reviews", []):
+        lat_value = "" if row.get("lat") is None else str(row.get("lat"))
+        lng_value = "" if row.get("lng") is None else str(row.get("lng"))
+        source = str(row.get("fuente") or "municipio")
+        status = str(row.get("estado_coordenada") or "estimada")
+        coordinate_rows.append(f"""
+          <article class="review-card">
+            <div>
+              <p class="eyebrow">Coordenadas</p>
+              <h3>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</h3>
+              <p>{escape(str(row.get('provincia') or 'Sin provincia'))} · {escape(str(row.get('municipio') or 'Sin municipio'))}</p>
+              <p><strong>Dirección:</strong> {escape(str(row.get('direccion_fisica') or 'Sin dato'))}</p>
+              <p><strong>Actual:</strong> {escape(lat_value or 'Sin latitud')}, {escape(lng_value or 'Sin longitud')} · <strong>Fuente:</strong> {escape(source)} · <strong>Estado:</strong> {escape(status)}</p>
+            </div>
+            <form method="post" action="/admin/revision/coordenadas/{row.get('operational_respuesta_id')}">
+              <label class="field"><span>Latitud</span><input name="lat" inputmode="decimal" value="{escape(lat_value)}" placeholder="Ej. 22.446234" required /></label>
+              <label class="field"><span>Longitud</span><input name="lng" inputmode="decimal" value="{escape(lng_value)}" placeholder="Ej. -79.894646" required /></label>
+              <label class="field"><span>Observación</span><input name="observacion" placeholder="Fuente o nota de validación" /></label>
+              <div class="actions">
+                <button class="button primary" type="submit">Guardar coordenadas</button>
+              </div>
+            </form>
+          </article>
+        """)
+    if not coordinate_rows:
+        coordinate_rows.append("<article class='card pad'><h3>Sin entidades para coordenadas</h3><p>No hay entidades procesadas para revisar ubicación.</p></article>")
     decision_rows = []
     for row in data.get("recent_decisions", []):
         decision_rows.append(f"""
@@ -2087,6 +2153,10 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
           <h2>Entidades duplicadas</h2>
           <div class="review-stack">{''.join(entity_rows)}</div>
         </div>
+      </section>
+      <section class="review-history">
+        <h2>Coordenadas de entidades</h2>
+        <div class="review-stack">{''.join(coordinate_rows)}</div>
       </section>
       <section class="card pad review-history">
         <h2>Historial reciente</h2>
@@ -3500,6 +3570,8 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
     </html>
     """
     return html
+
+
 
 
 

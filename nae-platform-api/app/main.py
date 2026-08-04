@@ -830,6 +830,161 @@ async def admin_revision_entidad(request: Request, revision_id: int):
         db.close()
 
 
+
+@app.post("/admin/revision/coordenadas/{operational_respuesta_id}")
+async def admin_revision_coordenadas(request: Request, operational_respuesta_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
+    review_user = _session_username(request) or ANALYTICS_USERNAME
+
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    lat_raw = form.get("lat", [""])[0].strip().replace(",", ".")
+    lng_raw = form.get("lng", [""])[0].strip().replace(",", ".")
+    observacion = form.get("observacion", [""])[0] or None
+
+    try:
+        lat = float(lat_raw)
+        lng = float(lng_raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Latitud y longitud deben ser números") from exc
+
+    if not -90 <= lat <= 90:
+        raise HTTPException(status_code=400, detail="Latitud fuera de rango")
+    if not -180 <= lng <= 180:
+        raise HTTPException(status_code=400, detail="Longitud fuera de rango")
+
+    db = SessionLocal()
+    try:
+        current = db.execute(
+            text("""
+                SELECT op.id,
+                       op.nombre_institucion,
+                       p.nombre AS provincia,
+                       mu.nombre AS municipio,
+                       m.direccion_fisica,
+                       g.lat AS lat_actual,
+                       g.lng AS lng_actual,
+                       g.fuente AS fuente_actual,
+                       g.estado AS estado_actual
+                FROM operational.respuestas_encuesta op
+                JOIN operational.provincias p ON p.id = op.provincia_id
+                JOIN operational.municipios mu ON mu.id = op.municipio_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                LEFT JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = op.id
+                WHERE op.id = :id
+            """),
+            {"id": operational_respuesta_id},
+        ).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="Entidad no encontrada")
+
+        original = "Sin coordenadas"
+        if current["lat_actual"] is not None and current["lng_actual"] is not None:
+            original = f"{current['lat_actual']}, {current['lng_actual']} ({current['fuente_actual'] or current['estado_actual'] or 'sin fuente'})"
+        approved = f"{lat:.7f}, {lng:.7f}"
+
+        db.execute(
+            text("""
+                INSERT INTO operational.geocodificacion_entidades (
+                    operational_respuesta_id,
+                    direccion_original,
+                    provincia,
+                    municipio,
+                    lat,
+                    lng,
+                    fuente,
+                    confianza,
+                    estado,
+                    observacion,
+                    fecha_validacion,
+                    validado_por,
+                    updated_at
+                )
+                VALUES (
+                    :operational_respuesta_id,
+                    :direccion_original,
+                    :provincia,
+                    :municipio,
+                    :lat,
+                    :lng,
+                    'revision_manual',
+                    1,
+                    'validada',
+                    :observacion,
+                    NOW(),
+                    :validado_por,
+                    NOW()
+                )
+                ON CONFLICT (operational_respuesta_id)
+                DO UPDATE SET
+                    direccion_original = EXCLUDED.direccion_original,
+                    provincia = EXCLUDED.provincia,
+                    municipio = EXCLUDED.municipio,
+                    lat = EXCLUDED.lat,
+                    lng = EXCLUDED.lng,
+                    fuente = EXCLUDED.fuente,
+                    confianza = EXCLUDED.confianza,
+                    estado = EXCLUDED.estado,
+                    observacion = EXCLUDED.observacion,
+                    fecha_validacion = EXCLUDED.fecha_validacion,
+                    validado_por = EXCLUDED.validado_por,
+                    updated_at = NOW()
+            """),
+            {
+                "operational_respuesta_id": operational_respuesta_id,
+                "direccion_original": current["direccion_fisica"],
+                "provincia": current["provincia"],
+                "municipio": current["municipio"],
+                "lat": lat,
+                "lng": lng,
+                "observacion": observacion,
+                "validado_por": review_user,
+            },
+        )
+        db.execute(
+            text("""
+                INSERT INTO operational.revisiones_datos (
+                    tipo_revision,
+                    tabla_origen,
+                    registro_origen_id,
+                    valor_original,
+                    valor_sugerido,
+                    valor_aprobado,
+                    accion,
+                    usuario,
+                    observacion
+                )
+                VALUES (
+                    'coordenada_entidad',
+                    'operational.geocodificacion_entidades',
+                    :registro_origen_id,
+                    :valor_original,
+                    NULL,
+                    :valor_aprobado,
+                    'actualizar_coordenadas',
+                    :usuario,
+                    :observacion
+                )
+            """),
+            {
+                "registro_origen_id": operational_respuesta_id,
+                "valor_original": original,
+                "valor_aprobado": approved,
+                "usuario": review_user,
+                "observacion": observacion,
+            },
+        )
+        db.commit()
+        return RedirectResponse(url="/admin/revision", status_code=303)
+    except HTTPException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
 @app.get("/respuestas/{respuesta_id}", response_class=HTMLResponse)
 def detalle_respuesta_html(request: Request, respuesta_id: int):
     if not _has_analytics_access(request):
@@ -961,6 +1116,7 @@ def ejecutar_operational_a_analytics(limit: int = 100, authorization: Optional[s
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
 
     return process_operational_to_analytics(limit=limit)
+
 
 
 
