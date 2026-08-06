@@ -519,3 +519,67 @@ def test_admin_revision_coordinates_post_updates_geocoding(monkeypatch):
     assert history_call["params"]["valor_aprobado"] == "22.4462340, -79.8946460"
     assert fake_db.commits == 1
     assert fake_db.closed is True
+
+
+def test_recibir_respuesta_duplicada_reprocesa_pendientes(monkeypatch):
+    class DuplicateResult:
+        def mappings(self):
+            return self
+
+        def one_or_none(self):
+            return {"id": 6, "estado": "recibida"}
+
+    class FakeDB:
+        def __init__(self):
+            self.commits = 0
+            self.rollbacks = 0
+            self.closed = False
+            self.calls = []
+
+        def execute(self, query, params=None):
+            self.calls.append({"query": str(query), "params": params})
+            return DuplicateResult()
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+        def close(self):
+            self.closed = True
+
+    order = []
+    fake_db = FakeDB()
+
+    monkeypatch.setattr(main, "SessionLocal", lambda: fake_db)
+    monkeypatch.setattr(main, "process_raw_to_staging", lambda limit=100: (order.append(("raw", limit, None)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_staging_to_operational", lambda limit=100, only_pending=False: (order.append(("operational", limit, only_pending)) or {"stats": {"total": 1}}))
+    monkeypatch.setattr(main, "process_operational_to_analytics", lambda limit=100, only_pending=False: (order.append(("analytics", limit, only_pending)) or {"stats": {"total": 1}}))
+
+    response = client.post(
+        "/api/v1/respuestas",
+        headers={"Authorization": "Bearer test-token"},
+        json={
+            "id_respuesta_origen": "sheet:row:7",
+            "formulario_origen": "Formulario para el Mapeo de estructuras de apoyo a los NAE",
+            "version_encuesta": "mapeo_estructuras_v1",
+            "payload": {"1.1* Provincia": "La Habana"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "raw_id": 6,
+        "duplicate": True,
+        "raw_estado": "recibida",
+        "pipeline": {
+            "staging": {"total": 1},
+            "operational": {"total": 1},
+            "analytics": {"total": 1},
+        },
+    }
+    assert order == [("raw", 100, None), ("operational", 100, True), ("analytics", 100, True)]
+    assert fake_db.commits == 1
+    assert fake_db.closed is True

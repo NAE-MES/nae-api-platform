@@ -1012,17 +1012,24 @@ def recibir_respuesta(
         if data.id_respuesta_origen:
             duplicate = db.execute(
                 text("""
-                    SELECT 1
+                    SELECT id, estado
                     FROM raw.respuestas_formulario
                     WHERE id_respuesta_origen = :id_respuesta_origen
                     LIMIT 1
                 """),
                 {"id_respuesta_origen": data.id_respuesta_origen},
-            ).scalar_one_or_none()
+            ).mappings().one_or_none()
 
             if duplicate is not None:
-                raise HTTPException(status_code=409, detail="Respuesta ya registrada")
-
+                db.commit()
+                pipeline_result = _run_pipeline_chain()
+                return {
+                    "status": "ok",
+                    "raw_id": duplicate["id"],
+                    "duplicate": True,
+                    "raw_estado": duplicate["estado"],
+                    "pipeline": pipeline_result,
+                }
         result = db.execute(
             text("""
                 INSERT INTO raw.respuestas_formulario (
