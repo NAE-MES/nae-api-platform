@@ -3,37 +3,37 @@ ALTER TABLE IF EXISTS raw.respuestas_formulario
 
 ALTER TABLE IF EXISTS staging.respuestas_formulario
     ADD COLUMN IF NOT EXISTS version_encuesta VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS genero VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS nivel_conocimiento_municipio VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS nivel_instruccion VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS mayoria_titulares_emprendimientos VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS porcentaje_mujeres_directivas VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS programas_mujeres_emprendedoras VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS genero TEXT,
+    ADD COLUMN IF NOT EXISTS nivel_conocimiento_municipio TEXT,
+    ADD COLUMN IF NOT EXISTS nivel_instruccion TEXT,
+    ADD COLUMN IF NOT EXISTS mayoria_titulares_emprendimientos TEXT,
+    ADD COLUMN IF NOT EXISTS porcentaje_mujeres_directivas TEXT,
+    ADD COLUMN IF NOT EXISTS programas_mujeres_emprendedoras TEXT,
     ADD COLUMN IF NOT EXISTS descripcion_programa_mujeres TEXT;
 
 ALTER TABLE IF EXISTS operational.respuestas_encuesta
     ADD COLUMN IF NOT EXISTS version_encuesta VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS genero VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS nivel_conocimiento_municipio VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS nivel_instruccion VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS mayoria_titulares_emprendimientos VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS porcentaje_mujeres_directivas VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS programas_mujeres_emprendedoras VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS genero TEXT,
+    ADD COLUMN IF NOT EXISTS nivel_conocimiento_municipio TEXT,
+    ADD COLUMN IF NOT EXISTS nivel_instruccion TEXT,
+    ADD COLUMN IF NOT EXISTS mayoria_titulares_emprendimientos TEXT,
+    ADD COLUMN IF NOT EXISTS porcentaje_mujeres_directivas TEXT,
+    ADD COLUMN IF NOT EXISTS programas_mujeres_emprendedoras TEXT,
     ADD COLUMN IF NOT EXISTS descripcion_programa_mujeres TEXT;
 
 CREATE TABLE IF NOT EXISTS analytics.dim_genero (
     id BIGSERIAL PRIMARY KEY,
-    genero VARCHAR(50) NOT NULL UNIQUE,
+    genero TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS analytics.dim_respuesta_genero (
     id BIGSERIAL PRIMARY KEY,
-    nivel_instruccion VARCHAR(50),
-    nivel_conocimiento_municipio VARCHAR(50),
-    mayoria_titulares_emprendimientos VARCHAR(50),
-    porcentaje_mujeres_directivas VARCHAR(20),
-    programas_mujeres_emprendedoras VARCHAR(20),
+    nivel_instruccion TEXT,
+    nivel_conocimiento_municipio TEXT,
+    mayoria_titulares_emprendimientos TEXT,
+    porcentaje_mujeres_directivas TEXT,
+    programas_mujeres_emprendedoras TEXT,
     descripcion_programa_mujeres TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (

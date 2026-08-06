@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS analytics.dim_territorio (
 
 CREATE TABLE IF NOT EXISTS analytics.dim_institucion (
     id BIGSERIAL PRIMARY KEY,
-    tipo_institucion VARCHAR(150),
-    nombre_institucion VARCHAR(200),
+    tipo_institucion TEXT,
+    nombre_institucion TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (tipo_institucion, nombre_institucion)
 );
@@ -31,13 +31,13 @@ CREATE TABLE IF NOT EXISTS analytics.f_respuestas_encuesta (
     institucion_id BIGINT NOT NULL REFERENCES analytics.dim_institucion (id),
     estado_validacion_id BIGINT NOT NULL REFERENCES analytics.dim_estado_validacion (id),
     fecha_respuesta TIMESTAMP NULL,
-    consentimiento VARCHAR(50),
-    ambito_actuacion VARCHAR(50),
-    nivel_involucramiento VARCHAR(50),
-    nivel_capacitacion_formadores VARCHAR(50),
-    principal_necesidad VARCHAR(100),
-    nivel_interes_gobierno VARCHAR(50),
-    mecanismos_coordinacion VARCHAR(120),
+    consentimiento TEXT,
+    ambito_actuacion TEXT,
+    nivel_involucramiento TEXT,
+    nivel_capacitacion_formadores TEXT,
+    principal_necesidad TEXT,
+    nivel_interes_gobierno TEXT,
+    mecanismos_coordinacion TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (operational_respuesta_id)

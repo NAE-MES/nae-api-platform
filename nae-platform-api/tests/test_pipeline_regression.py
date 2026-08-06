@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
@@ -508,3 +509,15 @@ def test_upsert_entity_resolution_logs_automatic_match_history():
     assert history_call["params"]["accion"] == "auto_link"
     assert history_call["params"]["valor_original"] == "uci"
     assert history_call["params"]["valor_aprobado"] == "Universidad de las Ciencias Informáticas"
+
+
+def test_widen_survey_text_fields_migration_covers_long_mapeo_choices():
+    migration = Path(__file__).resolve().parents[1] / "sql" / "010_widen_survey_text_fields.sql"
+    sql = migration.read_text(encoding="utf-8")
+
+    assert "ALTER TABLE IF EXISTS staging.respuestas_formulario" in sql
+    assert "ALTER TABLE IF EXISTS operational.respuestas_encuesta" in sql
+    assert "ALTER TABLE IF EXISTS analytics.f_respuestas_encuesta" in sql
+    assert "ALTER COLUMN nivel_involucramiento TYPE TEXT" in sql
+    assert "ALTER COLUMN tipo_institucion TYPE TEXT" in sql
+    assert "ALTER COLUMN mecanismos_coordinacion TYPE TEXT" in sql
