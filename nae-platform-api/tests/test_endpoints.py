@@ -157,12 +157,12 @@ def test_login_accepts_review_users_with_password(monkeypatch):
 
     response = client.post(
         "/login",
-        data={"username": "denys", "password": "clave-denys", "next": "/admin/revision"},
+        data={"username": "denys", "password": "clave-denys", "next": "/admin/administracion"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin/revision"
+    assert response.headers["location"] == "/admin/administracion"
     assert main.AUTH_COOKIE_NAME in response.cookies
 
     cookie = response.cookies[main.AUTH_COOKIE_NAME]
@@ -176,12 +176,12 @@ def test_login_accepts_additional_configured_users(monkeypatch):
 
     response = client.post(
         "/login",
-        data={"username": "jefe1", "password": "clave-jefe-1", "next": "/admin/revision"},
+        data={"username": "jefe1", "password": "clave-jefe-1", "next": "/admin/administracion"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin/revision"
+    assert response.headers["location"] == "/admin/administracion"
     assert main.AUTH_COOKIE_NAME in response.cookies
 
 
@@ -202,7 +202,7 @@ def test_public_navigation_keeps_private_links_when_logged_in():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Revisión" in response.text
+    assert "Administración" in response.text
     assert "Cerrar sesión" in response.text
 
 
@@ -212,7 +212,7 @@ def test_public_navigation_hides_private_links_without_login():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Revisión" not in response.text
+    assert "Administración" not in response.text
     assert "Cerrar sesión" not in response.text
 
 def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
@@ -225,40 +225,40 @@ def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Revisión" not in response.text
+    assert "Administración" not in response.text
     assert "Cerrar sesión" in response.text
 
 
-def test_admin_revision_forbidden_for_non_reviewer(monkeypatch):
+def test_admin_administracion_forbidden_for_non_reviewer(monkeypatch):
     client.cookies.clear()
     monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1")
     monkeypatch.setattr(main, "ANALYTICS_REVIEW_USERS", "")
     cookie = main._create_session_cookie("jefe1")
     client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
 
-    response = client.get("/admin/revision", follow_redirects=False)
+    response = client.get("/admin/administracion", follow_redirects=False)
 
     assert response.status_code == 403
 
 
-def test_admin_revision_requires_login():
+def test_admin_administracion_requires_login():
     client.cookies.clear()
-    response = client.get("/admin/revision", follow_redirects=False)
+    response = client.get("/admin/administracion", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"].startswith("/login?")
 
 
-def test_admin_revision_page_uses_renderer(monkeypatch):
+def test_admin_administracion_page_uses_renderer(monkeypatch):
     monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
     monkeypatch.setattr(main, "_has_review_access", lambda request: True)
     monkeypatch.setattr(main, "get_admin_review_data", lambda: {"territories": [], "entity_reviews": []})
-    monkeypatch.setattr(main, "render_admin_review_html", lambda data: "<html>revision</html>")
+    monkeypatch.setattr(main, "render_admin_review_html", lambda data: "<html>administracion</html>")
 
-    response = client.get("/admin/revision")
+    response = client.get("/admin/administracion")
 
     assert response.status_code == 200
-    assert response.text == "<html>revision</html>"
+    assert response.text == "<html>administracion</html>"
 
 
 def test_response_detail_endpoints(monkeypatch):
@@ -440,12 +440,12 @@ def test_admin_review_coordinates_form_is_rendered():
     })
 
     assert "Coordenadas de entidades" in html
-    assert "/admin/revision/coordenadas/4" in html
+    assert "/admin/administracion/coordenadas/4" in html
     assert "23.1" in html
     assert "-82.4" in html
 
 
-def test_admin_revision_coordinates_post_updates_geocoding(monkeypatch):
+def test_admin_administracion_coordinates_post_updates_geocoding(monkeypatch):
     client.cookies.clear()
     monkeypatch.setattr(main, "_has_analytics_access", lambda request, authorization=None: True)
     monkeypatch.setattr(main, "_has_review_access", lambda request: True)
@@ -504,13 +504,13 @@ def test_admin_revision_coordinates_post_updates_geocoding(monkeypatch):
     monkeypatch.setattr(main, "SessionLocal", lambda: fake_db)
 
     response = client.post(
-        "/admin/revision/coordenadas/4",
+        "/admin/administracion/coordenadas/4",
         data={"lat": "22.446234", "lng": "-79.894646", "observacion": "Validado en Google Maps"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin/revision"
+    assert response.headers["location"] == "/admin/administracion"
     geocoding_call = next(call for call in fake_db.calls if "INSERT INTO operational.geocodificacion_entidades" in call["query"])
     history_call = next(call for call in fake_db.calls if "INSERT INTO operational.revisiones_datos" in call["query"])
     assert geocoding_call["params"]["lat"] == 22.446234

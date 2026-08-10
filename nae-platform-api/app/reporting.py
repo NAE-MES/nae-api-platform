@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import textwrap
 from io import StringIO
 from html import escape
@@ -14,6 +15,33 @@ from sqlalchemy.exc import ProgrammingError
 from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 
+PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(CUBA_GEO.keys())}
+
+
+def _province_sort_key(value: Any) -> tuple[int, str]:
+    province = str(value or "")
+    return (PROVINCE_ORDER.get(province, 999), province)
+
+
+def _entity_sort_key(row: Dict[str, Any]) -> tuple[tuple[int, str], str, str]:
+    return (
+        _province_sort_key(row.get("provincia")),
+        str(row.get("municipio") or ""),
+        str(row.get("entidad_nombre") or row.get("nombre_canonico") or ""),
+    )
+
+
+def _spread_municipal_coordinates(lat: float, lng: float, seed: Any) -> tuple[float, float]:
+    try:
+        seed_value = int(seed)
+    except (TypeError, ValueError):
+        return lat, lng
+
+    slot = seed_value % 12
+    ring = (seed_value // 12) % 3
+    radius = 0.010 + (ring * 0.006)
+    angle = (math.tau * slot) / 12
+    return lat + math.sin(angle) * radius, lng + math.cos(angle) * radius
 
 def _build_filters(
     provincia: Optional[str] = None,
@@ -813,7 +841,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
             <a href="/mapa-apoyo">Mapa</a>
             <a href="/documentacion">Documentación</a>
             <a class="active locked" href="/analitica">Analítica</a>
-            <a class="locked" href="/admin/revision">Revisión</a>
+            <a class="locked" href="/admin/administracion">Administración</a>
             <a class="locked" href="/logout">Cerrar sesión</a>
           </div>
         </div>
@@ -917,7 +945,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
 
     review_nav = ""
     if can_review:
-        review_nav = '\n            <a class="locked" href="/admin/revision">Revisión</a>'
+        review_nav = '\n            <a class="locked" href="/admin/administracion">Administración</a>'
 
     html = f"""
     <!doctype html>
@@ -1453,7 +1481,7 @@ def get_support_entities(
 
         return {
             "lookups": {
-                "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}),
+                "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}, key=_province_sort_key),
                 "municipios": sorted({row["municipio"] for row in lookups if row["municipio"]}),
                 "tipos": sorted({row["tipo"] for row in lookups if row["tipo"]}),
             },
@@ -1465,7 +1493,7 @@ def get_support_entities(
                 "limit": limit,
             },
             "total": len(rows),
-            "entidades": [_with_coordinates(dict(row)) for row in rows],
+            "entidades": [_with_coordinates(dict(row)) for row in sorted(rows, key=_entity_sort_key)],
         }
     except ProgrammingError:
         db.rollback()
@@ -1643,7 +1671,7 @@ def _get_support_entities_canonical(
 
     return {
         "lookups": {
-            "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}),
+            "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}, key=_province_sort_key),
             "municipios": sorted({row["municipio"] for row in lookups if row["municipio"]}),
             "tipos": sorted({row["tipo"] for row in lookups if row["tipo"]}),
         },
@@ -1655,7 +1683,7 @@ def _get_support_entities_canonical(
             "limit": limit,
         },
         "total": len(rows),
-        "entidades": [_with_coordinates(dict(row)) for row in rows],
+        "entidades": [_with_coordinates(dict(row)) for row in sorted(rows, key=_entity_sort_key)],
     }
 
 
@@ -1672,7 +1700,10 @@ def _with_coordinates(row: Dict[str, Any]) -> Dict[str, Any]:
 
     coordinates = get_coordinates(row.get("provincia"), row.get("municipio"))
     if coordinates:
-        row.update(coordinates)
+        lat = float(coordinates["lat"])
+        lng = float(coordinates["lng"])
+        lat, lng = _spread_municipal_coordinates(lat, lng, row.get("entidad_apoyo_id") or row.get("operational_respuesta_id"))
+        row.update({"lat": lat, "lng": lng})
         row.update({
             "coordinate_source": "municipio",
             "coordinate_status": "estimada",
@@ -1750,14 +1781,7 @@ def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
         ("", 10, False),
     ]
 
-    rows = sorted(
-        data.get("entidades", []),
-        key=lambda row: (
-            str(row.get("provincia") or ""),
-            str(row.get("municipio") or ""),
-            str(row.get("entidad_nombre") or ""),
-        ),
-    )
+    rows = sorted(data.get("entidades", []), key=_entity_sort_key)
     current_group = None
     if not rows:
         lines.append(("No hay entidades para los filtros seleccionados.", 10, False))
@@ -1967,6 +1991,64 @@ def get_admin_review_data() -> Dict[str, Any]:
                 """)
             ).mappings().all()
 
+        managed_entities = []
+        managed_links = []
+        if has_entity_resolution:
+            managed_entities = db.execute(
+                text("""
+                    SELECT ea.id,
+                           ea.nombre_canonico,
+                           ea.tipo_estructura_apoyo,
+                           ea.cobertura_principal,
+                           ea.direccion_fisica,
+                           ea.telefonos,
+                           ea.correo_electronico,
+                           ea.sitio_web,
+                           ea.redes_sociales,
+                           ea.persona_contacto_cargo,
+                           ea.estado_revision,
+                           p.nombre AS provincia,
+                           mu.nombre AS municipio,
+                           COUNT(rel.id)::int AS respuestas,
+                           STRING_AGG(DISTINCT rel.nombre_reportado, ' | ' ORDER BY rel.nombre_reportado) AS nombres_reportados
+                    FROM operational.entidades_apoyo ea
+                    JOIN operational.provincias p ON p.id = ea.provincia_id
+                    JOIN operational.municipios mu ON mu.id = ea.municipio_id
+                    LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+                    WHERE ea.estado_revision <> 'descartada'
+                    GROUP BY ea.id, p.nombre, mu.nombre
+                    ORDER BY p.nombre, mu.nombre, ea.nombre_canonico
+                    LIMIT 250
+                """)
+            ).mappings().all()
+
+            managed_links = db.execute(
+                text("""
+                    SELECT rel.id,
+                           rel.operational_respuesta_id,
+                           rel.nombre_reportado,
+                           rel.metodo_resolucion,
+                           rel.confianza,
+                           rel.requiere_revision,
+                           ea.id AS entidad_actual_id,
+                           ea.nombre_canonico AS entidad_actual,
+                           p.nombre AS provincia,
+                           mu.nombre AS municipio,
+                           op.fecha_respuesta,
+                           COALESCE(m.entidad_nombre, op.nombre_institucion) AS entidad_formulario,
+                           COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) AS tipo_estructura
+                    FROM operational.respuestas_entidades_apoyo rel
+                    JOIN operational.entidades_apoyo ea ON ea.id = rel.entidad_apoyo_id
+                    JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
+                    JOIN operational.provincias p ON p.id = op.provincia_id
+                    JOIN operational.municipios mu ON mu.id = op.municipio_id
+                    LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                    WHERE ea.estado_revision <> 'descartada'
+                    ORDER BY op.fecha_respuesta DESC NULLS LAST, rel.id DESC
+                    LIMIT 250
+                """)
+            ).mappings().all()
+
         recent_decisions = []
         if has_entity_resolution:
             recent_decisions = db.execute(
@@ -1988,12 +2070,14 @@ def get_admin_review_data() -> Dict[str, Any]:
             "territories": [dict(row) for row in territories],
             "municipalities": municipalities,
             "entity_reviews": [dict(row) for row in entity_reviews],
-            "coordinate_reviews": [dict(row) for row in coordinate_reviews],
+            "coordinate_reviews": [dict(row) for row in sorted(coordinate_reviews, key=_entity_sort_key)],
+            "managed_entities": [dict(row) for row in sorted(managed_entities, key=_entity_sort_key)],
+            "managed_links": [dict(row) for row in sorted(managed_links, key=_entity_sort_key)],
             "recent_decisions": [dict(row) for row in recent_decisions],
         }
     except ProgrammingError:
         db.rollback()
-        return {"territories": [], "municipalities": [], "entity_reviews": [], "coordinate_reviews": [], "recent_decisions": []}
+        return {"territories": [], "municipalities": [], "entity_reviews": [], "coordinate_reviews": [], "managed_entities": [], "managed_links": [], "recent_decisions": []}
     finally:
         db.close()
 
@@ -2023,7 +2107,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
               <p>{escape(str(row.get('nombre_institucion') or 'Sin entidad'))} · {escape(str(row.get('provincia_contexto') or 'Sin provincia'))}</p>
               <p><strong>Sugerencia:</strong> {escape(suggested)} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
             </div>
-            <form method="post" action="/admin/revision/territorios/{row.get('id')}">
+            <form method="post" action="/admin/administracion/territorios/{row.get('id')}">
               <label class="field"><span>Municipio correcto</span><select name="municipio_key">{municipality_options(row.get('municipio_resuelto'))}</select></label>
               <label class="field"><span>Observación</span><input name="observacion" placeholder="Opcional" /></label>
               <div class="actions">
@@ -2047,7 +2131,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
               <p><strong>Entidad actual:</strong> {escape(str(row.get('entidad_actual') or 'Sin dato'))}</p>
               <p><strong>Sugerida:</strong> {escape(str(row.get('entidad_sugerida') or 'Sin sugerencia'))} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
             </div>
-            <form method="post" action="/admin/revision/entidades/{row.get('id')}">
+            <form method="post" action="/admin/administracion/entidades/{row.get('id')}">
               <label class="field"><span>Observación</span><input name="observacion" placeholder="Opcional" /></label>
               <div class="actions">
                 <button class="button primary" name="action" value="merge" type="submit">Unir con sugerida</button>
@@ -2058,6 +2142,57 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
         """)
     if not entity_rows:
         entity_rows.append("<article class='card pad'><h3>Sin duplicados pendientes</h3><p>No hay entidades que requieran decisión manual.</p></article>")
+
+    managed_entity_rows = []
+    for row in data.get("managed_entities", []):
+        reported_names = escape(str(row.get("nombres_reportados") or "Sin nombres reportados"))
+        managed_entity_rows.append(f"""
+          <article class="review-card entity-admin-card">
+            <div>
+              <p class="eyebrow">Entidad registrada · {escape(str(row.get('provincia') or 'Sin provincia'))} / {escape(str(row.get('municipio') or 'Sin municipio'))}</p>
+              <h3>{escape(str(row.get('nombre_canonico') or 'Sin nombre'))}</h3>
+              <p><strong>Respuestas asociadas:</strong> {escape(str(row.get('respuestas') or 0))}</p>
+              <p class="muted"><strong>Nombres reportados:</strong> {reported_names}</p>
+            </div>
+            <form method="post" action="/admin/administracion/entidades-canonicas/{row.get('id')}">
+              <div class="form-grid two">
+                <label class="field"><span>Nombre correcto</span><input name="nombre_canonico" value="{escape(str(row.get('nombre_canonico') or ''), quote=True)}" required /></label>
+                <label class="field"><span>Tipo</span><input name="tipo_estructura_apoyo" value="{escape(str(row.get('tipo_estructura_apoyo') or ''), quote=True)}" /></label>
+                <label class="field"><span>Cobertura</span><input name="cobertura_principal" value="{escape(str(row.get('cobertura_principal') or ''), quote=True)}" /></label>
+                <label class="field"><span>Dirección</span><input name="direccion_fisica" value="{escape(str(row.get('direccion_fisica') or ''), quote=True)}" /></label>
+                <label class="field"><span>Teléfonos</span><input name="telefonos" value="{escape(str(row.get('telefonos') or ''), quote=True)}" /></label>
+                <label class="field"><span>Correo</span><input name="correo_electronico" value="{escape(str(row.get('correo_electronico') or ''), quote=True)}" /></label>
+                <label class="field"><span>Sitio web</span><input name="sitio_web" value="{escape(str(row.get('sitio_web') or ''), quote=True)}" /></label>
+                <label class="field"><span>Contacto</span><input name="persona_contacto_cargo" value="{escape(str(row.get('persona_contacto_cargo') or ''), quote=True)}" /></label>
+                <label class="field wide"><span>Redes sociales</span><input name="redes_sociales" value="{escape(str(row.get('redes_sociales') or ''), quote=True)}" /></label>
+                <label class="field wide"><span>Observación</span><input name="observacion" placeholder="Motivo del cambio" /></label>
+              </div>
+              <div class="actions"><button class="button primary" type="submit">Guardar entidad</button></div>
+            </form>
+          </article>
+        """)
+    if not managed_entity_rows:
+        managed_entity_rows.append("<article class='card pad'><h3>Sin entidades registradas</h3><p>Aún no hay entidades canónicas para administrar.</p></article>")
+
+    link_rows = []
+    for row in data.get("managed_links", []):
+        link_rows.append(f"""
+          <article class="review-card link-admin-card">
+            <div>
+              <p class="eyebrow">Respuesta #{escape(str(row.get('operational_respuesta_id') or ''))} · {escape(str(row.get('provincia') or 'Sin provincia'))} / {escape(str(row.get('municipio') or 'Sin municipio'))}</p>
+              <h3>{escape(str(row.get('nombre_reportado') or row.get('entidad_formulario') or 'Sin nombre reportado'))}</h3>
+              <p><strong>Agrupada como:</strong> {escape(str(row.get('entidad_actual') or 'Sin entidad'))}</p>
+              <p><strong>Método:</strong> {escape(str(row.get('metodo_resolucion') or 'Sin dato'))} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
+            </div>
+            <form method="post" action="/admin/administracion/enlaces-entidad/{row.get('id')}">
+              <label class="field"><span>Separar como nueva entidad</span><input name="nombre_canonico" value="{escape(str(row.get('nombre_reportado') or row.get('entidad_formulario') or ''), quote=True)}" required /></label>
+              <label class="field"><span>Observación</span><input name="observacion" placeholder="Ej. entidad distinta aunque el nombre se parezca" /></label>
+              <div class="actions"><button class="button secondary" name="action" value="split_new" type="submit">Separar este envío</button></div>
+            </form>
+          </article>
+        """)
+    if not link_rows:
+        link_rows.append("<article class='card pad'><h3>Sin enlaces de respuestas</h3><p>No hay respuestas asociadas a entidades canónicas.</p></article>")
 
     coordinate_rows = []
     for row in data.get("coordinate_reviews", []):
@@ -2074,7 +2209,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
               <p><strong>Dirección:</strong> {escape(str(row.get('direccion_fisica') or 'Sin dato'))}</p>
               <p><strong>Actual:</strong> {escape(lat_value or 'Sin latitud')}, {escape(lng_value or 'Sin longitud')} · <strong>Fuente:</strong> {escape(source)} · <strong>Estado:</strong> {escape(status)}</p>
             </div>
-            <form method="post" action="/admin/revision/coordenadas/{row.get('operational_respuesta_id')}">
+            <form method="post" action="/admin/administracion/coordenadas/{row.get('operational_respuesta_id')}">
               <label class="field"><span>Latitud</span><input name="lat" inputmode="decimal" value="{escape(lat_value)}" placeholder="Ej. 22.446234" required /></label>
               <label class="field"><span>Longitud</span><input name="lng" inputmode="decimal" value="{escape(lng_value)}" placeholder="Ej. -79.894646" required /></label>
               <label class="field"><span>Observación</span><input name="observacion" placeholder="Fuente o nota de validación" /></label>
@@ -2106,7 +2241,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>NAE - Revisión de datos</title>
+    <title>NAE - Administración de datos</title>
     <link rel="stylesheet" href="/prototype-assets/styles.css" />
     <style>
       .review-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }}
@@ -2117,6 +2252,13 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
       .review-card form {{ display: grid; gap: 10px; }}
       .review-card .actions {{ justify-content: flex-start; }}
       .review-history {{ margin-top: 22px; }}
+      .admin-tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin: 0 0 22px; }}
+      .admin-tabs a {{ border:1px solid var(--line); border-radius: 999px; padding:8px 12px; background:#fff; font-weight:800; color:var(--nae-navy); }}
+      .form-grid {{ display:grid; gap:10px; }}
+      .form-grid.two {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .form-grid .wide {{ grid-column: 1 / -1; }}
+      .muted {{ color:#667789; }}
+      @media (max-width: 760px) {{ .form-grid.two {{ grid-template-columns: 1fr; }} }}
       @media (max-width: 900px) {{ .review-grid {{ grid-template-columns: 1fr; }} }}
     </style>
   </head>
@@ -2130,7 +2272,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
           <a href="/mapa-apoyo">Mapa</a>
           <a href="/documentacion">Documentación</a>
           <a href="/analitica">Analítica</a>
-          <a class="active" href="/admin/revision">Revisión</a>
+          <a class="active" href="/admin/administracion">Administración</a>
           <a class="locked" href="/logout">Cerrar sesión</a>
         </div>
       </div>
@@ -2140,25 +2282,41 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
       <header class="page-header">
         <div>
           <p class="eyebrow">Administración</p>
-          <h1>Revisión de datos pendientes</h1>
-          <p class="lead">Corrección controlada de municipios escritos de forma ambigua y consolidación de entidades posiblemente duplicadas.</p>
+          <h1>Administración de datos</h1>
+          <p class="lead">Gestión controlada de entidades, enlaces de respuestas, territorios ambiguos y coordenadas del mapa.</p>
         </div>
       </header>
-      <section class="review-grid">
+      <nav class="admin-tabs">
+        <a href="#entidades">Entidades</a>
+        <a href="#enlaces">Enlaces de respuestas</a>
+        <a href="#territorios">Territorios</a>
+        <a href="#coordenadas">Coordenadas</a>
+        <a href="#historial">Historial</a>
+      </nav>
+      <section id="entidades" class="review-history">
+        <h2>Entidades registradas</h2>
+        <div class="review-stack">{''.join(managed_entity_rows)}</div>
+      </section>
+      <section id="enlaces" class="review-history">
+        <h2>Enlaces de respuestas</h2>
+        <p class="lead">Use esta sección para separar una respuesta que el sistema agrupó con una entidad equivocada.</p>
+        <div class="review-stack">{''.join(link_rows)}</div>
+      </section>
+      <section id="territorios" class="review-grid review-history">
         <div>
           <h2>Territorios</h2>
           <div class="review-stack">{''.join(territory_rows)}</div>
         </div>
         <div>
-          <h2>Entidades duplicadas</h2>
+          <h2>Entidades por decidir</h2>
           <div class="review-stack">{''.join(entity_rows)}</div>
         </div>
       </section>
-      <section class="review-history">
+      <section id="coordenadas" class="review-history">
         <h2>Coordenadas de entidades</h2>
         <div class="review-stack">{''.join(coordinate_rows)}</div>
       </section>
-      <section class="card pad review-history">
+      <section id="historial" class="card pad review-history">
         <h2>Historial reciente</h2>
         <div class="table-wrap">
           <table>
@@ -2194,7 +2352,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     if authenticated:
         if can_review:
             private_nav += """
-          <a class="locked" href="/admin/revision">Revisión</a>"""
+          <a class="locked" href="/admin/administracion">Administración</a>"""
         private_nav += """
           <a class="locked" href="/logout">Cerrar sesión</a>"""
 
@@ -2368,7 +2526,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     if authenticated:
         if can_review:
             private_nav += """
-          <a class="locked" href="/admin/revision">Revisión</a>"""
+          <a class="locked" href="/admin/administracion">Administración</a>"""
         private_nav += """
           <a class="locked" href="/logout">Cerrar sesión</a>"""
 
@@ -3439,7 +3597,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
 
     review_nav = ""
     if can_review:
-        review_nav = '\n            <a class="locked" href="/admin/revision">Revisión</a>'
+        review_nav = '\n            <a class="locked" href="/admin/administracion">Administración</a>'
 
     html = f"""
     <!doctype html>

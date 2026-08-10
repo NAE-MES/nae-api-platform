@@ -29,6 +29,7 @@ from app.config import (
 )
 from app.cuba_geo import CUBA_GEO
 from app.database import SessionLocal
+from app.entity_resolution import normalize_entity_name
 from app.reporting import (
     build_support_entities_csv,
     build_support_entities_pdf,
@@ -263,7 +264,7 @@ def _private_nav_links(is_authenticated: bool, can_review: bool = False) -> str:
         return ""
     links = ""
     if can_review:
-        links += '\n          <a class="locked" href="/admin/revision">Revisión</a>'
+        links += '\n          <a class="locked" href="/admin/administracion">Administración</a>'
     links += '\n          <a class="locked" href="/logout">Cerrar sesión</a>'
     return links
 
@@ -292,9 +293,9 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
         analytics_link = '<a class="locked" href="/analitica">Analítica</a>'
         active_analytics_link = '<a class="active locked" href="/analitica">Analítica</a>'
         private_links = _private_nav_links(True, _has_review_access(request))
-        if active_analytics_link in html and "/admin/revision" not in html:
+        if active_analytics_link in html and "/admin/administracion" not in html:
             html = html.replace(active_analytics_link, f"{active_analytics_link}{private_links}")
-        elif analytics_link in html and "/admin/revision" not in html:
+        elif analytics_link in html and "/admin/administracion" not in html:
             html = html.replace(analytics_link, f"{analytics_link}{private_links}")
     return HTMLResponse(html)
 
@@ -532,21 +533,27 @@ def panel_dashboard(
     )
 
 
-@app.get("/admin/revision", response_class=HTMLResponse)
-def admin_revision(request: Request):
+@app.get("/admin/administracion", response_class=HTMLResponse)
+def admin_administracion(request: Request):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
     if not _has_review_access(request):
-        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
     return render_admin_review_html(get_admin_review_data())
 
 
+@app.get("/admin/revision")
+def admin_revision_redirect():
+    return RedirectResponse(url="/admin/administracion", status_code=303)
+
+
 @app.post("/admin/revision/territorios/{territorio_id}")
+@app.post("/admin/administracion/territorios/{territorio_id}")
 async def admin_revision_territorio(request: Request, territorio_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
     if not _has_review_access(request):
-        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
     review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
@@ -693,7 +700,7 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
             },
         )
         db.commit()
-        return RedirectResponse(url="/admin/revision", status_code=303)
+        return RedirectResponse(url="/admin/administracion", status_code=303)
     except HTTPException:
         db.rollback()
         raise
@@ -702,11 +709,12 @@ async def admin_revision_territorio(request: Request, territorio_id: int):
 
 
 @app.post("/admin/revision/entidades/{revision_id}")
+@app.post("/admin/administracion/entidades/{revision_id}")
 async def admin_revision_entidad(request: Request, revision_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
     if not _has_review_access(request):
-        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
     review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
@@ -822,7 +830,7 @@ async def admin_revision_entidad(request: Request, revision_id: int):
             },
         )
         db.commit()
-        return RedirectResponse(url="/admin/revision", status_code=303)
+        return RedirectResponse(url="/admin/administracion", status_code=303)
     except HTTPException:
         db.rollback()
         raise
@@ -831,12 +839,257 @@ async def admin_revision_entidad(request: Request, revision_id: int):
 
 
 
+@app.post("/admin/administracion/entidades-canonicas/{entity_id}")
+async def admin_administracion_entidad_canonica(request: Request, entity_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
+    review_user = _session_username(request) or ANALYTICS_USERNAME
+
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    nombre_canonico = form.get("nombre_canonico", [""])[0].strip()
+    if not nombre_canonico:
+        raise HTTPException(status_code=400, detail="El nombre de la entidad es obligatorio")
+
+    fields = {
+        "nombre_canonico": nombre_canonico,
+        "nombre_normalizado": normalize_entity_name(nombre_canonico),
+        "tipo_estructura_apoyo": form.get("tipo_estructura_apoyo", [""])[0].strip() or None,
+        "cobertura_principal": form.get("cobertura_principal", [""])[0].strip() or None,
+        "direccion_fisica": form.get("direccion_fisica", [""])[0].strip() or None,
+        "telefonos": form.get("telefonos", [""])[0].strip() or None,
+        "correo_electronico": form.get("correo_electronico", [""])[0].strip() or None,
+        "sitio_web": form.get("sitio_web", [""])[0].strip() or None,
+        "redes_sociales": form.get("redes_sociales", [""])[0].strip() or None,
+        "persona_contacto_cargo": form.get("persona_contacto_cargo", [""])[0].strip() or None,
+        "observacion": form.get("observacion", [""])[0].strip() or None,
+    }
+
+    db = SessionLocal()
+    try:
+        current = db.execute(
+            text("""
+                SELECT id, nombre_canonico, tipo_estructura_apoyo, cobertura_principal,
+                       direccion_fisica, telefonos, correo_electronico, sitio_web,
+                       redes_sociales, persona_contacto_cargo
+                FROM operational.entidades_apoyo
+                WHERE id = :id
+            """),
+            {"id": entity_id},
+        ).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="Entidad no encontrada")
+
+        db.execute(
+            text("""
+                UPDATE operational.entidades_apoyo
+                SET nombre_canonico = :nombre_canonico,
+                    nombre_normalizado = :nombre_normalizado,
+                    tipo_estructura_apoyo = :tipo_estructura_apoyo,
+                    cobertura_principal = :cobertura_principal,
+                    direccion_fisica = :direccion_fisica,
+                    telefonos = :telefonos,
+                    correo_electronico = :correo_electronico,
+                    sitio_web = :sitio_web,
+                    redes_sociales = :redes_sociales,
+                    persona_contacto_cargo = :persona_contacto_cargo,
+                    updated_at = NOW()
+                WHERE id = :id
+            """),
+            {"id": entity_id, **fields},
+        )
+        db.execute(
+            text("""
+                INSERT INTO operational.revisiones_datos (
+                    tipo_revision, tabla_origen, registro_origen_id, valor_original,
+                    valor_sugerido, valor_aprobado, accion, usuario, observacion
+                )
+                VALUES (
+                    'entidad_canonica', 'operational.entidades_apoyo', :registro_origen_id,
+                    :valor_original, NULL, :valor_aprobado, 'editar_entidad', :usuario, :observacion
+                )
+            """),
+            {
+                "registro_origen_id": entity_id,
+                "valor_original": current["nombre_canonico"],
+                "valor_aprobado": nombre_canonico,
+                "usuario": review_user,
+                "observacion": fields["observacion"],
+            },
+        )
+        db.commit()
+        return RedirectResponse(url="/admin/administracion#entidades", status_code=303)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Ya existe una entidad con ese nombre normalizado en el mismo municipio") from exc
+    except HTTPException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.post("/admin/administracion/enlaces-entidad/{link_id}")
+async def admin_administracion_enlace_entidad(request: Request, link_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
+    review_user = _session_username(request) or ANALYTICS_USERNAME
+
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    action = form.get("action", [""])[0]
+    if action != "split_new":
+        raise HTTPException(status_code=400, detail="Acción no válida")
+
+    nombre_canonico = form.get("nombre_canonico", [""])[0].strip()
+    observacion = form.get("observacion", [""])[0].strip() or None
+    if not nombre_canonico:
+        raise HTTPException(status_code=400, detail="Debe indicar el nombre correcto de la entidad")
+    nombre_normalizado = normalize_entity_name(nombre_canonico)
+
+    db = SessionLocal()
+    try:
+        current = db.execute(
+            text("""
+                SELECT rel.id,
+                       rel.entidad_apoyo_id,
+                       rel.operational_respuesta_id,
+                       rel.nombre_reportado,
+                       ea.nombre_canonico AS entidad_actual,
+                       p.id AS provincia_id,
+                       p.nombre AS provincia,
+                       mu.id AS municipio_id,
+                       mu.nombre AS municipio,
+                       COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) AS tipo_estructura_apoyo,
+                       COALESCE(m.cobertura_principal, op.ambito_actuacion) AS cobertura_principal,
+                       m.direccion_fisica,
+                       m.telefonos,
+                       m.correo_electronico,
+                       m.sitio_web,
+                       m.redes_sociales,
+                       m.persona_contacto_cargo
+                FROM operational.respuestas_entidades_apoyo rel
+                JOIN operational.entidades_apoyo ea ON ea.id = rel.entidad_apoyo_id
+                JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
+                JOIN operational.provincias p ON p.id = op.provincia_id
+                JOIN operational.municipios mu ON mu.id = op.municipio_id
+                LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                WHERE rel.id = :id
+            """),
+            {"id": link_id},
+        ).mappings().one_or_none()
+        if current is None:
+            raise HTTPException(status_code=404, detail="Enlace de entidad no encontrado")
+
+        new_entity_id = db.execute(
+            text("""
+                INSERT INTO operational.entidades_apoyo (
+                    nombre_canonico, nombre_normalizado, provincia_id, municipio_id,
+                    tipo_estructura_apoyo, cobertura_principal, direccion_fisica,
+                    telefonos, correo_electronico, sitio_web, redes_sociales,
+                    persona_contacto_cargo, estado_revision, created_at, updated_at
+                )
+                VALUES (
+                    :nombre_canonico, :nombre_normalizado, :provincia_id, :municipio_id,
+                    :tipo_estructura_apoyo, :cobertura_principal, :direccion_fisica,
+                    :telefonos, :correo_electronico, :sitio_web, :redes_sociales,
+                    :persona_contacto_cargo, 'activa', NOW(), NOW()
+                )
+                ON CONFLICT (provincia_id, municipio_id, nombre_normalizado)
+                DO UPDATE SET updated_at = NOW()
+                RETURNING id
+            """),
+            {
+                "nombre_canonico": nombre_canonico,
+                "nombre_normalizado": nombre_normalizado,
+                "provincia_id": current["provincia_id"],
+                "municipio_id": current["municipio_id"],
+                "tipo_estructura_apoyo": current["tipo_estructura_apoyo"],
+                "cobertura_principal": current["cobertura_principal"],
+                "direccion_fisica": current["direccion_fisica"],
+                "telefonos": current["telefonos"],
+                "correo_electronico": current["correo_electronico"],
+                "sitio_web": current["sitio_web"],
+                "redes_sociales": current["redes_sociales"],
+                "persona_contacto_cargo": current["persona_contacto_cargo"],
+            },
+        ).scalar_one()
+
+        if int(new_entity_id) == int(current["entidad_apoyo_id"]):
+            raise HTTPException(status_code=409, detail="El nombre indicado normaliza igual que la entidad actual; use un nombre más específico")
+
+        db.execute(
+            text("""
+                UPDATE operational.respuestas_entidades_apoyo
+                SET entidad_apoyo_id = :new_entity_id,
+                    entidad_sugerida_id = NULL,
+                    metodo_resolucion = 'manual_nueva_entidad',
+                    confianza = 1,
+                    requiere_revision = FALSE,
+                    updated_at = NOW()
+                WHERE id = :id
+            """),
+            {"id": link_id, "new_entity_id": new_entity_id},
+        )
+        remaining_links = db.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM operational.respuestas_entidades_apoyo
+                WHERE entidad_apoyo_id = :old_entity_id
+            """),
+            {"old_entity_id": current["entidad_apoyo_id"]},
+        ).scalar_one()
+        if remaining_links == 0:
+            db.execute(
+                text("""
+                    UPDATE operational.entidades_apoyo
+                    SET estado_revision = 'descartada', updated_at = NOW()
+                    WHERE id = :id
+                """),
+                {"id": current["entidad_apoyo_id"]},
+            )
+
+        db.execute(
+            text("""
+                INSERT INTO operational.revisiones_datos (
+                    tipo_revision, tabla_origen, registro_origen_id, valor_original,
+                    valor_sugerido, valor_aprobado, accion, usuario, observacion
+                )
+                VALUES (
+                    'entidad_enlace', 'operational.respuestas_entidades_apoyo', :registro_origen_id,
+                    :valor_original, :valor_sugerido, :valor_aprobado,
+                    'separar_nueva_entidad', :usuario, :observacion
+                )
+            """),
+            {
+                "registro_origen_id": link_id,
+                "valor_original": current["nombre_reportado"],
+                "valor_sugerido": current["entidad_actual"],
+                "valor_aprobado": nombre_canonico,
+                "usuario": review_user,
+                "observacion": observacion,
+            },
+        )
+        db.commit()
+        return RedirectResponse(url="/admin/administracion#enlaces", status_code=303)
+    except HTTPException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @app.post("/admin/revision/coordenadas/{operational_respuesta_id}")
+@app.post("/admin/administracion/coordenadas/{operational_respuesta_id}")
 async def admin_revision_coordenadas(request: Request, operational_respuesta_id: int):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
     if not _has_review_access(request):
-        raise HTTPException(status_code=403, detail="No tiene permisos para revisar datos")
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
     review_user = _session_username(request) or ANALYTICS_USERNAME
 
     body = (await request.body()).decode("utf-8")
@@ -978,7 +1231,7 @@ async def admin_revision_coordenadas(request: Request, operational_respuesta_id:
             },
         )
         db.commit()
-        return RedirectResponse(url="/admin/revision", status_code=303)
+        return RedirectResponse(url="/admin/administracion", status_code=303)
     except HTTPException:
         db.rollback()
         raise
