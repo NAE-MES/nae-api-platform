@@ -203,6 +203,7 @@ def test_public_navigation_keeps_private_links_when_logged_in():
 
     assert response.status_code == 200
     assert "Mapa" in response.text
+    assert "Documentación" in response.text
     assert "Administración" in response.text
     assert "Cerrar sesión" in response.text
 
@@ -214,6 +215,7 @@ def test_public_navigation_hides_private_links_without_login():
 
     assert response.status_code == 200
     assert "Mapa" not in response.text
+    assert "Documentación" not in response.text
     assert "Administración" not in response.text
     assert "Cerrar sesión" not in response.text
 
@@ -283,6 +285,26 @@ def test_support_map_allows_authenticated_user(monkeypatch):
 
     assert response.status_code == 200
     assert response.text == "<html>mapa</html>"
+
+
+def test_documentation_requires_login():
+    client.cookies.clear()
+
+    response = client.get("/documentacion", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login?")
+
+
+def test_documentation_allows_authenticated_user():
+    client.cookies.clear()
+    cookie = main._create_session_cookie("admin")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+
+    response = client.get("/documentacion")
+
+    assert response.status_code == 200
+    assert "Documentación" in response.text
 
 
 def test_response_detail_endpoints(monkeypatch):

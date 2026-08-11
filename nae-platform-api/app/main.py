@@ -294,6 +294,8 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
     if not is_authenticated:
         html = html.replace('<a href="/mapa-apoyo">Mapa</a>', "")
         html = html.replace('<a class="active" href="/mapa-apoyo">Mapa</a>', "")
+        html = html.replace('<a href="/documentacion">Documentación</a>', "")
+        html = html.replace('<a class="active" href="/documentacion">Documentación</a>', "")
         html = html.replace('          <a class="button secondary" href="/mapa-apoyo">Explorar mapa</a>\n', "")
         html = html.replace("""        <article class="card pad section-card">
           <div class="section-icon" aria-hidden="true">
@@ -301,6 +303,14 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
           </div>
           <h2>Mapa</h2>
           <p>Visualización territorial de estructuras de apoyo encuestadas, con fichas resumidas y descarga documental.</p>
+        </article>
+""", "")
+        html = html.replace("""        <article class="card pad section-card">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v5h5"/><path d="M8 13h8"/><path d="M8 17h6"/></svg>
+          </div>
+          <h2>Documentación</h2>
+          <p>Repositorio de documentos aprobados para consulta pública, organizados por etapa, tipo y fecha.</p>
         </article>
 """, "")
     if is_authenticated:
@@ -505,6 +515,8 @@ def encuesta_publica(request: Request):
 
 @app.get("/documentacion", response_class=HTMLResponse)
 def documentacion_publica(request: Request):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
     return _render_prototype_page("documentacion.html", "/documentacion", request)
 
 
