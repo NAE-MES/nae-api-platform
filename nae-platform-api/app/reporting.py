@@ -4,6 +4,7 @@ import csv
 import json
 import math
 import textwrap
+from datetime import date
 from io import StringIO
 from html import escape
 from typing import Any, Dict, List, Optional
@@ -1774,39 +1775,7 @@ def _pdf_wrap(value: Any, width: int = 92) -> List[str]:
     return textwrap.wrap(str(value or "Sin dato"), width=width, break_long_words=True) or ["Sin dato"]
 
 
-def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
-    lines: List[tuple[str, int, bool]] = [
-        ("Directorio de entidades de apoyo a los NAE", 16, True),
-        ("Mapeo de Entidades de Apoyo", 10, False),
-        ("", 10, False),
-    ]
-
-    rows = sorted(data.get("entidades", []), key=_entity_sort_key)
-    current_group = None
-    if not rows:
-        lines.append(("No hay entidades para los filtros seleccionados.", 10, False))
-
-    for row in rows:
-        group = f"{row.get('provincia') or 'Sin provincia'} / {row.get('municipio') or 'Sin municipio'}"
-        if group != current_group:
-            lines.extend([("", 10, False), (group, 12, True)])
-            current_group = group
-
-        lines.append((str(row.get("entidad_nombre") or "Sin nombre"), 11, True))
-        detail_parts = [
-            f"Tipo: {row.get('tipo_estructura_apoyo') or 'Sin dato'}",
-            f"Cobertura: {row.get('cobertura_principal') or 'Sin dato'}",
-            f"Contacto: {row.get('persona_contacto_cargo') or 'Sin dato'}",
-            f"Telefono: {row.get('telefonos') or 'Sin dato'}",
-            f"Correo: {row.get('correo_electronico') or 'Sin dato'}",
-            f"Direccion: {row.get('direccion_fisica') or 'Sin dato'}",
-            f"Servicios: {row.get('servicios') or 'Sin servicios registrados'}",
-        ]
-        for part in detail_parts:
-            for wrapped in _pdf_wrap(part):
-                lines.append((wrapped, 9, False))
-        lines.append(("", 9, False))
-
+def _build_simple_pdf(lines: List[tuple[str, int, bool]], header_title: str) -> bytes:
     page_width = 595
     page_height = 842
     margin_x = 46
@@ -1823,7 +1792,7 @@ def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
             pages.append(page_commands)
         page_commands = [
             "0.000 0.196 0.278 rg 0 792 595 50 re f",
-            f"BT /F2 13 Tf {margin_x} 812 Td (NAE - Directorio de entidades de apoyo) Tj ET",
+            f"BT /F2 13 Tf {margin_x} 812 Td ({_pdf_escape(header_title)}) Tj ET",
             "0.850 0.890 0.920 rg 46 786 503 1 re f",
         ]
         y = 766
@@ -1889,6 +1858,330 @@ def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
         ).encode("ascii")
     )
     return bytes(output)
+
+
+def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
+    lines: List[tuple[str, int, bool]] = [
+        ("Directorio de entidades de apoyo a los NAE", 16, True),
+        ("Mapeo de Entidades de Apoyo", 10, False),
+        ("", 10, False),
+    ]
+
+    rows = sorted(data.get("entidades", []), key=_entity_sort_key)
+    current_group = None
+    if not rows:
+        lines.append(("No hay entidades para los filtros seleccionados.", 10, False))
+
+    for row in rows:
+        group = f"{row.get('provincia') or 'Sin provincia'} / {row.get('municipio') or 'Sin municipio'}"
+        if group != current_group:
+            lines.extend([("", 10, False), (group, 12, True)])
+            current_group = group
+
+        lines.append((str(row.get("entidad_nombre") or "Sin nombre"), 11, True))
+        detail_parts = [
+            f"Tipo: {row.get('tipo_estructura_apoyo') or 'Sin dato'}",
+            f"Cobertura: {row.get('cobertura_principal') or 'Sin dato'}",
+            f"Contacto: {row.get('persona_contacto_cargo') or 'Sin dato'}",
+            f"Telefono: {row.get('telefonos') or 'Sin dato'}",
+            f"Correo: {row.get('correo_electronico') or 'Sin dato'}",
+            f"Direccion: {row.get('direccion_fisica') or 'Sin dato'}",
+            f"Servicios: {row.get('servicios') or 'Sin servicios registrados'}",
+        ]
+        for part in detail_parts:
+            for wrapped in _pdf_wrap(part):
+                lines.append((wrapped, 9, False))
+        lines.append(("", 9, False))
+
+    return _build_simple_pdf(lines, "NAE - Directorio de entidades de apoyo")
+
+
+def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[str, Any]:
+    selected_date = report_date or date.today()
+    db = SessionLocal()
+    try:
+        has_entity_resolution = db.execute(
+            text("SELECT to_regclass('operational.entidades_apoyo') IS NOT NULL")
+        ).scalar()
+        if not has_entity_resolution:
+            return {
+                "fecha": selected_date.isoformat(),
+                "summary": {},
+                "territorial": [],
+                "new_entities": [],
+                "services_offered": [],
+                "services_to_strengthen": [],
+                "quality": {},
+                "recent_actions": [],
+            }
+
+        params = {"fecha": selected_date}
+        summary = dict(db.execute(
+            text("""
+                SELECT COUNT(DISTINCT op.id)::int AS respuestas_acumuladas,
+                       COUNT(DISTINCT op.id) FILTER (WHERE op.fecha_respuesta::date = :fecha)::int AS respuestas_dia,
+                       COUNT(DISTINCT ea.id)::int AS entidades_acumuladas,
+                       COUNT(DISTINCT ea.id) FILTER (WHERE op.fecha_respuesta::date = :fecha)::int AS entidades_con_envio_dia,
+                       COUNT(DISTINCT p.nombre)::int AS provincias_cubiertas,
+                       COUNT(DISTINCT mu.nombre)::int AS municipios_cubiertos
+                FROM operational.entidades_apoyo ea
+                JOIN operational.provincias p ON p.id = ea.provincia_id
+                JOIN operational.municipios mu ON mu.id = ea.municipio_id
+                LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+                LEFT JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
+                WHERE ea.estado_revision <> 'descartada'
+            """),
+            params,
+        ).mappings().one())
+
+        territorial = [dict(row) for row in db.execute(
+            text("""
+                SELECT p.nombre AS provincia,
+                       COUNT(DISTINCT mu.id)::int AS municipios,
+                       COUNT(DISTINCT ea.id)::int AS entidades,
+                       COUNT(DISTINCT rel.operational_respuesta_id)::int AS respuestas
+                FROM operational.entidades_apoyo ea
+                JOIN operational.provincias p ON p.id = ea.provincia_id
+                JOIN operational.municipios mu ON mu.id = ea.municipio_id
+                LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+                WHERE ea.estado_revision <> 'descartada'
+                GROUP BY p.nombre
+            """)
+        ).mappings().all()]
+        territorial.sort(key=lambda row: _province_sort_key(row.get("provincia")))
+
+        new_entities = [dict(row) for row in db.execute(
+            text("""
+                SELECT DISTINCT ea.nombre_canonico AS entidad,
+                       p.nombre AS provincia,
+                       mu.nombre AS municipio,
+                       COALESCE(ea.tipo_estructura_apoyo, 'Sin dato') AS tipo,
+                       COALESCE(ea.correo_electronico, ea.telefonos, 'Sin dato') AS contacto,
+                       CASE
+                         WHEN EXISTS (
+                            SELECT 1
+                            FROM operational.respuestas_entidades_apoyo rel_g
+                            JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_g.operational_respuesta_id
+                            WHERE rel_g.entidad_apoyo_id = ea.id
+                              AND g.fuente = 'revision_manual'
+                              AND g.lat IS NOT NULL
+                              AND g.lng IS NOT NULL
+                         ) THEN 'validada'
+                         WHEN EXISTS (
+                            SELECT 1
+                            FROM operational.respuestas_entidades_apoyo rel_g
+                            JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_g.operational_respuesta_id
+                            WHERE rel_g.entidad_apoyo_id = ea.id
+                              AND g.lat IS NOT NULL
+                              AND g.lng IS NOT NULL
+                         ) THEN 'geocodificada'
+                         ELSE 'estimada por municipio'
+                       END AS estado_coordenada
+                FROM operational.entidades_apoyo ea
+                JOIN operational.provincias p ON p.id = ea.provincia_id
+                JOIN operational.municipios mu ON mu.id = ea.municipio_id
+                JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+                JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
+                WHERE ea.estado_revision <> 'descartada'
+                  AND op.fecha_respuesta::date = :fecha
+                ORDER BY ea.nombre_canonico
+                LIMIT 25
+            """),
+            params,
+        ).mappings().all()]
+
+        services_offered = [dict(row) for row in db.execute(
+            text("""
+                SELECT s.servicio AS label, COUNT(DISTINCT rel.entidad_apoyo_id)::int AS total
+                FROM operational.respuestas_mapeo_servicios s
+                JOIN operational.respuestas_entidades_apoyo rel ON rel.operational_respuesta_id = s.operational_respuesta_id
+                JOIN operational.entidades_apoyo ea ON ea.id = rel.entidad_apoyo_id
+                WHERE ea.estado_revision <> 'descartada'
+                  AND s.ofrece_actualmente IS TRUE
+                GROUP BY s.servicio
+                ORDER BY total DESC, label ASC
+                LIMIT 10
+            """)
+        ).mappings().all()]
+
+        services_to_strengthen = [dict(row) for row in db.execute(
+            text("""
+                SELECT s.servicio AS label, COUNT(DISTINCT rel.entidad_apoyo_id)::int AS total
+                FROM operational.respuestas_mapeo_servicios s
+                JOIN operational.respuestas_entidades_apoyo rel ON rel.operational_respuesta_id = s.operational_respuesta_id
+                JOIN operational.entidades_apoyo ea ON ea.id = rel.entidad_apoyo_id
+                WHERE ea.estado_revision <> 'descartada'
+                  AND s.requiere_fortalecer IS TRUE
+                GROUP BY s.servicio
+                ORDER BY total DESC, label ASC
+                LIMIT 10
+            """)
+        ).mappings().all()]
+
+        quality = dict(db.execute(
+            text("""
+                SELECT (
+                         SELECT COUNT(*)::int
+                         FROM operational.respuestas_mapeo_territorios_servicio
+                         WHERE requiere_revision IS TRUE
+                       ) AS territorios_pendientes,
+                       (
+                         SELECT COUNT(*)::int
+                         FROM operational.respuestas_entidades_apoyo
+                         WHERE requiere_revision IS TRUE
+                       ) AS entidades_pendientes,
+                       (
+                         SELECT COUNT(DISTINCT ea.id)::int
+                         FROM operational.entidades_apoyo ea
+                         WHERE ea.estado_revision <> 'descartada'
+                           AND NOT EXISTS (
+                             SELECT 1
+                             FROM operational.respuestas_entidades_apoyo rel_g
+                             JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_g.operational_respuesta_id
+                             WHERE rel_g.entidad_apoyo_id = ea.id
+                               AND g.fuente = 'revision_manual'
+                               AND g.lat IS NOT NULL
+                               AND g.lng IS NOT NULL
+                           )
+                       ) AS coordenadas_no_validadas,
+                       (
+                         SELECT COUNT(*)::int
+                         FROM operational.revisiones_datos
+                         WHERE created_at::date = :fecha
+                       ) AS correcciones_dia
+            """),
+            params,
+        ).mappings().one())
+
+        recent_actions = [dict(row) for row in db.execute(
+            text("""
+                SELECT tipo_revision, accion, valor_original, valor_aprobado, usuario
+                FROM operational.revisiones_datos
+                WHERE created_at::date = :fecha
+                ORDER BY created_at DESC
+                LIMIT 12
+            """),
+            params,
+        ).mappings().all()]
+
+        return {
+            "fecha": selected_date.isoformat(),
+            "summary": summary,
+            "territorial": territorial,
+            "new_entities": new_entities,
+            "services_offered": services_offered,
+            "services_to_strengthen": services_to_strengthen,
+            "quality": quality,
+            "recent_actions": recent_actions,
+        }
+    except ProgrammingError:
+        db.rollback()
+        return {
+            "fecha": selected_date.isoformat(),
+            "summary": {},
+            "territorial": [],
+            "new_entities": [],
+            "services_offered": [],
+            "services_to_strengthen": [],
+            "quality": {},
+            "recent_actions": [],
+        }
+    finally:
+        db.close()
+
+
+def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
+    summary = data.get("summary", {})
+    quality = data.get("quality", {})
+    fecha = data.get("fecha") or "Sin fecha"
+    lines: List[tuple[str, int, bool]] = [
+        ("Reporte diario de avance", 16, True),
+        ("Mapeo de estructuras de apoyo a los NAE", 11, False),
+        (f"Fecha de corte: {fecha}", 10, False),
+        ("", 10, False),
+        ("Resumen ejecutivo", 13, True),
+    ]
+
+    executive = (
+        f"Al cierre del {fecha} se registran {summary.get('respuestas_acumuladas', 0)} respuestas acumuladas, "
+        f"{summary.get('entidades_acumuladas', 0)} entidades únicas, "
+        f"{summary.get('provincias_cubiertas', 0)} provincias y "
+        f"{summary.get('municipios_cubiertos', 0)} municipios con información procesada. "
+        f"Durante el día se recibieron {summary.get('respuestas_dia', 0)} respuestas."
+    )
+    for wrapped in _pdf_wrap(executive, width=88):
+        lines.append((wrapped, 10, False))
+
+    lines.extend([
+        ("", 10, False),
+        ("Indicadores principales", 13, True),
+        (f"Respuestas recibidas hoy: {summary.get('respuestas_dia', 0)}", 10, False),
+        (f"Respuestas acumuladas: {summary.get('respuestas_acumuladas', 0)}", 10, False),
+        (f"Entidades únicas acumuladas: {summary.get('entidades_acumuladas', 0)}", 10, False),
+        (f"Entidades con envío hoy: {summary.get('entidades_con_envio_dia', 0)}", 10, False),
+        (f"Provincias cubiertas: {summary.get('provincias_cubiertas', 0)}", 10, False),
+        (f"Municipios cubiertos: {summary.get('municipios_cubiertos', 0)}", 10, False),
+        ("", 10, False),
+        ("Calidad del dato", 13, True),
+        (f"Territorios pendientes de revisión: {quality.get('territorios_pendientes', 0)}", 10, False),
+        (f"Entidades pendientes de revisión: {quality.get('entidades_pendientes', 0)}", 10, False),
+        (f"Entidades sin coordenadas manualmente validadas: {quality.get('coordenadas_no_validadas', 0)}", 10, False),
+        (f"Correcciones registradas hoy: {quality.get('correcciones_dia', 0)}", 10, False),
+        ("", 10, False),
+        ("Avance territorial por provincia", 13, True),
+    ])
+
+    if data.get("territorial"):
+        for row in data["territorial"]:
+            lines.append((
+                f"{row.get('provincia')}: {row.get('entidades', 0)} entidades, "
+                f"{row.get('respuestas', 0)} respuestas, {row.get('municipios', 0)} municipios",
+                9,
+                False,
+            ))
+    else:
+        lines.append(("Sin datos territoriales procesados.", 9, False))
+
+    lines.extend([("", 10, False), ("Nuevas entidades del día", 13, True)])
+    if data.get("new_entities"):
+        for row in data["new_entities"]:
+            for wrapped in _pdf_wrap(
+                f"{row.get('entidad')} | {row.get('provincia')} / {row.get('municipio')} | "
+                f"{row.get('tipo')} | Coord.: {row.get('estado_coordenada')}",
+                width=90,
+            ):
+                lines.append((wrapped, 9, False))
+    else:
+        lines.append(("No se registraron nuevas entidades para esta fecha.", 9, False))
+
+    lines.extend([("", 10, False), ("Servicios más reportados", 13, True)])
+    if data.get("services_offered"):
+        for row in data["services_offered"]:
+            lines.append((f"{row.get('label')}: {row.get('total')} entidades", 9, False))
+    else:
+        lines.append(("Sin servicios ofrecidos reportados.", 9, False))
+
+    lines.extend([("", 10, False), ("Necesidades de fortalecimiento", 13, True)])
+    if data.get("services_to_strengthen"):
+        for row in data["services_to_strengthen"]:
+            lines.append((f"{row.get('label')}: {row.get('total')} entidades", 9, False))
+    else:
+        lines.append(("Sin necesidades de fortalecimiento reportadas.", 9, False))
+
+    lines.extend([("", 10, False), ("Acciones administrativas del día", 13, True)])
+    if data.get("recent_actions"):
+        for row in data["recent_actions"]:
+            for wrapped in _pdf_wrap(
+                f"{row.get('tipo_revision')} | {row.get('accion')} | "
+                f"{row.get('valor_original') or 'Sin original'} -> {row.get('valor_aprobado') or 'Sin aprobado'} | "
+                f"{row.get('usuario') or 'Sin usuario'}",
+                width=90,
+            ):
+                lines.append((wrapped, 9, False))
+    else:
+        lines.append(("No se registraron acciones administrativas para esta fecha.", 9, False))
+
+    return _build_simple_pdf(lines, "NAE - Reporte diario de avance")
 
 
 def get_admin_review_data() -> Dict[str, Any]:
@@ -2314,6 +2607,9 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
           <p class="eyebrow">Administración</p>
           <h1>Administración de datos</h1>
           <p class="lead">Gestión controlada de entidades, enlaces de respuestas, territorios ambiguos y coordenadas del mapa.</p>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="/admin/reportes/diario.pdf">Descargar reporte diario</a>
         </div>
       </header>
       <div class="admin-layout">

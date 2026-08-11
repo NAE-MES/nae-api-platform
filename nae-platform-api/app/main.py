@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 import base64
 import hashlib
 import hmac
@@ -31,11 +31,13 @@ from app.cuba_geo import CUBA_GEO
 from app.database import SessionLocal
 from app.entity_resolution import normalize_entity_name
 from app.reporting import (
+    build_daily_progress_report_pdf,
     build_support_entities_csv,
     build_support_entities_pdf,
     build_resumen_csv,
     get_admin_review_data,
     get_dashboard_data,
+    get_daily_progress_report_data,
     get_response_detail,
     get_support_entities,
     render_admin_review_html,
@@ -601,6 +603,22 @@ def admin_administracion(request: Request):
     if not _has_review_access(request):
         raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
     return render_admin_review_html(get_admin_review_data())
+
+
+@app.get("/admin/reportes/diario.pdf")
+def admin_reporte_diario_pdf(request: Request, fecha: Optional[date] = None):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
+    data = get_daily_progress_report_data(fecha)
+    pdf_content = build_daily_progress_report_pdf(data)
+    report_date = data.get("fecha") or (fecha or date.today()).isoformat()
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="reporte_diario_nae_{report_date}.pdf"'},
+    )
 
 
 @app.get("/admin/revision")

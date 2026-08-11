@@ -286,6 +286,42 @@ def test_admin_administracion_page_uses_renderer(monkeypatch):
     assert response.text == "<html>administracion</html>"
 
 
+def test_admin_daily_report_requires_login():
+    client.cookies.clear()
+
+    response = client.get("/admin/reportes/diario.pdf", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login?")
+
+
+def test_admin_daily_report_forbidden_for_non_reviewer(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1")
+    monkeypatch.setattr(main, "ANALYTICS_REVIEW_USERS", "")
+    cookie = main._create_session_cookie("jefe1")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+
+    response = client.get("/admin/reportes/diario.pdf", follow_redirects=False)
+
+    assert response.status_code == 403
+
+
+def test_admin_daily_report_pdf_endpoint(monkeypatch):
+    client.cookies.clear()
+    cookie = main._create_session_cookie("admin")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+    monkeypatch.setattr(main, "get_daily_progress_report_data", lambda fecha=None: {"fecha": "2026-08-11"})
+    monkeypatch.setattr(main, "build_daily_progress_report_pdf", lambda data: b"%PDF-1.4\nreport\n")
+
+    response = client.get("/admin/reportes/diario.pdf?fecha=2026-08-11")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF-1.4")
+    assert "reporte_diario_nae_2026-08-11.pdf" in response.headers["content-disposition"]
+
+
 def test_support_map_requires_login():
     client.cookies.clear()
 
