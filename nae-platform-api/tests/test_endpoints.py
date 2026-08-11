@@ -204,8 +204,10 @@ def test_public_navigation_keeps_private_links_when_logged_in():
     assert response.status_code == 200
     assert "Mapa" in response.text
     assert "Documentación" in response.text
+    assert "Analítica" in response.text
     assert "Administración" in response.text
     assert "Cerrar sesión" in response.text
+    assert "Iniciar sesión" not in response.text
 
 
 def test_public_navigation_hides_private_links_without_login():
@@ -216,8 +218,12 @@ def test_public_navigation_hides_private_links_without_login():
     assert response.status_code == 200
     assert "Mapa" not in response.text
     assert "Documentación" not in response.text
+    assert "Analítica" not in response.text
+    assert "documentación" not in response.text
+    assert "analítica" not in response.text
     assert "Administración" not in response.text
     assert "Cerrar sesión" not in response.text
+    assert "Iniciar sesión" in response.text
 
 def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
     client.cookies.clear()
@@ -229,8 +235,23 @@ def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
     response = client.get("/")
 
     assert response.status_code == 200
+    assert "Mapa" in response.text
+    assert "Documentación" in response.text
+    assert "Analítica" in response.text
     assert "Administración" not in response.text
     assert "Cerrar sesión" in response.text
+
+
+def test_login_page_uses_public_navigation():
+    client.cookies.clear()
+
+    response = client.get("/login")
+
+    assert response.status_code == 200
+    assert "Iniciar sesión" in response.text
+    assert "Mapa" not in response.text
+    assert "Documentación" not in response.text
+    assert "Analítica" not in response.text
 
 
 def test_admin_administracion_forbidden_for_non_reviewer(monkeypatch):

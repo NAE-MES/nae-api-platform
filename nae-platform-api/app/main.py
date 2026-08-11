@@ -216,9 +216,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
       <div class="nav-links">
         <a href="/">Inicio</a>
         <a href="/encuesta">Encuesta</a>
-        <a href="/mapa-apoyo">Mapa</a>
-        <a href="/documentacion">Documentación</a>
-        <a class="active locked" href="/analitica">Analítica</a>
+        <a class="active locked" href="/login">Iniciar sesión</a>
       </div>
     </div>
   </nav>
@@ -279,7 +277,7 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
         'href="encuesta.html"': 'href="/encuesta"',
         'href="mapa-entidades.html"': 'href="/mapa-apoyo"',
         'href="documentacion.html"': 'href="/documentacion"',
-        'href="login.html"': 'href="/analitica"',
+        'href="login.html"': 'href="/login"',
         'href="analitica.html"': 'href="/analitica"',
         '<strong>NAE Platform</strong>': '<strong>NAE</strong>',
         'Prototipo institucional': 'Mapeo de Entidades de Apoyo',
@@ -292,11 +290,35 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
         html = html.replace(old, new)
     is_authenticated = request is not None and _has_analytics_access(request)
     if not is_authenticated:
+        html = html.replace(
+            "Sitio público del Mapeo Nacional de estructuras de apoyo a los Nuevos Actores Económicos para orientar la aplicación, consultar entidades identificadas, acceder a documentación y proteger la analítica operativa.",
+            "Sitio público del Mapeo Nacional de estructuras de apoyo a los Nuevos Actores Económicos para orientar la aplicación territorial y acceder al formulario vigente.",
+        )
+        html = html.replace(
+            "La plataforma organiza el levantamiento nacional para identificar quién ofrece servicios de apoyo a los NAE, dónde se encuentran esas estructuras y cómo acceder a ellas mediante un mapa digital y un directorio consultable.",
+            "La plataforma organiza el levantamiento nacional para identificar estructuras de apoyo a los NAE y orientar la aplicación territorial de la encuesta.",
+        )
+        html = html.replace(
+            "El proceso nacional se desarrolla del 3 al 23 de agosto con alcance previsto en los 168 municipios del país. La analítica operativa se mantiene protegida para preservar la calidad del dato y el seguimiento técnico.",
+            "El proceso nacional se desarrolla del 3 al 23 de agosto con alcance previsto en los 168 municipios del país.",
+        )
         html = html.replace('<a href="/mapa-apoyo">Mapa</a>', "")
         html = html.replace('<a class="active" href="/mapa-apoyo">Mapa</a>', "")
         html = html.replace('<a href="/documentacion">Documentación</a>', "")
         html = html.replace('<a class="active" href="/documentacion">Documentación</a>', "")
+        html = html.replace('<a class="locked" href="/login">Analítica</a>', '<a class="locked" href="/login">Iniciar sesión</a>')
+        html = html.replace('<a class="active locked" href="/login">Analítica</a>', '<a class="active locked" href="/login">Iniciar sesión</a>')
+        html = html.replace('<a class="locked" href="/analitica">Analítica</a>', '<a class="locked" href="/login">Iniciar sesión</a>')
+        html = html.replace('<a class="active locked" href="/analitica">Analítica</a>', '<a class="active locked" href="/login">Iniciar sesión</a>')
         html = html.replace('          <a class="button secondary" href="/mapa-apoyo">Explorar mapa</a>\n', "")
+        html = html.replace("""        <article class="card pad section-card">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
+          </div>
+          <h2>Analítica</h2>
+          <p>Dashboard protegido para seguimiento de respuestas, filtros, exportaciones y detalle de registros procesados.</p>
+        </article>
+""", "")
         html = html.replace("""        <article class="card pad section-card">
           <div class="section-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>
@@ -314,6 +336,8 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
         </article>
 """, "")
     if is_authenticated:
+        html = html.replace('<a class="locked" href="/login">Analítica</a>', '<a class="locked" href="/analitica">Analítica</a>')
+        html = html.replace('<a class="active locked" href="/login">Analítica</a>', '<a class="active locked" href="/analitica">Analítica</a>')
         analytics_link = '<a class="locked" href="/analitica">Analítica</a>'
         active_analytics_link = '<a class="active locked" href="/analitica">Analítica</a>'
         private_links = _private_nav_links(True, _has_review_access(request))
