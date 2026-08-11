@@ -285,11 +285,25 @@ def _render_prototype_page(filename: str, active_path: str, request: Optional[Re
         'Prototipo institucional': 'Mapeo de Entidades de Apoyo',
         'Prototipo visual no funcional para revisión de diseño. Proyecto NAE.': '',
         'formulario pendiente de confirmación final': 'formulario aprobado',
+        'alimentará el mapa público de apoyo y la analítica interna del proyecto': 'alimentará el mapa protegido de apoyo y la analítica interna del proyecto',
         'href="#"': 'href="https://forms.gle/faFwt1dSGdngtXvU7" target="_blank" rel="noopener"' if filename == "encuesta.html" else 'href="#"',
     }
     for old, new in replacements.items():
         html = html.replace(old, new)
-    if request is not None and _has_analytics_access(request):
+    is_authenticated = request is not None and _has_analytics_access(request)
+    if not is_authenticated:
+        html = html.replace('<a href="/mapa-apoyo">Mapa</a>', "")
+        html = html.replace('<a class="active" href="/mapa-apoyo">Mapa</a>', "")
+        html = html.replace('          <a class="button secondary" href="/mapa-apoyo">Explorar mapa</a>\n', "")
+        html = html.replace("""        <article class="card pad section-card">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>
+          </div>
+          <h2>Mapa</h2>
+          <p>Visualización territorial de estructuras de apoyo encuestadas, con fichas resumidas y descarga documental.</p>
+        </article>
+""", "")
+    if is_authenticated:
         analytics_link = '<a class="locked" href="/analitica">Analítica</a>'
         active_analytics_link = '<a class="active locked" href="/analitica">Analítica</a>'
         private_links = _private_nav_links(True, _has_review_access(request))
@@ -391,12 +405,15 @@ def resumen_csv(
 
 @app.get("/api/v1/entidades-apoyo")
 def entidades_apoyo(
+    request: Request,
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
     tipo: Optional[str] = None,
     q: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
 ):
+    _require_analytics_access(request, authorization)
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     return get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
@@ -404,12 +421,15 @@ def entidades_apoyo(
 
 @app.get("/api/v1/entidades-apoyo.csv")
 def entidades_apoyo_csv(
+    request: Request,
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
     tipo: Optional[str] = None,
     q: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
 ):
+    _require_analytics_access(request, authorization)
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
@@ -423,12 +443,15 @@ def entidades_apoyo_csv(
 
 @app.get("/api/v1/entidades-apoyo.pdf")
 def entidades_apoyo_pdf(
+    request: Request,
     limit: int = 200,
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
     tipo: Optional[str] = None,
     q: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
 ):
+    _require_analytics_access(request, authorization)
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
@@ -450,6 +473,8 @@ def mapa_apoyo(
     tipo: Optional[str] = None,
     q: Optional[str] = None,
 ):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)

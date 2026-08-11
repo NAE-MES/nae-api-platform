@@ -202,6 +202,7 @@ def test_public_navigation_keeps_private_links_when_logged_in():
     response = client.get("/")
 
     assert response.status_code == 200
+    assert "Mapa" in response.text
     assert "Administración" in response.text
     assert "Cerrar sesión" in response.text
 
@@ -212,6 +213,7 @@ def test_public_navigation_hides_private_links_without_login():
     response = client.get("/")
 
     assert response.status_code == 200
+    assert "Mapa" not in response.text
     assert "Administración" not in response.text
     assert "Cerrar sesión" not in response.text
 
@@ -259,6 +261,28 @@ def test_admin_administracion_page_uses_renderer(monkeypatch):
 
     assert response.status_code == 200
     assert response.text == "<html>administracion</html>"
+
+
+def test_support_map_requires_login():
+    client.cookies.clear()
+
+    response = client.get("/mapa-apoyo", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login?")
+
+
+def test_support_map_allows_authenticated_user(monkeypatch):
+    client.cookies.clear()
+    cookie = main._create_session_cookie("admin")
+    client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+    monkeypatch.setattr(main, "get_support_entities", lambda **kwargs: {"entidades": [], "lookups": {}, "filters": {}, "total": 0})
+    monkeypatch.setattr(main, "render_support_entities_html", lambda data, authenticated=False, can_review=False: "<html>mapa</html>")
+
+    response = client.get("/mapa-apoyo")
+
+    assert response.status_code == 200
+    assert response.text == "<html>mapa</html>"
 
 
 def test_response_detail_endpoints(monkeypatch):
@@ -313,11 +337,19 @@ def test_response_detail_endpoints(monkeypatch):
 def test_support_entities_pdf_endpoint(monkeypatch):
     monkeypatch.setattr(main, "get_support_entities", lambda **kwargs: {"entidades": []})
 
-    response = client.get("/api/v1/entidades-apoyo.pdf")
+    response = client.get("/api/v1/entidades-apoyo.pdf", headers={"Authorization": "Bearer test-token"})
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert response.content.startswith(b"%PDF-1.4")
+
+
+def test_support_entities_api_requires_authentication():
+    client.cookies.clear()
+
+    response = client.get("/api/v1/entidades-apoyo", follow_redirects=False)
+
+    assert response.status_code == 401
 
 
 def test_response_detail_missing_returns_404(monkeypatch):
