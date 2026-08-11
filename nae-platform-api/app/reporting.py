@@ -2094,6 +2094,19 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
             options.append(f"<option value='{escape(value, quote=True)}'{selected}>{escape(label)}</option>")
         return "".join(options)
 
+    entity_catalog = data.get("managed_entities", [])
+
+    def entity_options(selected_id: Optional[int] = None, exclude_id: Optional[int] = None) -> str:
+        options = ['<option value="">Seleccionar entidad</option>']
+        for entity in entity_catalog:
+            entity_id = entity.get("id")
+            if exclude_id is not None and str(entity_id) == str(exclude_id):
+                continue
+            label = f"{entity.get('nombre_canonico') or 'Sin nombre'} · {entity.get('provincia') or 'Sin provincia'} / {entity.get('municipio') or 'Sin municipio'}"
+            selected = " selected" if selected_id is not None and str(entity_id) == str(selected_id) else ""
+            options.append(f'<option value="{escape(str(entity_id), quote=True)}"{selected}>{escape(label)}</option>')
+        return "".join(options)
+
     territory_rows = []
     for row in data.get("territories", []):
         suggested = " / ".join(
@@ -2169,6 +2182,11 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
               </div>
               <div class="actions"><button class="button primary" type="submit">Guardar entidad</button></div>
             </form>
+            <form method="post" action="/admin/administracion/entidades-canonicas/{row.get('id')}/fusionar" class="merge-form">
+              <label class="field"><span>Fusionar esta entidad con</span><select name="target_entity_id">{entity_options(exclude_id=row.get('id'))}</select></label>
+              <label class="field"><span>Observación</span><input name="observacion" placeholder="Ej. es la misma institución escrita de otra forma" /></label>
+              <div class="actions"><button class="button danger" type="submit">Fusionar entidad</button></div>
+            </form>
           </article>
         """)
     if not managed_entity_rows:
@@ -2185,7 +2203,12 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
               <p><strong>Método:</strong> {escape(str(row.get('metodo_resolucion') or 'Sin dato'))} · <strong>Confianza:</strong> {escape(str(row.get('confianza') or '0'))}</p>
             </div>
             <form method="post" action="/admin/administracion/enlaces-entidad/{row.get('id')}">
-              <label class="field"><span>Separar como nueva entidad</span><input name="nombre_canonico" value="{escape(str(row.get('nombre_reportado') or row.get('entidad_formulario') or ''), quote=True)}" required /></label>
+              <label class="field"><span>Entidad correcta existente</span><select name="target_entity_id">{entity_options(selected_id=row.get('entidad_actual_id'))}</select></label>
+              <label class="field"><span>Observación</span><input name="observacion" placeholder="Ej. misma entidad escrita de otra forma" /></label>
+              <div class="actions"><button class="button primary" name="action" value="reassign_existing" type="submit">Mover a entidad seleccionada</button></div>
+            </form>
+            <form method="post" action="/admin/administracion/enlaces-entidad/{row.get('id')}">
+              <label class="field"><span>O separar como nueva entidad</span><input name="nombre_canonico" value="{escape(str(row.get('nombre_reportado') or row.get('entidad_formulario') or ''), quote=True)}" required /></label>
               <label class="field"><span>Observación</span><input name="observacion" placeholder="Ej. entidad distinta aunque el nombre se parezca" /></label>
               <div class="actions"><button class="button secondary" name="action" value="split_new" type="submit">Separar este envío</button></div>
             </form>
@@ -2246,20 +2269,27 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
     <style>
       .review-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }}
       .review-stack {{ display: grid; gap: 12px; }}
+      .admin-layout {{ display:grid; grid-template-columns: 220px minmax(0,1fr); gap:20px; align-items:start; }}
       .review-card {{ display: grid; gap: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow); padding: 16px; }}
       .review-card h3 {{ margin-bottom: 6px; color: var(--nae-navy); }}
       .review-card p {{ margin-bottom: 6px; color: #435466; }}
       .review-card form {{ display: grid; gap: 10px; }}
       .review-card .actions {{ justify-content: flex-start; }}
       .review-history {{ margin-top: 22px; }}
-      .admin-tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin: 0 0 22px; }}
-      .admin-tabs a {{ border:1px solid var(--line); border-radius: 999px; padding:8px 12px; background:#fff; font-weight:800; color:var(--nae-navy); }}
+      .admin-tabs {{ position: sticky; top: 86px; display:grid; gap:8px; margin: 0; }}
+      .admin-tabs button {{ width:100%; text-align:left; border:1px solid var(--line); border-radius: 8px; padding:10px 12px; background:#fff; font-weight:800; color:var(--nae-navy); cursor:pointer; }}
+      .admin-tabs button.active {{ background: var(--nae-navy); color:#fff; }}
+      .admin-panel {{ display:none; }}
+      .admin-panel.active {{ display:block; }}
+      .admin-panel > h2 {{ margin-top:0; }}
       .form-grid {{ display:grid; gap:10px; }}
       .form-grid.two {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .form-grid .wide {{ grid-column: 1 / -1; }}
       .muted {{ color:#667789; }}
+      .button.danger {{ background:#b42318; color:#fff; border-color:#b42318; }}
+      .merge-form {{ border-top:1px solid var(--line); padding-top:12px; }}
       @media (max-width: 760px) {{ .form-grid.two {{ grid-template-columns: 1fr; }} }}
-      @media (max-width: 900px) {{ .review-grid {{ grid-template-columns: 1fr; }} }}
+      @media (max-width: 900px) {{ .review-grid, .admin-layout {{ grid-template-columns: 1fr; }} .admin-tabs {{ position: static; display:flex; flex-wrap:wrap; }} .admin-tabs button {{ width:auto; }} }}
     </style>
   </head>
   <body>
@@ -2286,45 +2316,66 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
           <p class="lead">Gestión controlada de entidades, enlaces de respuestas, territorios ambiguos y coordenadas del mapa.</p>
         </div>
       </header>
-      <nav class="admin-tabs">
-        <a href="#entidades">Entidades</a>
-        <a href="#enlaces">Enlaces de respuestas</a>
-        <a href="#territorios">Territorios</a>
-        <a href="#coordenadas">Coordenadas</a>
-        <a href="#historial">Historial</a>
-      </nav>
-      <section id="entidades" class="review-history">
-        <h2>Entidades registradas</h2>
-        <div class="review-stack">{''.join(managed_entity_rows)}</div>
-      </section>
-      <section id="enlaces" class="review-history">
-        <h2>Enlaces de respuestas</h2>
-        <p class="lead">Use esta sección para separar una respuesta que el sistema agrupó con una entidad equivocada.</p>
-        <div class="review-stack">{''.join(link_rows)}</div>
-      </section>
-      <section id="territorios" class="review-grid review-history">
+      <div class="admin-layout">
+        <nav class="admin-tabs" aria-label="Secciones de administración">
+          <button type="button" data-tab="entidades">Entidades</button>
+          <button type="button" data-tab="enlaces">Enlaces de respuestas</button>
+          <button type="button" data-tab="territorios">Territorios</button>
+          <button type="button" data-tab="coordenadas">Coordenadas</button>
+          <button type="button" data-tab="historial">Historial</button>
+        </nav>
         <div>
-          <h2>Territorios</h2>
-          <div class="review-stack">{''.join(territory_rows)}</div>
+          <section id="entidades" class="admin-panel">
+            <h2>Entidades registradas</h2>
+            <div class="review-stack">{''.join(managed_entity_rows)}</div>
+          </section>
+          <section id="enlaces" class="admin-panel">
+            <h2>Enlaces de respuestas</h2>
+            <p class="lead">Mueva una respuesta a una entidad existente o sepárela como una entidad nueva.</p>
+            <div class="review-stack">{''.join(link_rows)}</div>
+          </section>
+          <section id="territorios" class="admin-panel">
+            <div class="review-grid">
+              <div>
+                <h2>Territorios</h2>
+                <div class="review-stack">{''.join(territory_rows)}</div>
+              </div>
+              <div>
+                <h2>Entidades por decidir</h2>
+                <div class="review-stack">{''.join(entity_rows)}</div>
+              </div>
+            </div>
+          </section>
+          <section id="coordenadas" class="admin-panel">
+            <h2>Coordenadas de entidades</h2>
+            <div class="review-stack">{''.join(coordinate_rows)}</div>
+          </section>
+          <section id="historial" class="admin-panel card pad">
+            <h2>Historial reciente</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Acción</th><th>Original</th><th>Aprobado</th></tr></thead>
+                <tbody>{''.join(decision_rows)}</tbody>
+              </table>
+            </div>
+          </section>
         </div>
-        <div>
-          <h2>Entidades por decidir</h2>
-          <div class="review-stack">{''.join(entity_rows)}</div>
-        </div>
-      </section>
-      <section id="coordenadas" class="review-history">
-        <h2>Coordenadas de entidades</h2>
-        <div class="review-stack">{''.join(coordinate_rows)}</div>
-      </section>
-      <section id="historial" class="card pad review-history">
-        <h2>Historial reciente</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Acción</th><th>Original</th><th>Aprobado</th></tr></thead>
-            <tbody>{''.join(decision_rows)}</tbody>
-          </table>
-        </div>
-      </section>
+      </div>
+      <script>
+        (() => {{
+          const panels = Array.from(document.querySelectorAll('.admin-panel'));
+          const buttons = Array.from(document.querySelectorAll('.admin-tabs button'));
+          const show = (id, push = true) => {{
+            const panel = document.getElementById(id) || document.getElementById('entidades');
+            panels.forEach((item) => item.classList.toggle('active', item === panel));
+            buttons.forEach((button) => button.classList.toggle('active', button.dataset.tab === panel.id));
+            if (push) history.replaceState(null, '', '#' + panel.id);
+          }};
+          buttons.forEach((button) => button.addEventListener('click', () => show(button.dataset.tab)));
+          window.addEventListener('hashchange', () => show(location.hash.slice(1) || 'entidades', false));
+          show(location.hash.slice(1) || 'entidades', false);
+        }})();
+      </script>
     </main>
   </body>
 </html>

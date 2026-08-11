@@ -931,6 +931,93 @@ async def admin_administracion_entidad_canonica(request: Request, entity_id: int
         db.close()
 
 
+@app.post("/admin/administracion/entidades-canonicas/{entity_id}/fusionar")
+async def admin_administracion_fusionar_entidad(request: Request, entity_id: int):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    if not _has_review_access(request):
+        raise HTTPException(status_code=403, detail="No tiene permisos para administrar datos")
+    review_user = _session_username(request) or ANALYTICS_USERNAME
+
+    body = (await request.body()).decode("utf-8")
+    form = parse_qs(body)
+    target_entity_id_raw = form.get("target_entity_id", [""])[0].strip()
+    observacion = form.get("observacion", [""])[0].strip() or None
+    if not target_entity_id_raw:
+        raise HTTPException(status_code=400, detail="Debe seleccionar la entidad destino")
+
+    target_entity_id = int(target_entity_id_raw)
+    if target_entity_id == entity_id:
+        raise HTTPException(status_code=409, detail="No se puede fusionar una entidad consigo misma")
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(
+            text("""
+                SELECT id, nombre_canonico
+                FROM operational.entidades_apoyo
+                WHERE id IN (:source_id, :target_id)
+                  AND estado_revision <> 'descartada'
+            """),
+            {"source_id": entity_id, "target_id": target_entity_id},
+        ).mappings().all()
+        by_id = {int(row["id"]): row for row in rows}
+        source = by_id.get(entity_id)
+        target = by_id.get(target_entity_id)
+        if source is None or target is None:
+            raise HTTPException(status_code=400, detail="Entidad origen o destino no válida")
+
+        db.execute(
+            text("""
+                UPDATE operational.respuestas_entidades_apoyo
+                SET entidad_apoyo_id = :target_id,
+                    entidad_sugerida_id = NULL,
+                    metodo_resolucion = 'manual_fusion_entidad',
+                    confianza = 1,
+                    requiere_revision = FALSE,
+                    updated_at = NOW()
+                WHERE entidad_apoyo_id = :source_id
+            """),
+            {"source_id": entity_id, "target_id": target_entity_id},
+        )
+        db.execute(
+            text("""
+                UPDATE operational.entidades_apoyo
+                SET estado_revision = 'fusionada', updated_at = NOW()
+                WHERE id = :source_id
+            """),
+            {"source_id": entity_id},
+        )
+        db.execute(
+            text("""
+                INSERT INTO operational.revisiones_datos (
+                    tipo_revision, tabla_origen, registro_origen_id, valor_original,
+                    valor_sugerido, valor_aprobado, accion, usuario, observacion
+                )
+                VALUES (
+                    'entidad_canonica', 'operational.entidades_apoyo', :registro_origen_id,
+                    :valor_original, :valor_sugerido, :valor_aprobado,
+                    'fusionar_entidad', :usuario, :observacion
+                )
+            """),
+            {
+                "registro_origen_id": entity_id,
+                "valor_original": source["nombre_canonico"],
+                "valor_sugerido": target["nombre_canonico"],
+                "valor_aprobado": target["nombre_canonico"],
+                "usuario": review_user,
+                "observacion": observacion,
+            },
+        )
+        db.commit()
+        return RedirectResponse(url="/admin/administracion#entidades", status_code=303)
+    except HTTPException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @app.post("/admin/administracion/enlaces-entidad/{link_id}")
 async def admin_administracion_enlace_entidad(request: Request, link_id: int):
     if not _has_analytics_access(request):
@@ -942,14 +1029,17 @@ async def admin_administracion_enlace_entidad(request: Request, link_id: int):
     body = (await request.body()).decode("utf-8")
     form = parse_qs(body)
     action = form.get("action", [""])[0]
-    if action != "split_new":
+    if action not in {"split_new", "reassign_existing"}:
         raise HTTPException(status_code=400, detail="Acción no válida")
 
     nombre_canonico = form.get("nombre_canonico", [""])[0].strip()
+    target_entity_id_raw = form.get("target_entity_id", [""])[0].strip()
     observacion = form.get("observacion", [""])[0].strip() or None
-    if not nombre_canonico:
+    if action == "split_new" and not nombre_canonico:
         raise HTTPException(status_code=400, detail="Debe indicar el nombre correcto de la entidad")
-    nombre_normalizado = normalize_entity_name(nombre_canonico)
+    if action == "reassign_existing" and not target_entity_id_raw:
+        raise HTTPException(status_code=400, detail="Debe seleccionar la entidad correcta")
+    nombre_normalizado = normalize_entity_name(nombre_canonico) if nombre_canonico else None
 
     db = SessionLocal()
     try:
@@ -985,55 +1075,74 @@ async def admin_administracion_enlace_entidad(request: Request, link_id: int):
         if current is None:
             raise HTTPException(status_code=404, detail="Enlace de entidad no encontrado")
 
-        new_entity_id = db.execute(
-            text("""
-                INSERT INTO operational.entidades_apoyo (
-                    nombre_canonico, nombre_normalizado, provincia_id, municipio_id,
-                    tipo_estructura_apoyo, cobertura_principal, direccion_fisica,
-                    telefonos, correo_electronico, sitio_web, redes_sociales,
-                    persona_contacto_cargo, estado_revision, created_at, updated_at
-                )
-                VALUES (
-                    :nombre_canonico, :nombre_normalizado, :provincia_id, :municipio_id,
-                    :tipo_estructura_apoyo, :cobertura_principal, :direccion_fisica,
-                    :telefonos, :correo_electronico, :sitio_web, :redes_sociales,
-                    :persona_contacto_cargo, 'activa', NOW(), NOW()
-                )
-                ON CONFLICT (provincia_id, municipio_id, nombre_normalizado)
-                DO UPDATE SET updated_at = NOW()
-                RETURNING id
-            """),
-            {
-                "nombre_canonico": nombre_canonico,
-                "nombre_normalizado": nombre_normalizado,
-                "provincia_id": current["provincia_id"],
-                "municipio_id": current["municipio_id"],
-                "tipo_estructura_apoyo": current["tipo_estructura_apoyo"],
-                "cobertura_principal": current["cobertura_principal"],
-                "direccion_fisica": current["direccion_fisica"],
-                "telefonos": current["telefonos"],
-                "correo_electronico": current["correo_electronico"],
-                "sitio_web": current["sitio_web"],
-                "redes_sociales": current["redes_sociales"],
-                "persona_contacto_cargo": current["persona_contacto_cargo"],
-            },
-        ).scalar_one()
+        if action == "split_new":
+            new_entity_id = db.execute(
+                text("""
+                    INSERT INTO operational.entidades_apoyo (
+                        nombre_canonico, nombre_normalizado, provincia_id, municipio_id,
+                        tipo_estructura_apoyo, cobertura_principal, direccion_fisica,
+                        telefonos, correo_electronico, sitio_web, redes_sociales,
+                        persona_contacto_cargo, estado_revision, created_at, updated_at
+                    )
+                    VALUES (
+                        :nombre_canonico, :nombre_normalizado, :provincia_id, :municipio_id,
+                        :tipo_estructura_apoyo, :cobertura_principal, :direccion_fisica,
+                        :telefonos, :correo_electronico, :sitio_web, :redes_sociales,
+                        :persona_contacto_cargo, 'activa', NOW(), NOW()
+                    )
+                    ON CONFLICT (provincia_id, municipio_id, nombre_normalizado)
+                    DO UPDATE SET updated_at = NOW()
+                    RETURNING id
+                """),
+                {
+                    "nombre_canonico": nombre_canonico,
+                    "nombre_normalizado": nombre_normalizado,
+                    "provincia_id": current["provincia_id"],
+                    "municipio_id": current["municipio_id"],
+                    "tipo_estructura_apoyo": current["tipo_estructura_apoyo"],
+                    "cobertura_principal": current["cobertura_principal"],
+                    "direccion_fisica": current["direccion_fisica"],
+                    "telefonos": current["telefonos"],
+                    "correo_electronico": current["correo_electronico"],
+                    "sitio_web": current["sitio_web"],
+                    "redes_sociales": current["redes_sociales"],
+                    "persona_contacto_cargo": current["persona_contacto_cargo"],
+                },
+            ).scalar_one()
+            method = "manual_nueva_entidad"
+            approved_value = nombre_canonico
+            audit_action = "separar_nueva_entidad"
+        else:
+            new_entity_id = int(target_entity_id_raw)
+            target = db.execute(
+                text("""
+                    SELECT id, nombre_canonico
+                    FROM operational.entidades_apoyo
+                    WHERE id = :id AND estado_revision <> 'descartada'
+                """),
+                {"id": new_entity_id},
+            ).mappings().one_or_none()
+            if target is None:
+                raise HTTPException(status_code=400, detail="Entidad destino no válida")
+            method = "manual_reasignada"
+            approved_value = target["nombre_canonico"]
+            audit_action = "reasignar_entidad_existente"
 
         if int(new_entity_id) == int(current["entidad_apoyo_id"]):
-            raise HTTPException(status_code=409, detail="El nombre indicado normaliza igual que la entidad actual; use un nombre más específico")
+            raise HTTPException(status_code=409, detail="La respuesta ya está asociada a esa entidad")
 
         db.execute(
             text("""
                 UPDATE operational.respuestas_entidades_apoyo
                 SET entidad_apoyo_id = :new_entity_id,
                     entidad_sugerida_id = NULL,
-                    metodo_resolucion = 'manual_nueva_entidad',
+                    metodo_resolucion = :method,
                     confianza = 1,
                     requiere_revision = FALSE,
                     updated_at = NOW()
                 WHERE id = :id
             """),
-            {"id": link_id, "new_entity_id": new_entity_id},
+            {"id": link_id, "new_entity_id": new_entity_id, "method": method},
         )
         remaining_links = db.execute(
             text("""
@@ -1062,14 +1171,15 @@ async def admin_administracion_enlace_entidad(request: Request, link_id: int):
                 VALUES (
                     'entidad_enlace', 'operational.respuestas_entidades_apoyo', :registro_origen_id,
                     :valor_original, :valor_sugerido, :valor_aprobado,
-                    'separar_nueva_entidad', :usuario, :observacion
+                    :accion, :usuario, :observacion
                 )
             """),
             {
                 "registro_origen_id": link_id,
                 "valor_original": current["nombre_reportado"],
                 "valor_sugerido": current["entidad_actual"],
-                "valor_aprobado": nombre_canonico,
+                "valor_aprobado": approved_value,
+                "accion": audit_action,
                 "usuario": review_user,
                 "observacion": observacion,
             },
