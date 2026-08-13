@@ -2170,7 +2170,11 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
     def bar_chart(title: str, rows: List[Dict[str, Any]], label_key: str, value_key: str, limit: int = 8) -> None:
         nonlocal y
         rows = _report_top_rows(rows, label_key=label_key, value_key=value_key, limit=limit)
-        height = 36 + max(len(rows), 1) * 22
+        row_heights = []
+        for row in rows:
+            label = str(row.get(label_key) or "Sin dato")
+            row_heights.append(max(22, len(_pdf_wrap(label, width=38)[:3]) * 10 + 8))
+        height = 36 + (sum(row_heights) if row_heights else 22)
         ensure(height)
         text_line(title, size=12, bold=True, color="0.063 0.165 0.263", gap=18)
         if not rows:
@@ -2180,16 +2184,22 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
         label_x = margin_x
         bar_x = margin_x + 210
         bar_w = 250
-        for row in rows:
+        for row, row_height in zip(rows, row_heights):
             label = str(row.get(label_key) or "Sin dato")
             value = int(row.get(value_key, 0) or 0)
-            display_label = label if len(label) <= 44 else label[:41] + "..."
-            commands.append(f"0.180 0.235 0.294 rg BT /F1 8 Tf {label_x} {y} Td ({_pdf_escape(display_label)}) Tj ET")
-            commands.append(f"0.898 0.925 0.941 rg {bar_x} {y - 2} {bar_w} 8 re f")
+            label_lines = _pdf_wrap(label, width=38)[:3]
+            line_y = y
+            for label_line in label_lines:
+                commands.append(f"0.180 0.235 0.294 rg BT /F1 8 Tf {label_x} {line_y} Td ({_pdf_escape(label_line)}) Tj ET")
+                line_y -= 10
+            bar_y = y - 2
+            if len(label_lines) > 1:
+                bar_y = y - 6
+            commands.append(f"0.898 0.925 0.941 rg {bar_x} {bar_y} {bar_w} 8 re f")
             width = max(2, int((value / max_value) * bar_w))
-            commands.append(f"0.000 0.396 0.620 rg {bar_x} {y - 2} {width} 8 re f")
-            commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {bar_x + bar_w + 8} {y - 1} Td ({_pdf_escape(value)}) Tj ET")
-            y -= 22
+            commands.append(f"0.000 0.396 0.620 rg {bar_x} {bar_y} {width} 8 re f")
+            commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {bar_x + bar_w + 8} {bar_y + 1} Td ({_pdf_escape(value)}) Tj ET")
+            y -= row_height
         spacer(8)
 
     def line_chart(title: str, rows: List[Dict[str, Any]]) -> None:
