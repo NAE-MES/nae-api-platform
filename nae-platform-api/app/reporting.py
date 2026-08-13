@@ -4,12 +4,12 @@ import csv
 import json
 import math
 import textwrap
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from html import escape
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
@@ -19,7 +19,19 @@ from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 
 PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(CUBA_GEO.keys())}
-APP_ZONE = ZoneInfo(APP_TIMEZONE)
+
+
+def _load_app_zone():
+    try:
+        return ZoneInfo(APP_TIMEZONE)
+    except ZoneInfoNotFoundError:
+        if APP_TIMEZONE == "America/Havana":
+            return timezone(timedelta(hours=-4))
+        raise
+
+
+APP_ZONE = _load_app_zone()
+
 
 def _local_today() -> date:
     return datetime.now(APP_ZONE).date()
@@ -1921,17 +1933,17 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                 "new_entities": [],
                 "services_offered": [],
                 "services_to_strengthen": [],
-                "quality": {},
-                "recent_actions": [],
+                "daily_trend": [],
             }
 
+        local_response_date = _local_date_sql("op.fecha_respuesta")
         params = {"fecha": selected_date, "app_timezone": APP_TIMEZONE}
         summary = dict(db.execute(
-            text("""
+            text(f"""
                 SELECT COUNT(DISTINCT op.id)::int AS respuestas_acumuladas,
-                       COUNT(DISTINCT op.id) FILTER (WHERE ((op.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha)::int AS respuestas_dia,
+                       COUNT(DISTINCT op.id) FILTER (WHERE {local_response_date} = :fecha)::int AS respuestas_dia,
                        COUNT(DISTINCT ea.id)::int AS entidades_acumuladas,
-                       COUNT(DISTINCT ea.id) FILTER (WHERE ((op.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha)::int AS entidades_con_envio_dia,
+                       COUNT(DISTINCT ea.id) FILTER (WHERE {local_response_date} = :fecha)::int AS entidades_con_envio_dia,
                        COUNT(DISTINCT p.nombre)::int AS provincias_cubiertas,
                        COUNT(DISTINCT mu.nombre)::int AS municipios_cubiertos
                 FROM operational.entidades_apoyo ea
@@ -1943,6 +1955,21 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             """),
             params,
         ).mappings().one())
+
+        daily_trend = [dict(row) for row in db.execute(
+            text(f"""
+                SELECT {local_response_date} AS fecha,
+                       COUNT(DISTINCT op.id)::int AS total
+                FROM operational.respuestas_encuesta op
+                JOIN operational.respuestas_entidades_apoyo rel ON rel.operational_respuesta_id = op.id
+                JOIN operational.entidades_apoyo ea ON ea.id = rel.entidad_apoyo_id
+                WHERE ea.estado_revision <> 'descartada'
+                  AND {local_response_date} BETWEEN CAST(:fecha AS date) - INTERVAL '13 days' AND CAST(:fecha AS date)
+                GROUP BY {local_response_date}
+                ORDER BY fecha ASC
+            """),
+            params,
+        ).mappings().all()]
 
         territorial = [dict(row) for row in db.execute(
             text("""
@@ -1961,7 +1988,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
         territorial.sort(key=lambda row: _province_sort_key(row.get("provincia")))
 
         new_entities = [dict(row) for row in db.execute(
-            text("""
+            text(f"""
                 SELECT DISTINCT ea.nombre_canonico AS entidad,
                        p.nombre AS provincia,
                        mu.nombre AS municipio,
@@ -1993,7 +2020,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                 JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
                 JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
                 WHERE ea.estado_revision <> 'descartada'
-                  AND ((op.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha
+                  AND {local_response_date} = :fecha
                 ORDER BY ea.nombre_canonico
                 LIMIT 25
             """),
@@ -2028,52 +2055,6 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             """)
         ).mappings().all()]
 
-        quality = dict(db.execute(
-            text("""
-                SELECT (
-                         SELECT COUNT(*)::int
-                         FROM operational.respuestas_mapeo_territorios_servicio
-                         WHERE requiere_revision IS TRUE
-                       ) AS territorios_pendientes,
-                       (
-                         SELECT COUNT(*)::int
-                         FROM operational.respuestas_entidades_apoyo
-                         WHERE requiere_revision IS TRUE
-                       ) AS entidades_pendientes,
-                       (
-                         SELECT COUNT(DISTINCT ea.id)::int
-                         FROM operational.entidades_apoyo ea
-                         WHERE ea.estado_revision <> 'descartada'
-                           AND NOT EXISTS (
-                             SELECT 1
-                             FROM operational.respuestas_entidades_apoyo rel_g
-                             JOIN operational.geocodificacion_entidades g ON g.operational_respuesta_id = rel_g.operational_respuesta_id
-                             WHERE rel_g.entidad_apoyo_id = ea.id
-                               AND g.fuente = 'revision_manual'
-                               AND g.lat IS NOT NULL
-                               AND g.lng IS NOT NULL
-                           )
-                       ) AS coordenadas_no_validadas,
-                       (
-                         SELECT COUNT(*)::int
-                         FROM operational.revisiones_datos
-                         WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha
-                       ) AS correcciones_dia
-            """),
-            params,
-        ).mappings().one())
-
-        recent_actions = [dict(row) for row in db.execute(
-            text("""
-                SELECT tipo_revision, accion, valor_original, valor_aprobado, usuario
-                FROM operational.revisiones_datos
-                WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha
-                ORDER BY created_at DESC
-                LIMIT 12
-            """),
-            params,
-        ).mappings().all()]
-
         return {
             "fecha": selected_date.isoformat(),
             "summary": summary,
@@ -2081,8 +2062,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             "new_entities": new_entities,
             "services_offered": services_offered,
             "services_to_strengthen": services_to_strengthen,
-            "quality": quality,
-            "recent_actions": recent_actions,
+            "daily_trend": daily_trend,
         }
     except ProgrammingError:
         db.rollback()
@@ -2093,106 +2073,235 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             "new_entities": [],
             "services_offered": [],
             "services_to_strengthen": [],
-            "quality": {},
-            "recent_actions": [],
+            "daily_trend": [],
         }
     finally:
         db.close()
 
 
+def _report_number(value: Any) -> str:
+    try:
+        return f"{int(value):,}".replace(",", " ")
+    except (TypeError, ValueError):
+        return "0"
+
+
+def _report_top_rows(rows: List[Dict[str, Any]], label_key: str = "label", value_key: str = "total", limit: int = 8) -> List[Dict[str, Any]]:
+    cleaned = [row for row in rows if int(row.get(value_key, 0) or 0) > 0]
+    return sorted(cleaned, key=lambda row: (-int(row.get(value_key, 0) or 0), str(row.get(label_key) or "")))[:limit]
+
+
 def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
     summary = data.get("summary", {})
-    quality = data.get("quality", {})
     fecha = data.get("fecha") or "Sin fecha"
-    lines: List[tuple[str, int, bool]] = [
-        ("Reporte diario de avance", 16, True),
-        ("Mapeo de estructuras de apoyo a los NAE", 11, False),
-        (f"Fecha de corte: {fecha}", 10, False),
-        ("", 10, False),
-        ("Resumen ejecutivo", 13, True),
-    ]
+    page_width = 595
+    page_height = 842
+    margin_x = 46
+    bottom_y = 52
+    pages: List[List[str]] = []
+    commands: List[str] = []
+    y = 0
+
+    def add_page() -> None:
+        nonlocal commands, y
+        if commands:
+            pages.append(commands)
+        commands = [
+            "0.000 0.196 0.278 rg 0 792 595 50 re f",
+            f"BT /F2 13 Tf {margin_x} 812 Td ({_pdf_escape('NAE - Reporte gerencial diario')}) Tj ET",
+            "0.850 0.890 0.920 rg 46 786 503 1 re f",
+        ]
+        y = 764
+
+    def ensure(height: int) -> None:
+        if y - height < bottom_y:
+            add_page()
+
+    def text_line(value: Any, size: int = 10, bold: bool = False, color: str = "0.180 0.235 0.294", gap: int = 14) -> None:
+        nonlocal y
+        ensure(gap + 4)
+        font = "F2" if bold else "F1"
+        commands.append(f"{color} rg BT /{font} {size} Tf {margin_x} {y} Td ({_pdf_escape(value)}) Tj ET")
+        y -= gap
+
+    def wrapped(value: Any, width: int = 92, size: int = 10, bold: bool = False) -> None:
+        for line in _pdf_wrap(value, width=width):
+            text_line(line, size=size, bold=bold)
+
+    def spacer(amount: int = 8) -> None:
+        nonlocal y
+        y -= amount
+
+    def metric_cards(metrics: List[tuple[str, Any]]) -> None:
+        nonlocal y
+        ensure(72)
+        card_w = 156
+        card_h = 54
+        gap = 10
+        x = margin_x
+        start_y = y - card_h
+        for index, (label, value) in enumerate(metrics):
+            if index and index % 3 == 0:
+                y = start_y - 16
+                ensure(72)
+                x = margin_x
+                start_y = y - card_h
+            commands.append(f"0.945 0.965 0.976 rg {x} {start_y} {card_w} {card_h} re f")
+            commands.append(f"0.742 0.800 0.839 RG {x} {start_y} {card_w} {card_h} re S")
+            commands.append(f"0.000 0.196 0.278 rg BT /F2 18 Tf {x + 12} {start_y + 25} Td ({_pdf_escape(_report_number(value))}) Tj ET")
+            commands.append(f"0.330 0.392 0.463 rg BT /F1 8 Tf {x + 12} {start_y + 12} Td ({_pdf_escape(label)}) Tj ET")
+            x += card_w + gap
+        y = start_y - 18
+
+    def bar_chart(title: str, rows: List[Dict[str, Any]], label_key: str, value_key: str, limit: int = 8) -> None:
+        nonlocal y
+        rows = _report_top_rows(rows, label_key=label_key, value_key=value_key, limit=limit)
+        height = 36 + max(len(rows), 1) * 22
+        ensure(height)
+        text_line(title, size=12, bold=True, color="0.063 0.165 0.263", gap=18)
+        if not rows:
+            text_line("Sin datos procesados para esta sección.", size=9, gap=16)
+            return
+        max_value = max(int(row.get(value_key, 0) or 0) for row in rows) or 1
+        label_x = margin_x
+        bar_x = margin_x + 210
+        bar_w = 250
+        for row in rows:
+            label = str(row.get(label_key) or "Sin dato")
+            value = int(row.get(value_key, 0) or 0)
+            display_label = label if len(label) <= 44 else label[:41] + "..."
+            commands.append(f"0.180 0.235 0.294 rg BT /F1 8 Tf {label_x} {y} Td ({_pdf_escape(display_label)}) Tj ET")
+            commands.append(f"0.898 0.925 0.941 rg {bar_x} {y - 2} {bar_w} 8 re f")
+            width = max(2, int((value / max_value) * bar_w))
+            commands.append(f"0.000 0.396 0.620 rg {bar_x} {y - 2} {width} 8 re f")
+            commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {bar_x + bar_w + 8} {y - 1} Td ({_pdf_escape(value)}) Tj ET")
+            y -= 22
+        spacer(8)
+
+    def line_chart(title: str, rows: List[Dict[str, Any]]) -> None:
+        nonlocal y
+        rows = [row for row in rows if row.get("fecha") is not None]
+        ensure(150)
+        text_line(title, size=12, bold=True, color="0.063 0.165 0.263", gap=18)
+        chart_x = margin_x
+        chart_y = y - 104
+        chart_w = 500
+        chart_h = 88
+        commands.append(f"0.965 0.973 0.980 rg {chart_x} {chart_y} {chart_w} {chart_h} re f")
+        commands.append(f"0.742 0.800 0.839 RG {chart_x} {chart_y} {chart_w} {chart_h} re S")
+        if not rows:
+            commands.append(f"0.330 0.392 0.463 rg BT /F1 9 Tf {chart_x + 14} {chart_y + 42} Td ({_pdf_escape('Sin datos de tendencia.')}) Tj ET")
+            y = chart_y - 18
+            return
+        max_total = max(int(row.get("total", 0) or 0) for row in rows) or 1
+        points = []
+        for index, row in enumerate(rows):
+            x = chart_x + 18 + ((chart_w - 36) * index / max(len(rows) - 1, 1))
+            value = int(row.get("total", 0) or 0)
+            point_y = chart_y + 16 + ((value / max_total) * (chart_h - 32))
+            points.append((x, point_y, value, row.get("fecha")))
+        for current, nxt in zip(points, points[1:]):
+            commands.append(f"0.000 0.396 0.620 RG 1.4 w {current[0]:.2f} {current[1]:.2f} m {nxt[0]:.2f} {nxt[1]:.2f} l S")
+        for x, point_y, value, _ in points:
+            commands.append(f"0.753 0.122 0.114 rg {x - 2:.2f} {point_y - 2:.2f} 4 4 re f")
+        first_label = str(points[0][3])[-5:]
+        last_label = str(points[-1][3])[-5:]
+        commands.append(f"0.330 0.392 0.463 rg BT /F1 8 Tf {chart_x + 8} {chart_y - 12} Td ({_pdf_escape(first_label)}) Tj ET")
+        commands.append(f"0.330 0.392 0.463 rg BT /F1 8 Tf {chart_x + chart_w - 36} {chart_y - 12} Td ({_pdf_escape(last_label)}) Tj ET")
+        commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {chart_x + chart_w - 60} {chart_y + chart_h + 6} Td ({_pdf_escape('max ' + str(max_total))}) Tj ET")
+        y = chart_y - 24
+
+    add_page()
+    text_line("Reporte diario de avance", 18, True, "0.063 0.165 0.263", 22)
+    text_line("Mapeo de estructuras de apoyo a los nuevos actores económicos", 10, False, "0.330 0.392 0.463", 16)
+    text_line(f"Fecha de corte: {fecha} | Zona horaria: {APP_TIMEZONE}", 9, False, "0.330 0.392 0.463", 18)
+    spacer(4)
 
     executive = (
-        f"Al cierre del {fecha} se registran {summary.get('respuestas_acumuladas', 0)} respuestas acumuladas, "
-        f"{summary.get('entidades_acumuladas', 0)} entidades únicas, "
-        f"{summary.get('provincias_cubiertas', 0)} provincias y "
-        f"{summary.get('municipios_cubiertos', 0)} municipios con información procesada. "
-        f"Durante el día se recibieron {summary.get('respuestas_dia', 0)} respuestas."
+        f"Al cierre del {fecha}, la plataforma registra {summary.get('respuestas_acumuladas', 0)} respuestas procesadas "
+        f"y {summary.get('entidades_acumuladas', 0)} entidades únicas de apoyo a los NAE. La cobertura alcanza "
+        f"{summary.get('provincias_cubiertas', 0)} provincias y {summary.get('municipios_cubiertos', 0)} municipios. "
+        f"En la jornada se incorporaron {summary.get('respuestas_dia', 0)} respuestas y "
+        f"{summary.get('entidades_con_envio_dia', 0)} entidades con envío registrado."
     )
-    for wrapped in _pdf_wrap(executive, width=88):
-        lines.append((wrapped, 10, False))
+    wrapped(executive, width=92, size=10)
+    spacer(10)
 
-    lines.extend([
-        ("", 10, False),
-        ("Indicadores principales", 13, True),
-        (f"Respuestas recibidas hoy: {summary.get('respuestas_dia', 0)}", 10, False),
-        (f"Respuestas acumuladas: {summary.get('respuestas_acumuladas', 0)}", 10, False),
-        (f"Entidades únicas acumuladas: {summary.get('entidades_acumuladas', 0)}", 10, False),
-        (f"Entidades con envío hoy: {summary.get('entidades_con_envio_dia', 0)}", 10, False),
-        (f"Provincias cubiertas: {summary.get('provincias_cubiertas', 0)}", 10, False),
-        (f"Municipios cubiertos: {summary.get('municipios_cubiertos', 0)}", 10, False),
-        ("", 10, False),
-        ("Calidad del dato", 13, True),
-        (f"Territorios pendientes de revisión: {quality.get('territorios_pendientes', 0)}", 10, False),
-        (f"Entidades pendientes de revisión: {quality.get('entidades_pendientes', 0)}", 10, False),
-        (f"Entidades sin coordenadas manualmente validadas: {quality.get('coordenadas_no_validadas', 0)}", 10, False),
-        (f"Correcciones registradas hoy: {quality.get('correcciones_dia', 0)}", 10, False),
-        ("", 10, False),
-        ("Avance territorial por provincia", 13, True),
+    metric_cards([
+        ("Respuestas hoy", summary.get("respuestas_dia", 0)),
+        ("Respuestas acumuladas", summary.get("respuestas_acumuladas", 0)),
+        ("Entidades únicas", summary.get("entidades_acumuladas", 0)),
+        ("Entidades con envío hoy", summary.get("entidades_con_envio_dia", 0)),
+        ("Provincias cubiertas", summary.get("provincias_cubiertas", 0)),
+        ("Municipios cubiertos", summary.get("municipios_cubiertos", 0)),
     ])
 
-    if data.get("territorial"):
-        for row in data["territorial"]:
-            lines.append((
-                f"{row.get('provincia')}: {row.get('entidades', 0)} entidades, "
-                f"{row.get('respuestas', 0)} respuestas, {row.get('municipios', 0)} municipios",
-                9,
-                False,
-            ))
-    else:
-        lines.append(("Sin datos territoriales procesados.", 9, False))
+    line_chart("Tendencia de respuestas recibidas - últimos 14 días", data.get("daily_trend", []))
+    bar_chart("Cobertura territorial por provincia", data.get("territorial", []), "provincia", "entidades", limit=10)
+    bar_chart("Servicios ofrecidos más reportados", data.get("services_offered", []), "label", "total", limit=8)
+    bar_chart("Principales necesidades de fortalecimiento", data.get("services_to_strengthen", []), "label", "total", limit=8)
 
-    lines.extend([("", 10, False), ("Nuevas entidades del día", 13, True)])
+    text_line("Nuevas entidades del día", 12, True, "0.063 0.165 0.263", 18)
     if data.get("new_entities"):
-        for row in data["new_entities"]:
-            for wrapped in _pdf_wrap(
-                f"{row.get('entidad')} | {row.get('provincia')} / {row.get('municipio')} | "
-                f"{row.get('tipo')} | Coord.: {row.get('estado_coordenada')}",
-                width=90,
-            ):
-                lines.append((wrapped, 9, False))
+        for row in data["new_entities"][:12]:
+            wrapped(
+                f"{row.get('entidad')} | {row.get('provincia')} / {row.get('municipio')} | {row.get('tipo')}",
+                width=92,
+                size=9,
+            )
     else:
-        lines.append(("No se registraron nuevas entidades para esta fecha.", 9, False))
+        text_line("No se registraron nuevas entidades para esta fecha.", 9)
 
-    lines.extend([("", 10, False), ("Servicios más reportados", 13, True)])
-    if data.get("services_offered"):
-        for row in data["services_offered"]:
-            lines.append((f"{row.get('label')}: {row.get('total')} entidades", 9, False))
-    else:
-        lines.append(("Sin servicios ofrecidos reportados.", 9, False))
+    if commands:
+        pages.append(commands)
 
-    lines.extend([("", 10, False), ("Necesidades de fortalecimiento", 13, True)])
-    if data.get("services_to_strengthen"):
-        for row in data["services_to_strengthen"]:
-            lines.append((f"{row.get('label')}: {row.get('total')} entidades", 9, False))
-    else:
-        lines.append(("Sin necesidades de fortalecimiento reportadas.", 9, False))
+    objects: List[bytes] = []
 
-    lines.extend([("", 10, False), ("Acciones administrativas del día", 13, True)])
-    if data.get("recent_actions"):
-        for row in data["recent_actions"]:
-            for wrapped in _pdf_wrap(
-                f"{row.get('tipo_revision')} | {row.get('accion')} | "
-                f"{row.get('valor_original') or 'Sin original'} -> {row.get('valor_aprobado') or 'Sin aprobado'} | "
-                f"{row.get('usuario') or 'Sin usuario'}",
-                width=90,
-            ):
-                lines.append((wrapped, 9, False))
-    else:
-        lines.append(("No se registraron acciones administrativas para esta fecha.", 9, False))
+    def add_object(content: bytes) -> int:
+        objects.append(content)
+        return len(objects)
 
-    return _build_simple_pdf(lines, "NAE - Reporte diario de avance")
+    font_regular = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    font_bold = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+    page_ids: List[int] = []
+    for page_commands in pages:
+        stream = "\n".join(page_commands).encode("cp1252", errors="replace")
+        content_id = add_object(b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream")
+        page_id = add_object(
+            (
+                f"<< /Type /Page /Parent 0 0 R /MediaBox [0 0 {page_width} {page_height}] "
+                f"/Resources << /Font << /F1 {font_regular} 0 R /F2 {font_bold} 0 R >> >> "
+                f"/Contents {content_id} 0 R >>"
+            ).encode("ascii")
+        )
+        page_ids.append(page_id)
 
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    pages_id = add_object(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii"))
+    for index, obj in enumerate(objects):
+        if b"/Parent 0 0 R" in obj:
+            objects[index] = obj.replace(b"/Parent 0 0 R", f"/Parent {pages_id} 0 R".encode("ascii"))
+    catalog_id = add_object(f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("ascii"))
+
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref_start = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
+            f"startxref\n{xref_start}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(output)
 
 def get_admin_review_data() -> Dict[str, Any]:
     db = SessionLocal()
