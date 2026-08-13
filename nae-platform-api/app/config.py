@@ -40,6 +40,7 @@ DB_NAME = _require_env("DB_NAME")
 DB_USER = _require_env("DB_USER")
 DB_PASSWORD = _require_env("DB_PASSWORD")
 API_TOKEN = _require_env("API_TOKEN")
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Havana").strip() or "America/Havana"
 ANALYTICS_USERNAME = os.getenv("ANALYTICS_USERNAME", "admin").strip() or "admin"
 ANALYTICS_PASSWORD = os.getenv("ANALYTICS_PASSWORD", API_TOKEN).strip() or API_TOKEN
 ANALYTICS_USERS = os.getenv("ANALYTICS_USERS", "").strip()

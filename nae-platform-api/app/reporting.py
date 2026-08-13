@@ -4,19 +4,29 @@ import csv
 import json
 import math
 import textwrap
-from datetime import date
+from datetime import date, datetime
 from io import StringIO
 from html import escape
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
+from app.config import APP_TIMEZONE
 from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 
 PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(CUBA_GEO.keys())}
+APP_ZONE = ZoneInfo(APP_TIMEZONE)
+
+def _local_today() -> date:
+    return datetime.now(APP_ZONE).date()
+
+
+def _local_date_sql(column: str) -> str:
+    return f"(({column} AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date"
 
 
 def _province_sort_key(value: Any) -> tuple[int, str]:
@@ -1897,7 +1907,7 @@ def build_support_entities_pdf(data: Dict[str, Any]) -> bytes:
 
 
 def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[str, Any]:
-    selected_date = report_date or date.today()
+    selected_date = report_date or _local_today()
     db = SessionLocal()
     try:
         has_entity_resolution = db.execute(
@@ -1915,13 +1925,13 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                 "recent_actions": [],
             }
 
-        params = {"fecha": selected_date}
+        params = {"fecha": selected_date, "app_timezone": APP_TIMEZONE}
         summary = dict(db.execute(
             text("""
                 SELECT COUNT(DISTINCT op.id)::int AS respuestas_acumuladas,
-                       COUNT(DISTINCT op.id) FILTER (WHERE op.fecha_respuesta::date = :fecha)::int AS respuestas_dia,
+                       COUNT(DISTINCT op.id) FILTER (WHERE ((op.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha)::int AS respuestas_dia,
                        COUNT(DISTINCT ea.id)::int AS entidades_acumuladas,
-                       COUNT(DISTINCT ea.id) FILTER (WHERE op.fecha_respuesta::date = :fecha)::int AS entidades_con_envio_dia,
+                       COUNT(DISTINCT ea.id) FILTER (WHERE ((op.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha)::int AS entidades_con_envio_dia,
                        COUNT(DISTINCT p.nombre)::int AS provincias_cubiertas,
                        COUNT(DISTINCT mu.nombre)::int AS municipios_cubiertos
                 FROM operational.entidades_apoyo ea
@@ -1983,7 +1993,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                 JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
                 JOIN operational.respuestas_encuesta op ON op.id = rel.operational_respuesta_id
                 WHERE ea.estado_revision <> 'descartada'
-                  AND op.fecha_respuesta::date = :fecha
+                  AND ((op.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha
                 ORDER BY ea.nombre_canonico
                 LIMIT 25
             """),
@@ -2047,7 +2057,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                        (
                          SELECT COUNT(*)::int
                          FROM operational.revisiones_datos
-                         WHERE created_at::date = :fecha
+                         WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha
                        ) AS correcciones_dia
             """),
             params,
@@ -2057,7 +2067,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             text("""
                 SELECT tipo_revision, accion, valor_original, valor_aprobado, usuario
                 FROM operational.revisiones_datos
-                WHERE created_at::date = :fecha
+                WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date = :fecha
                 ORDER BY created_at DESC
                 LIMIT 12
             """),
@@ -3237,6 +3247,7 @@ def _get_dashboard_data_canonical(
 ) -> Dict[str, Any]:
     entity_where, entity_params = _mapeo_entity_filters_clause(provincia, version_encuesta, tipo, servicio)
     response_where, response_params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
+    response_params["app_timezone"] = APP_TIMEZONE
 
     total_entities = db.execute(
         text(f"""
@@ -3293,13 +3304,13 @@ def _get_dashboard_data_canonical(
         return _query_rows(db, sql, response_params, extra)
 
     respuestas_por_dia = response_rows(f"""
-        SELECT f.fecha_respuesta::date AS fecha, COUNT(*)::int AS total
+        SELECT ((f.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date AS fecha, COUNT(*)::int AS total
         FROM analytics.f_respuestas_encuesta f
         JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
         JOIN analytics.dim_territorio t ON t.id = f.territorio_id
         LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
         WHERE {response_where}
-        GROUP BY f.fecha_respuesta::date
+        GROUP BY ((f.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date
         ORDER BY fecha ASC
     """)
 
@@ -3528,6 +3539,7 @@ def get_dashboard_data(
             )
 
         where_clause, params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
+        params["app_timezone"] = APP_TIMEZONE
 
         total = db.execute(
             text(f"""
@@ -3562,13 +3574,13 @@ def get_dashboard_data(
             return [dict(row) for row in db.execute(text(sql), {**params, **(extra or {})}).mappings().all()]
 
         respuestas_por_dia = rows(f"""
-            SELECT f.fecha_respuesta::date AS fecha, COUNT(*)::int AS total
+            SELECT ((f.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date AS fecha, COUNT(*)::int AS total
             FROM analytics.f_respuestas_encuesta f
             JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
             JOIN analytics.dim_territorio t ON t.id = f.territorio_id
             LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
             WHERE {where_clause}
-            GROUP BY f.fecha_respuesta::date
+            GROUP BY ((f.fecha_respuesta AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date
             ORDER BY fecha ASC
         """)
 
@@ -4075,11 +4087,4 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
     </html>
     """
     return html
-
-
-
-
-
-
-
 
