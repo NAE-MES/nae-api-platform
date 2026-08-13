@@ -32,6 +32,7 @@ def test_daily_report_pdf_is_managerial_not_technical():
             },
             "daily_trend": [{"fecha": "2026-08-12", "total": 5}],
             "territorial": [{"provincia": "La Habana", "entidades": 10}],
+            "structure_types": [{"label": "Universidad o centro académico", "total": 9}],
             "services_offered": [{"label": "Gestion empresarial", "total": 8}],
             "services_to_strengthen": [{"label": "Acceso a financiamiento", "total": 6}],
             "new_entities": [],
@@ -41,5 +42,6 @@ def test_daily_report_pdf_is_managerial_not_technical():
     assert pdf.startswith(b"%PDF-1.4")
     assert b"Reporte diario de avance" in pdf
     assert b"Cobertura territorial por provincia" in pdf
+    assert b"Cantidad por tipo de estructura" in pdf
     assert b"Calidad del dato" not in pdf
     assert b"Acciones administrativas" not in pdf
