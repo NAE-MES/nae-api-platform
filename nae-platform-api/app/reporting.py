@@ -2108,6 +2108,9 @@ def _report_top_rows(rows: List[Dict[str, Any]], label_key: str = "label", value
 def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
     summary = data.get("summary", {})
     fecha = data.get("fecha") or "Sin fecha"
+    generated_at = datetime.now(APP_ZONE).strftime("%Y-%m-%d %H:%M")
+    generated_by = "Generado por: NAE - Mapeo de Entidades de Apoyo"
+    generated_note = f"{generated_by} | Fecha y hora de generación: {generated_at} | Zona horaria: {APP_TIMEZONE}"
     page_width = 595
     page_height = 842
     margin_x = 46
@@ -2124,6 +2127,8 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
             "0.000 0.196 0.278 rg 0 792 595 50 re f",
             f"BT /F2 13 Tf {margin_x} 812 Td ({_pdf_escape('NAE - Reporte gerencial diario')}) Tj ET",
             "0.850 0.890 0.920 rg 46 786 503 1 re f",
+            "0.850 0.890 0.920 rg 46 42 503 1 re f",
+            f"0.330 0.392 0.463 rg BT /F1 7 Tf {margin_x} 28 Td ({_pdf_escape(generated_note)}) Tj ET",
         ]
         y = 764
 

@@ -41,6 +41,8 @@ def test_daily_report_pdf_is_managerial_not_technical():
 
     assert pdf.startswith(b"%PDF-1.4")
     assert b"Reporte diario de avance" in pdf
+    assert b"Generado por: NAE - Mapeo de Entidades de Apoyo" in pdf
+    assert b"Fecha y hora de generaci" in pdf
     assert b"Cobertura territorial por provincia" in pdf
     assert b"Cantidad por tipo de estructura" in pdf
     assert b"Trabajador/a por cuenta propia" in pdf
