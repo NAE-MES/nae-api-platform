@@ -2192,34 +2192,6 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
             y -= 22
         spacer(8)
 
-    def simple_table(title: str, rows: List[Dict[str, Any]], label_key: str, value_key: str, limit: int = 12) -> None:
-        nonlocal y
-        rows = _report_top_rows(rows, label_key=label_key, value_key=value_key, limit=limit)
-        row_h = 18
-        height = 42 + max(len(rows), 1) * row_h
-        ensure(height)
-        text_line(title, size=12, bold=True, color="0.063 0.165 0.263", gap=18)
-        if not rows:
-            text_line("Sin datos procesados para esta sección.", size=9, gap=16)
-            return
-        table_x = margin_x
-        table_w = 500
-        count_x = table_x + table_w - 72
-        commands.append(f"0.000 0.196 0.278 rg {table_x} {y - 4} {table_w} 18 re f")
-        commands.append(f"1 1 1 rg BT /F2 8 Tf {table_x + 10} {y + 1} Td ({_pdf_escape('Tipo de estructura')}) Tj ET")
-        commands.append(f"1 1 1 rg BT /F2 8 Tf {count_x} {y + 1} Td ({_pdf_escape('Cantidad')}) Tj ET")
-        y -= row_h
-        for index, row in enumerate(rows):
-            fill = "0.965 0.973 0.980" if index % 2 == 0 else "1 1 1"
-            label = str(row.get(label_key) or "Sin dato")
-            value = _report_number(row.get(value_key, 0))
-            display_label = label if len(label) <= 72 else label[:69] + "..."
-            commands.append(f"{fill} rg {table_x} {y - 4} {table_w} 18 re f")
-            commands.append(f"0.180 0.235 0.294 rg BT /F1 8 Tf {table_x + 10} {y + 1} Td ({_pdf_escape(display_label)}) Tj ET")
-            commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {count_x + 12} {y + 1} Td ({_pdf_escape(value)}) Tj ET")
-            y -= row_h
-        spacer(10)
-
     def line_chart(title: str, rows: List[Dict[str, Any]]) -> None:
         nonlocal y
         rows = [row for row in rows if row.get("fecha") is not None]
@@ -2281,7 +2253,7 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
 
     line_chart("Tendencia de respuestas recibidas - últimos 14 días", data.get("daily_trend", []))
     bar_chart("Cobertura territorial por provincia", data.get("territorial", []), "provincia", "entidades", limit=10)
-    simple_table("Cantidad por tipo de estructura", data.get("structure_types", []), "label", "total", limit=12)
+    bar_chart("Cantidad por tipo de estructura", data.get("structure_types", []), "label", "total", limit=10)
     bar_chart("Servicios ofrecidos más reportados", data.get("services_offered", []), "label", "total", limit=8)
     bar_chart("Principales necesidades de fortalecimiento", data.get("services_to_strengthen", []), "label", "total", limit=8)
 
