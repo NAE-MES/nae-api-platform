@@ -32,6 +32,7 @@ def test_daily_report_pdf_is_managerial_not_technical():
             },
             "daily_trend": [{"fecha": "2026-08-12", "total": 5}],
             "territorial": [{"provincia": "La Habana", "entidades": 10}],
+            "territorial_municipal": [{"provincia": "La Habana", "municipio": "Playa", "envios": 4}],
             "structure_types": [{"label": "Trabajador/a por cuenta propia con servicios de apoyo a NAE", "total": 9}],
             "services_offered": [{"label": "Gestion empresarial", "total": 8}],
             "services_to_strengthen": [{"label": "Acceso a financiamiento", "total": 6}],
@@ -45,6 +46,9 @@ def test_daily_report_pdf_is_managerial_not_technical():
     assert b"Fecha y hora de generaci" in pdf
     assert b"Cobertura territorial por provincia" in pdf
     assert b"Cantidad por tipo de estructura" in pdf
+    assert b"Anexo territorial" in pdf
+    assert b"La Habana" in pdf
+    assert b"Playa" in pdf
     assert b"Trabajador/a por cuenta propia" in pdf
     assert b"servicios de apoyo a NAE" in pdf
     assert b"Calidad del dato" not in pdf

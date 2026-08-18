@@ -19,6 +19,7 @@ from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 
 PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(CUBA_GEO.keys())}
+SPECIAL_MUNICIPALITY = "Isla de la Juventud"
 
 
 def _load_app_zone():
@@ -39,6 +40,14 @@ def _local_today() -> date:
 
 def _local_date_sql(column: str) -> str:
     return f"(({column} AT TIME ZONE 'UTC') AT TIME ZONE :app_timezone)::date"
+
+
+def _territory_group_sql(province_column: str, municipality_column: str) -> str:
+    return (
+        f"CASE WHEN {province_column} = '{SPECIAL_MUNICIPALITY}' "
+        f"OR {municipality_column} = '{SPECIAL_MUNICIPALITY}' "
+        f"THEN '{SPECIAL_MUNICIPALITY}' ELSE {province_column} END"
+    )
 
 
 def _province_sort_key(value: Any) -> tuple[int, str]:
@@ -1934,10 +1943,12 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                 "services_offered": [],
                 "services_to_strengthen": [],
                 "structure_types": [],
+                "territorial_municipal": [],
                 "daily_trend": [],
             }
 
         local_response_date = _local_date_sql("op.fecha_respuesta")
+        territory_group = _territory_group_sql("p.nombre", "mu.nombre")
         params = {"fecha": selected_date, "app_timezone": APP_TIMEZONE}
         summary = dict(db.execute(
             text(f"""
@@ -1945,7 +1956,10 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                        COUNT(DISTINCT op.id) FILTER (WHERE {local_response_date} = :fecha)::int AS respuestas_dia,
                        COUNT(DISTINCT ea.id)::int AS entidades_acumuladas,
                        COUNT(DISTINCT ea.id) FILTER (WHERE {local_response_date} = :fecha)::int AS entidades_con_envio_dia,
-                       COUNT(DISTINCT p.nombre)::int AS provincias_cubiertas,
+                       COUNT(DISTINCT p.nombre) FILTER (
+                         WHERE p.nombre <> '{SPECIAL_MUNICIPALITY}'
+                           AND mu.nombre <> '{SPECIAL_MUNICIPALITY}'
+                       )::int AS provincias_cubiertas,
                        COUNT(DISTINCT mu.nombre)::int AS municipios_cubiertos
                 FROM operational.entidades_apoyo ea
                 JOIN operational.provincias p ON p.id = ea.provincia_id
@@ -1973,8 +1987,8 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
         ).mappings().all()]
 
         territorial = [dict(row) for row in db.execute(
-            text("""
-                SELECT p.nombre AS provincia,
+            text(f"""
+                SELECT {territory_group} AS territorio,
                        COUNT(DISTINCT mu.id)::int AS municipios,
                        COUNT(DISTINCT ea.id)::int AS entidades,
                        COUNT(DISTINCT rel.operational_respuesta_id)::int AS respuestas
@@ -1983,10 +1997,27 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
                 JOIN operational.municipios mu ON mu.id = ea.municipio_id
                 LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
                 WHERE ea.estado_revision <> 'descartada'
-                GROUP BY p.nombre
+                GROUP BY {territory_group}
             """)
         ).mappings().all()]
-        territorial.sort(key=lambda row: _province_sort_key(row.get("provincia")))
+        territorial.sort(key=lambda row: _province_sort_key(row.get("territorio")))
+
+        territorial_municipal = [dict(row) for row in db.execute(
+            text("""
+                SELECT p.nombre AS provincia,
+                       mu.nombre AS municipio,
+                       COUNT(DISTINCT rel.operational_respuesta_id)::int AS envios
+                FROM operational.entidades_apoyo ea
+                JOIN operational.provincias p ON p.id = ea.provincia_id
+                JOIN operational.municipios mu ON mu.id = ea.municipio_id
+                LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
+                WHERE ea.estado_revision <> 'descartada'
+                GROUP BY p.nombre, mu.nombre
+            """)
+        ).mappings().all()]
+        territorial_municipal.sort(
+            key=lambda row: (_province_sort_key(row.get("provincia")), str(row.get("municipio") or ""))
+        )
 
         structure_types = [dict(row) for row in db.execute(
             text("""
@@ -2075,6 +2106,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             "services_offered": services_offered,
             "services_to_strengthen": services_to_strengthen,
             "structure_types": structure_types,
+            "territorial_municipal": territorial_municipal,
             "daily_trend": daily_trend,
         }
     except ProgrammingError:
@@ -2087,6 +2119,7 @@ def get_daily_progress_report_data(report_date: Optional[date] = None) -> Dict[s
             "services_offered": [],
             "services_to_strengthen": [],
             "structure_types": [],
+            "territorial_municipal": [],
             "daily_trend": [],
         }
     finally:
@@ -2241,6 +2274,46 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
         commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {chart_x + chart_w - 60} {chart_y + chart_h + 6} Td ({_pdf_escape('max ' + str(max_total))}) Tj ET")
         y = chart_y - 38
 
+    def appendix_table(title: str, rows: List[Dict[str, Any]]) -> None:
+        nonlocal y
+        ensure(62)
+        text_line(title, 12, True, "0.063 0.165 0.263", 18)
+        if not rows:
+            text_line("Sin detalle territorial procesado.", 9)
+            return
+        table_x = margin_x
+        province_x = table_x + 10
+        municipality_x = table_x + 210
+        count_x = table_x + 430
+        row_h = 18
+
+        def header() -> None:
+            nonlocal y
+            ensure(48)
+            commands.append(f"0.000 0.196 0.278 rg {table_x} {y - 4} 500 18 re f")
+            commands.append(f"1 1 1 rg BT /F2 8 Tf {province_x} {y + 1} Td ({_pdf_escape('Provincia')}) Tj ET")
+            commands.append(f"1 1 1 rg BT /F2 8 Tf {municipality_x} {y + 1} Td ({_pdf_escape('Municipio')}) Tj ET")
+            commands.append(f"1 1 1 rg BT /F2 8 Tf {count_x} {y + 1} Td ({_pdf_escape('Envíos')}) Tj ET")
+            y -= row_h
+
+        header()
+        for index, row in enumerate(rows):
+            if y - row_h < bottom_y:
+                add_page()
+                header()
+            fill = "0.965 0.973 0.980" if index % 2 == 0 else "1 1 1"
+            province = str(row.get("provincia") or "Sin provincia")
+            municipality = str(row.get("municipio") or "Sin municipio")
+            envios = _report_number(row.get("envios", 0))
+            province = province if len(province) <= 32 else province[:29] + "..."
+            municipality = municipality if len(municipality) <= 36 else municipality[:33] + "..."
+            commands.append(f"{fill} rg {table_x} {y - 4} 500 18 re f")
+            commands.append(f"0.180 0.235 0.294 rg BT /F1 8 Tf {province_x} {y + 1} Td ({_pdf_escape(province)}) Tj ET")
+            commands.append(f"0.180 0.235 0.294 rg BT /F1 8 Tf {municipality_x} {y + 1} Td ({_pdf_escape(municipality)}) Tj ET")
+            commands.append(f"0.063 0.165 0.263 rg BT /F2 8 Tf {count_x + 8} {y + 1} Td ({_pdf_escape(envios)}) Tj ET")
+            y -= row_h
+        spacer(10)
+
     add_page()
     text_line("Reporte diario de avance", 18, True, "0.063 0.165 0.263", 22)
     text_line("Mapeo de estructuras de apoyo a los nuevos actores económicos", 10, False, "0.330 0.392 0.463", 16)
@@ -2267,7 +2340,7 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
     ])
 
     line_chart("Tendencia de respuestas recibidas - últimos 14 días", data.get("daily_trend", []))
-    bar_chart("Cobertura territorial por provincia", data.get("territorial", []), "provincia", "entidades", limit=10)
+    bar_chart("Cobertura territorial por provincia", data.get("territorial", []), "territorio", "entidades", limit=16)
     bar_chart("Cantidad por tipo de estructura", data.get("structure_types", []), "label", "total", limit=10)
     bar_chart("Servicios ofrecidos más reportados", data.get("services_offered", []), "label", "total", limit=8)
     bar_chart("Principales necesidades de fortalecimiento", data.get("services_to_strengthen", []), "label", "total", limit=8)
@@ -2282,6 +2355,8 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
             )
     else:
         text_line("No se registraron nuevas entidades para esta fecha.", 9)
+
+    appendix_table("Anexo territorial: envíos por provincia y municipio", data.get("territorial_municipal", []))
 
     if commands:
         pages.append(commands)
@@ -3388,6 +3463,7 @@ def _get_dashboard_data_canonical(
     entity_where, entity_params = _mapeo_entity_filters_clause(provincia, version_encuesta, tipo, servicio)
     response_where, response_params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
     response_params["app_timezone"] = APP_TIMEZONE
+    territory_group = _territory_group_sql("p.nombre", "mu.nombre")
 
     total_entities = db.execute(
         text(f"""
@@ -3414,7 +3490,10 @@ def _get_dashboard_data_canonical(
 
     kpis = dict(db.execute(
         text(f"""
-            SELECT COUNT(DISTINCT p.nombre)::int AS provincias,
+            SELECT COUNT(DISTINCT p.nombre) FILTER (
+                       WHERE p.nombre <> '{SPECIAL_MUNICIPALITY}'
+                         AND mu.nombre <> '{SPECIAL_MUNICIPALITY}'
+                   )::int AS provincias,
                    COUNT(DISTINCT mu.nombre)::int AS municipios,
                    COUNT(DISTINCT ea.tipo_estructura_apoyo)::int AS tipos_estructura,
                    COUNT(DISTINCT ea.id) FILTER (WHERE NULLIF(TRIM(COALESCE(ea.telefonos, ea.correo_electronico, '')), '') IS NOT NULL)::int AS con_contacto,
@@ -3467,13 +3546,16 @@ def _get_dashboard_data_canonical(
     """)
 
     por_provincia = entity_rows(f"""
-        SELECT p.nombre AS provincia, mu.nombre AS municipio, COUNT(DISTINCT ea.id)::int AS total
+        SELECT {territory_group} AS territorio,
+               {territory_group} AS label,
+               COUNT(DISTINCT rel.operational_respuesta_id)::int AS total
         FROM operational.entidades_apoyo ea
         JOIN operational.provincias p ON p.id = ea.provincia_id
         JOIN operational.municipios mu ON mu.id = ea.municipio_id
+        LEFT JOIN operational.respuestas_entidades_apoyo rel ON rel.entidad_apoyo_id = ea.id
         WHERE {entity_where}
-        GROUP BY p.nombre, mu.nombre
-        ORDER BY total DESC, provincia ASC, municipio ASC
+        GROUP BY {territory_group}
+        ORDER BY total DESC, territorio ASC
     """)
 
     simple_entity_groups = {
@@ -3680,6 +3762,7 @@ def get_dashboard_data(
 
         where_clause, params = _mapeo_filters_clause(provincia, version_encuesta, tipo, servicio)
         params["app_timezone"] = APP_TIMEZONE
+        territory_group = _territory_group_sql("t.provincia_nombre", "t.municipio_nombre")
 
         total = db.execute(
             text(f"""
@@ -3695,7 +3778,10 @@ def get_dashboard_data(
 
         kpis = db.execute(
             text(f"""
-                SELECT COUNT(DISTINCT t.provincia_nombre)::int AS provincias,
+                SELECT COUNT(DISTINCT t.provincia_nombre) FILTER (
+                           WHERE t.provincia_nombre <> '{SPECIAL_MUNICIPALITY}'
+                             AND t.municipio_nombre <> '{SPECIAL_MUNICIPALITY}'
+                       )::int AS provincias,
                        COUNT(DISTINCT t.municipio_nombre)::int AS municipios,
                        COUNT(DISTINCT COALESCE(m.tipo_estructura_apoyo, o.tipo_institucion))::int AS tipos_estructura,
                        COUNT(*) FILTER (WHERE NULLIF(TRIM(COALESCE(m.telefonos, m.correo_electronico, '')), '') IS NOT NULL)::int AS con_contacto,
@@ -3737,16 +3823,16 @@ def get_dashboard_data(
         """)
 
         por_provincia = rows(f"""
-            SELECT t.provincia_nombre AS provincia,
-                   t.municipio_nombre AS municipio,
+            SELECT {territory_group} AS territorio,
+                   {territory_group} AS label,
                    COUNT(*)::int AS total
             FROM analytics.f_respuestas_encuesta f
             JOIN operational.respuestas_encuesta o ON o.id = f.operational_respuesta_id
             JOIN analytics.dim_territorio t ON t.id = f.territorio_id
             LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = o.id
             WHERE {where_clause}
-            GROUP BY t.provincia_nombre, t.municipio_nombre
-            ORDER BY total DESC, provincia ASC, municipio ASC
+            GROUP BY {territory_group}
+            ORDER BY total DESC, territorio ASC
         """)
 
         tipos_estructura = rows(f"""
@@ -4201,7 +4287,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
             <section class="card"><div class="card-head"><p class="section-lead">Cobertura</p><h2>Tipos de estructura</h2></div><div class="card-body">{_donut_chart(data['tipos_estructura'])}</div></section>
           </section>
           <section class="grid">
-            <section class="card"><div class="card-head"><p class="section-lead">Territorio</p><h2>Provincias y municipios</h2></div><div class="card-body">{_table(['provincia', 'municipio', 'total'], data['por_provincia'])}</div></section>
+            <section class="card"><div class="card-head"><p class="section-lead">Territorio</p><h2>Envíos por provincia</h2></div><div class="card-body">{_bar_rows(data['por_provincia'])}</div></section>
             <section class="card"><div class="card-head"><p class="section-lead">Atención</p><h2>Cobertura principal</h2></div><div class="card-body">{_bar_rows(data['cobertura'])}</div></section>
           </section>
           <section class="grid">
