@@ -2356,6 +2356,7 @@ def build_daily_progress_report_pdf(data: Dict[str, Any]) -> bytes:
     else:
         text_line("No se registraron nuevas entidades para esta fecha.", 9)
 
+    spacer(18)
     appendix_table("Anexo territorial: envíos por provincia y municipio", data.get("territorial_municipal", []))
 
     if commands:
