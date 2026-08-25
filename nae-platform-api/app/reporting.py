@@ -3253,9 +3253,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         zoomControl: true
       }}).setView([21.85, -79.55], 6);
 
-      L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+      L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
         maxZoom: 18,
-        attribution: '&copy; OpenStreetMap'
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
       }}).addTo(map);
 
       const bounds = [];

@@ -6,6 +6,13 @@ os.environ.setdefault("DB_NAME", "nae")
 os.environ.setdefault("DB_USER", "nae")
 os.environ.setdefault("DB_PASSWORD", "nae")
 os.environ.setdefault("API_TOKEN", "test-token")
+os.environ.setdefault("ANALYTICS_USERNAME", "admin")
+os.environ.setdefault("ANALYTICS_PASSWORD", "secret")
+os.environ.setdefault("ANALYTICS_USERS", "")
+os.environ.setdefault("ANALYTICS_REVIEW_USERS", "")
+os.environ.setdefault("SESSION_SECRET", "test-session-secret")
+os.environ.setdefault("SESSION_MAX_AGE_SECONDS", "28800")
+os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
 
 from app.reporting import _with_coordinates, build_support_entities_pdf, render_support_entities_html
 
@@ -72,6 +79,8 @@ def test_support_map_popup_uses_filtered_services_only():
     assert "Gestión empresarial, Asesoría legal o normativa" in html
     assert "Acceso a financiamiento o preparación para financiamiento" not in html
     assert "Directorio PDF" in html
+    assert "basemaps.cartocdn.com/light_all" in html
+    assert "tile.openstreetmap.org" not in html
 
 
 def test_support_entities_pdf_starts_with_pdf_header():
