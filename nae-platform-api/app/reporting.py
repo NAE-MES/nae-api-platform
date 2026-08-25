@@ -3174,8 +3174,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .map-caption .map-note {{ max-width: 620px; }}
-      #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #d7e8f2; }}
-      #support-map .leaflet-tile-pane {{ filter: contrast(1.18) saturate(1.08) brightness(.98); }}
+      #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #cfe1ec; }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
@@ -3254,9 +3253,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         zoomControl: true
       }}).setView([21.85, -79.55], 6);
 
-      L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
         maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        attribution: 'Sources: Esri, HERE, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors'
       }}).addTo(map);
 
       const bounds = [];
