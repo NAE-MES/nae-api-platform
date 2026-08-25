@@ -79,7 +79,7 @@ def test_support_map_popup_uses_filtered_services_only():
     assert "Gestión empresarial, Asesoría legal o normativa" in html
     assert "Acceso a financiamiento o preparación para financiamiento" not in html
     assert "Directorio PDF" in html
-    assert "basemaps.cartocdn.com/light_all" in html
+    assert "basemaps.cartocdn.com/rastertiles/voyager" in html
     assert "tile.openstreetmap.org" not in html
 
 
