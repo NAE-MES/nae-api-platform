@@ -3174,8 +3174,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .map-caption .map-note {{ max-width: 620px; }}
-      #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #dce9ef; }}
-      #support-map .leaflet-tile-pane {{ filter: contrast(1.16) saturate(1.12) brightness(.94); }}
+      #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #cfdde5; }}
+      #support-map .leaflet-tile-pane {{ filter: contrast(1.38) saturate(.92) brightness(.88); }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
