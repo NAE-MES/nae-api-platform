@@ -3175,6 +3175,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .map-caption .map-note {{ max-width: 620px; }}
       #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #cfe1ec; }}
+      #support-map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
@@ -3253,9 +3254,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         zoomControl: true
       }}).setView([21.85, -79.55], 6);
 
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+      L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
         maxZoom: 18,
-        attribution: 'Sources: Esri, HERE, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors'
+        attribution: '&copy; OpenStreetMap contributors'
       }}).addTo(map);
 
       const bounds = [];
