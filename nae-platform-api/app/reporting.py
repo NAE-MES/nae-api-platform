@@ -17,9 +17,30 @@ from sqlalchemy.exc import ProgrammingError
 from app.config import APP_TIMEZONE
 from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
+from app.mapeo_survey import SERVICIOS_GRID_ROWS
 
 PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(CUBA_GEO.keys())}
 SPECIAL_MUNICIPALITY = "Isla de la Juventud"
+SERVICE_ICON_KEYS = {
+    "Gestión empresarial": "gestion",
+    "Asesoría legal o normativa": "legal",
+    "Asesoría contable y financiera": "contable",
+    "Acompañamiento para formalización": "formalizacion",
+    "Asistencia técnica productiva": "tecnica",
+    "Mentoría empresarial": "mentoria",
+    "Incubación, aceleración o acompañamiento intensivo": "incubacion",
+    "Acceso a financiamiento o preparación para financiamiento": "financiamiento",
+    "Encadenamientos productivos y articulación con proveedores/clientes": "encadenamientos",
+    "Comercialización y ventas": "ventas",
+    "Marketing, comunicación y posicionamiento": "marketing",
+    "Digitalización y competencias digitales": "digitalizacion",
+    "Innovación y mejora de productos, servicios o procesos": "innovacion",
+    "Exportación o comercio exterior": "exportacion",
+    "Calidad, certificaciones o normas técnicas": "calidad",
+    "Formulación de proyectos": "proyectos",
+    "Economía circular, economía social o sostenibilidad": "sostenibilidad",
+    "Género, inclusión, juventud u otros enfoques especializados": "genero",
+}
 
 
 def _load_app_zone():
@@ -61,6 +82,57 @@ def _entity_sort_key(row: Dict[str, Any]) -> tuple[tuple[int, str], str, str]:
         str(row.get("municipio") or ""),
         str(row.get("entidad_nombre") or row.get("nombre_canonico") or ""),
     )
+
+
+def _coerce_json_list(value: Any) -> List[Dict[str, Any]]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _service_icon_key(service_name: str) -> str:
+    return SERVICE_ICON_KEYS.get(service_name, "otro")
+
+
+def _support_service_details(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_items = _coerce_json_list(row.get("servicios_detalle"))
+    known_services = set(SERVICIOS_GRID_ROWS)
+    details: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for item in raw_items:
+        name = str(item.get("servicio") or item.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        details.append({
+            "name": name,
+            "key": _service_icon_key(name),
+            "is_other": name not in known_services,
+            "offered": bool(item.get("ofrece_actualmente") or item.get("offered")),
+            "strengthen": bool(item.get("requiere_fortalecer") or item.get("strengthen")),
+        })
+
+    if not details:
+        service_text = str(row.get("servicios") or "")
+        for service in SERVICIOS_GRID_ROWS:
+            if service in service_text:
+                details.append({
+                    "name": service,
+                    "key": _service_icon_key(service),
+                    "is_other": False,
+                    "offered": True,
+                    "strengthen": False,
+                })
+
+    return details
 
 
 def _spread_municipal_coordinates(lat: float, lng: float, seed: Any) -> tuple[float, float]:
@@ -1485,6 +1557,28 @@ def get_support_entities(
                          WHERE s.operational_respuesta_id = op.id
                            AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
                        ) AS servicios,
+                       (
+                         SELECT COALESCE(
+                           JSONB_AGG(
+                             JSONB_BUILD_OBJECT(
+                               'servicio', svc.servicio,
+                               'ofrece_actualmente', svc.ofrece_actualmente,
+                               'requiere_fortalecer', svc.requiere_fortalecer
+                             )
+                             ORDER BY svc.servicio
+                           ),
+                           '[]'::jsonb
+                         )
+                         FROM (
+                           SELECT s.servicio,
+                                  BOOL_OR(s.ofrece_actualmente) AS ofrece_actualmente,
+                                  BOOL_OR(s.requiere_fortalecer) AS requiere_fortalecer
+                           FROM operational.respuestas_mapeo_servicios s
+                           WHERE s.operational_respuesta_id = op.id
+                             AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
+                           GROUP BY s.servicio
+                         ) svc
+                       ) AS servicios_detalle,
                        op.estado_validacion
                 FROM operational.respuestas_encuesta op
                 JOIN operational.provincias p ON p.id = op.provincia_id
@@ -1673,6 +1767,29 @@ def _get_support_entities_canonical(
                      WHERE rel_s.entidad_apoyo_id = ea.id
                        AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
                    ) AS servicios,
+                   (
+                     SELECT COALESCE(
+                       JSONB_AGG(
+                         JSONB_BUILD_OBJECT(
+                           'servicio', svc.servicio,
+                           'ofrece_actualmente', svc.ofrece_actualmente,
+                           'requiere_fortalecer', svc.requiere_fortalecer
+                         )
+                         ORDER BY svc.servicio
+                       ),
+                       '[]'::jsonb
+                     )
+                     FROM (
+                       SELECT s.servicio,
+                              BOOL_OR(s.ofrece_actualmente) AS ofrece_actualmente,
+                              BOOL_OR(s.requiere_fortalecer) AS requiere_fortalecer
+                       FROM operational.respuestas_entidades_apoyo rel_s
+                       JOIN operational.respuestas_mapeo_servicios s ON s.operational_respuesta_id = rel_s.operational_respuesta_id
+                       WHERE rel_s.entidad_apoyo_id = ea.id
+                         AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
+                       GROUP BY s.servicio
+                     ) svc
+                   ) AS servicios_detalle,
                    CASE WHEN BOOL_OR(rel.requiere_revision) THEN 'requiere_revision' ELSE 'validada' END AS estado_validacion,
                    COUNT(DISTINCT op.id)::int AS respuestas_recibidas,
                    BOOL_OR(rel.requiere_revision) AS requiere_revision
@@ -3126,6 +3243,11 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             "municipality": row.get("municipio") or "Sin municipio",
             "coverage": row.get("cobertura_principal") or "Sin dato",
             "services": visible_services,
+            "serviceDetails": _support_service_details(row),
+            "contact": row.get("persona_contacto_cargo") or "Sin dato",
+            "phone": row.get("telefonos") or "Sin dato",
+            "email": row.get("correo_electronico") or "Sin dato",
+            "address": row.get("direccion_fisica") or "Sin dato",
             "lat": float(lat),
             "lng": float(lng),
             "source": row.get("coordinate_source") or "municipio",
@@ -3133,6 +3255,11 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             "confidence": str(row.get("coordinate_confidence") or ""),
         })
     map_entities_json = json.dumps(map_entities, ensure_ascii=False).replace("</", "<\\/")
+    service_legend = [
+        {"name": service, "key": _service_icon_key(service), "is_other": False}
+        for service in SERVICIOS_GRID_ROWS
+    ] + [{"name": "Otro servicio", "key": "otro", "is_other": True}]
+    service_legend_json = json.dumps(service_legend, ensure_ascii=False).replace("</", "<\\/")
 
     entity_cards = []
     for row in rows:
@@ -3170,6 +3297,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .support-item p {{ margin-bottom: 6px; }}
       .map-shell {{ display: block; }}
       .leaflet-panel {{ position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }}
+      .map-shell, .leaflet-panel, .leaflet-container, .leaflet-popup-content {{ font-family: Calibri, "Segoe UI", Arial, Helvetica, sans-serif; }}
       .map-caption {{ display: flex; justify-content: space-between; gap: 18px; align-items: center; border-bottom: 1px solid var(--line); background: #fff; padding: 14px 16px; }}
       .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
@@ -3179,13 +3307,26 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
-      .leaflet-popup-content {{ margin: 12px 14px; width: min(280px, 72vw) !important; max-height: 220px; overflow-y: auto; }}
-      .leaflet-popup-content strong {{ color: var(--nae-navy); font-size: 14px; }}
-      .leaflet-popup-content p {{ margin: 6px 0 0; color: #435466; font-size: 12px; }}
-      .leaflet-popup-content .popup-services {{ max-height: 70px; overflow-y: auto; padding-right: 4px; }}
-      .leaflet-container {{ font-family: Arial, Helvetica, sans-serif; }}
-      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .map-caption {{ align-items: flex-start; flex-direction: column; }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} }}
+      .leaflet-popup-content {{ margin: 12px 14px; width: min(390px, 84vw) !important; max-height: 360px; overflow-y: auto; }}
+      .popup-card strong {{ color: #3A8DB8; display:block; font-size: 21px; font-weight: 700; line-height: 1.08; }}
+      .popup-card .popup-type {{ color:#3A8DB8; font-size: 14px; margin: 3px 0 0; }}
+      .popup-card .popup-coverage {{ color:#000; font-size: 14px; margin: 5px 0 10px; }}
+      .popup-contact-grid {{ display:grid; grid-template-columns:1fr 1fr; gap: 8px 14px; margin: 8px 0 10px; color:#000; font-size: 13px; line-height:1.25; }}
+      .popup-contact {{ display:grid; grid-template-columns:22px minmax(0,1fr); gap:6px; align-items:start; }}
+      .contact-icon {{ color:#3A8DB8; font-size:18px; line-height:1; text-align:center; }}
+      .popup-services-title {{ color:#B55E36; font-size: 14px; font-weight:700; margin: 8px 0 5px; }}
+      .popup-services-grid {{ display:grid; grid-template-columns:repeat(12, 26px); gap: 3px; align-items:center; }}
+      .service-icon {{ width:24px; height:24px; border:2px solid #B55E36; color:#B55E36; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; line-height:1; background:#fff; border-radius:4px; }}
+      .service-icon.other {{ border-color:#8C6B0C; color:#8C6B0C; }}
+      .other-service-label {{ color:#8C6B0C; font-size:13px; margin-left:5px; white-space:normal; grid-column:span 6; align-self:center; }}
+      .map-legend {{ border-top:1px solid var(--line); background:#fff; padding:12px 14px 14px; }}
+      .map-legend h3 {{ margin:0; color:#000; font-size:21px; line-height:1; text-transform:uppercase; }}
+      .map-legend .legend-subtitle {{ color:#B55E36; font-size:14px; font-weight:700; margin:4px 0 8px; }}
+      .legend-grid {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:7px 18px; }}
+      .legend-item {{ display:grid; grid-template-columns:28px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
+      @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
+      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(8, 26px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} }}
     </style>
   </head>
   <body>
@@ -3234,6 +3375,11 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
           </div>
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
+          <div class="map-legend" aria-label="Leyenda de servicios">
+            <h3>Leyenda</h3>
+            <div class="legend-subtitle">Servicios registrados:</div>
+            <div id="service-legend" class="legend-grid"></div>
+          </div>
         </div>
       </section>
 
@@ -3242,6 +3388,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
     <script>
       const supportEntities = {map_entities_json};
+      const serviceLegend = {service_legend_json};
       const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({{
         '&': '&amp;',
         '<': '&lt;',
@@ -3249,6 +3396,36 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         '"': '&quot;',
         "'": '&#39;'
       }}[char]));
+      const serviceSymbols = {{
+        gestion: 'G',
+        legal: '§',
+        contable: '$',
+        formalizacion: 'F',
+        tecnica: '⚙',
+        mentoria: 'M',
+        incubacion: 'I',
+        financiamiento: '$',
+        encadenamientos: '∞',
+        ventas: 'V',
+        marketing: 'P',
+        digitalizacion: 'D',
+        innovacion: '✦',
+        exportacion: '🌐',
+        calidad: '✓',
+        proyectos: 'P',
+        sostenibilidad: '↻',
+        genero: '♀',
+        otro: '✳'
+      }};
+      const serviceIcon = (service, withLabel = false) => {{
+        const name = escapeHtml(service.name || 'Servicio');
+        const key = String(service.key || 'otro').replace(/[^a-z0-9_-]/gi, '');
+        const symbol = escapeHtml(serviceSymbols[key] || serviceSymbols.otro);
+        const otherClass = service.is_other || key === 'otro' ? ' other' : '';
+        const icon = `<span class="service-icon service-${{key}}${{otherClass}}" title="${{name}}" aria-label="${{name}}">${{symbol}}</span>`;
+        return withLabel ? `<div class="legend-item">${{icon}}<span>${{name}}</span></div>` : icon;
+      }};
+      document.getElementById('service-legend').innerHTML = serviceLegend.map((service) => serviceIcon(service, true)).join('');
       const map = L.map('support-map', {{
         scrollWheelZoom: false,
         zoomControl: true
@@ -3270,15 +3447,32 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       }});
 
       supportEntities.forEach((entity) => {{
-        const services = escapeHtml(entity.services);
+        const serviceItems = Array.isArray(entity.serviceDetails) ? entity.serviceDetails : [];
+        const serviceIcons = serviceItems.length
+          ? serviceItems.map((service) => serviceIcon(service)).join('')
+          : `<span>${{escapeHtml(entity.services || 'Sin servicios registrados')}}</span>`;
+        const otherServices = serviceItems
+          .filter((service) => service.is_other)
+          .map((service) => service.name)
+          .filter(Boolean)
+          .join(', ');
+        const otherLabel = otherServices ? `<span class="other-service-label">${{escapeHtml(otherServices)}}</span>` : '';
         const marker = L.marker([entity.lat, entity.lng], {{
           icon: markerIcon(entity.source === 'municipio')
         }}).bindPopup(`
-          <strong>${{escapeHtml(entity.name)}}</strong>
-          <p>${{escapeHtml(entity.type)}}</p>
-          <p>${{escapeHtml(entity.municipality)}}, ${{escapeHtml(entity.province)}}</p>
-          <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
-          <p class="popup-services"><b>Servicios:</b> ${{services}}</p>
+          <div class="popup-card">
+            <strong>${{escapeHtml(entity.name)}}</strong>
+            <p class="popup-type">${{escapeHtml(entity.type)}}</p>
+            <p class="popup-coverage"><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}} · ${{escapeHtml(entity.municipality)}}, ${{escapeHtml(entity.province)}}</p>
+            <div class="popup-contact-grid">
+              <div class="popup-contact"><span class="contact-icon">☎</span><span>${{escapeHtml(entity.contact)}}</span></div>
+              <div class="popup-contact"><span class="contact-icon">✉</span><span>${{escapeHtml(entity.email)}}</span></div>
+              <div class="popup-contact"><span class="contact-icon">☏</span><span>${{escapeHtml(entity.phone)}}</span></div>
+              <div class="popup-contact"><span class="contact-icon">⌖</span><span>${{escapeHtml(entity.address)}}</span></div>
+            </div>
+            <div class="popup-services-title">Servicios registrados:</div>
+            <div class="popup-services-grid">${{serviceIcons}}${{otherLabel}}</div>
+          </div>
         `);
         marker.addTo(markerLayer);
         bounds.push([entity.lat, entity.lng]);

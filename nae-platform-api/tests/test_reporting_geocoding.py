@@ -1,4 +1,6 @@
 import os
+import json
+import re
 
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
@@ -76,9 +78,19 @@ def test_support_map_popup_uses_filtered_services_only():
         }],
     })
 
+    match = re.search(r"const supportEntities = (.*?);", html, re.S)
+    assert match is not None
+    entity_data = json.loads(match.group(1))[0]
+    service_names = [item["name"] for item in entity_data["serviceDetails"]]
+
     assert "Gestión empresarial, Asesoría legal o normativa" in html
-    assert "Acceso a financiamiento o preparación para financiamiento" not in html
+    assert service_names == ["Gestión empresarial", "Asesoría legal o normativa"]
+    assert "Acceso a financiamiento o preparación para financiamiento" not in service_names
+    assert entity_data["contact"] == "Contacto"
+    assert entity_data["phone"] == "123"
+    assert entity_data["email"] == "nae@example.test"
     assert "Directorio PDF" in html
+    assert "serviceLegend" in html
     assert "tile.openstreetmap.org" in html
     assert "server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map" not in html
     assert "basemaps.cartocdn.com" not in html
