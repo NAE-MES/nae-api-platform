@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="31px" height="31px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 981.702 981.702"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .str0 {stroke:#B55E36;stroke-width:63.145;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:22.9256}
+    .fil0 {fill:none}
+   ]]>
+  </style>
+ </defs>
+ <g id="Capa_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <g id="_2768135724080">
+   <circle class="fil0 str0" cx="421.376" cy="777.386" r="42.622"/>
+   <circle class="fil0 str0" cx="717.14" cy="777.386" r="42.622"/>
+   <polyline class="fil0 str0" points="136.254,161.682 262.772,188.816 381.391,571.662 784.558,535.973 845.448,274.537 289.393,274.74 "/>
+   <path class="fil0 str0" d="M381.391 571.662c-23.578,0 -42.682,19.104 -42.682,42.682 0,23.578 19.104,42.682 42.682,42.682 267.986,-0.8 413.333,-0.143 413.333,-0.143"/>
+  </g>
+  <rect class="fil0" x="-0.001" y="0.009" width="981.7" height="981.7"/>
+ </g>
+</svg>

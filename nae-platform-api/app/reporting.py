@@ -41,6 +41,27 @@ SERVICE_ICON_KEYS = {
     "Economía circular, economía social o sostenibilidad": "sostenibilidad",
     "Género, inclusión, juventud u otros enfoques especializados": "genero",
 }
+SERVICE_ICON_FILES = {
+    "gestion": "gestion-empresarial.svg",
+    "legal": "asesoria-legal-o-normativa.svg",
+    "contable": "asesoria-contable-y-financiera.svg",
+    "formalizacion": "acompannamiento-para-formalizacion.svg",
+    "tecnica": "asistencia-tecnica-productiva.svg",
+    "mentoria": "mentoria-empresarial.svg",
+    "incubacion": "incubacion-aceleracion.svg",
+    "financiamiento": "acceso-a-financiamiento.svg",
+    "encadenamientos": "encadenamientos-productivos.svg",
+    "ventas": "comercializacion-y-ventas.svg",
+    "marketing": "marketing-comunicacion.svg",
+    "digitalizacion": "digitalizacion-y-competencias-digitales.svg",
+    "innovacion": "innovacion-y-mejora-de-productos.svg",
+    "exportacion": "exportacion-o-comercio-exterior.svg",
+    "calidad": "calidad-certificaciones.svg",
+    "proyectos": "formulacion-proyectos.svg",
+    "sostenibilidad": "economia-circular-y-sostenibilidad.svg",
+    "genero": "genero-e-inclusion.svg",
+    "otro": "otro-servicio.svg",
+}
 
 
 def _load_app_zone():
@@ -101,6 +122,11 @@ def _service_icon_key(service_name: str) -> str:
     return SERVICE_ICON_KEYS.get(service_name, "otro")
 
 
+def _service_icon_url(service_name: str) -> str:
+    key = _service_icon_key(service_name)
+    return f"/prototype-assets/icons/services/{SERVICE_ICON_FILES.get(key, SERVICE_ICON_FILES['otro'])}"
+
+
 def _support_service_details(row: Dict[str, Any]) -> List[Dict[str, Any]]:
     raw_items = _coerce_json_list(row.get("servicios_detalle"))
     known_services = set(SERVICIOS_GRID_ROWS)
@@ -115,6 +141,7 @@ def _support_service_details(row: Dict[str, Any]) -> List[Dict[str, Any]]:
         details.append({
             "name": name,
             "key": _service_icon_key(name),
+            "icon": _service_icon_url(name),
             "is_other": name not in known_services,
             "offered": bool(item.get("ofrece_actualmente") or item.get("offered")),
             "strengthen": bool(item.get("requiere_fortalecer") or item.get("strengthen")),
@@ -127,6 +154,7 @@ def _support_service_details(row: Dict[str, Any]) -> List[Dict[str, Any]]:
                 details.append({
                     "name": service,
                     "key": _service_icon_key(service),
+                    "icon": _service_icon_url(service),
                     "is_other": False,
                     "offered": True,
                     "strengthen": False,
@@ -3256,9 +3284,14 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         })
     map_entities_json = json.dumps(map_entities, ensure_ascii=False).replace("</", "<\\/")
     service_legend = [
-        {"name": service, "key": _service_icon_key(service), "is_other": False}
+        {"name": service, "key": _service_icon_key(service), "icon": _service_icon_url(service), "is_other": False}
         for service in SERVICIOS_GRID_ROWS
-    ] + [{"name": "Otro servicio", "key": "otro", "is_other": True}]
+    ] + [{
+        "name": "Otro servicio",
+        "key": "otro",
+        "icon": "/prototype-assets/icons/services/otro-servicio.svg",
+        "is_other": True,
+    }]
     service_legend_json = json.dumps(service_legend, ensure_ascii=False).replace("</", "<\\/")
 
     entity_cards = []
@@ -3298,35 +3331,37 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .map-shell {{ display: block; }}
       .leaflet-panel {{ position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }}
       .map-shell, .leaflet-panel, .leaflet-container, .leaflet-popup-content {{ font-family: Calibri, "Segoe UI", Arial, Helvetica, sans-serif; }}
-      .map-caption {{ display: flex; justify-content: space-between; gap: 18px; align-items: center; border-bottom: 1px solid var(--line); background: #fff; padding: 14px 16px; }}
-      .map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
-      .map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
-      .map-caption .map-note {{ max-width: 620px; }}
+      .support-map-caption {{ position: static; max-width: none; display: flex; justify-content: space-between; gap: 18px; align-items: center; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: #fff; padding: 14px 16px; }}
+      .support-map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
+      .support-map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
+      .support-map-caption .map-note {{ max-width: 620px; }}
       #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #cfe1ec; }}
       #support-map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
-      .leaflet-popup-content {{ margin: 12px 14px; width: min(390px, 84vw) !important; max-height: 360px; overflow-y: auto; }}
-      .popup-card strong {{ color: #3A8DB8; display:block; font-size: 21px; font-weight: 700; line-height: 1.08; }}
+      .leaflet-popup-content {{ margin: 12px 14px; width: min(390px, 84vw) !important; max-height: min(70vh, 460px); overflow-y: auto; scrollbar-width: thin; }}
+      .popup-card strong {{ color: #3A8DB8; display:block; font-size: 19px; font-weight: 700; line-height: 1.12; }}
       .popup-card .popup-type {{ color:#3A8DB8; font-size: 14px; margin: 3px 0 0; }}
       .popup-card .popup-coverage {{ color:#000; font-size: 14px; margin: 5px 0 10px; }}
       .popup-contact-grid {{ display:grid; grid-template-columns:1fr 1fr; gap: 8px 14px; margin: 8px 0 10px; color:#000; font-size: 13px; line-height:1.25; }}
       .popup-contact {{ display:grid; grid-template-columns:22px minmax(0,1fr); gap:6px; align-items:start; }}
-      .contact-icon {{ color:#3A8DB8; font-size:18px; line-height:1; text-align:center; }}
+      .contact-icon {{ width:18px; height:18px; object-fit:contain; display:block; }}
       .popup-services-title {{ color:#B55E36; font-size: 14px; font-weight:700; margin: 8px 0 5px; }}
-      .popup-services-grid {{ display:grid; grid-template-columns:repeat(12, 26px); gap: 3px; align-items:center; }}
-      .service-icon {{ width:24px; height:24px; border:2px solid #B55E36; color:#B55E36; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; line-height:1; background:#fff; border-radius:4px; }}
+      .popup-services-grid {{ display:grid; grid-template-columns:repeat(9, 30px); gap: 4px; align-items:center; }}
+      .service-icon {{ width:28px; height:28px; border:2px solid #B55E36; display:inline-flex; align-items:center; justify-content:center; background:#fff; border-radius:4px; padding:3px; }}
+      .service-icon img {{ width:100%; height:100%; object-fit:contain; display:block; }}
       .service-icon.other {{ border-color:#8C6B0C; color:#8C6B0C; }}
-      .other-service-label {{ color:#8C6B0C; font-size:13px; margin-left:5px; white-space:normal; grid-column:span 6; align-self:center; }}
+      .popup-other-services {{ margin-top:7px; color:#8C6B0C; font-size:12px; line-height:1.28; }}
+      .popup-other-services b {{ color:#8C6B0C; }}
       .map-legend {{ border-top:1px solid var(--line); background:#fff; padding:12px 14px 14px; }}
       .map-legend h3 {{ margin:0; color:#000; font-size:21px; line-height:1; text-transform:uppercase; }}
       .map-legend .legend-subtitle {{ color:#B55E36; font-size:14px; font-weight:700; margin:4px 0 8px; }}
       .legend-grid {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:7px 18px; }}
-      .legend-item {{ display:grid; grid-template-columns:28px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
+      .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
-      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(8, 26px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} }}
+      @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 82vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(6, 30px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} }}
     </style>
   </head>
   <body>
@@ -3370,7 +3405,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
 
       <section class="map-shell">
         <div class="leaflet-panel">
-          <div class="map-caption">
+          <div class="support-map-caption">
             <div><h3>{data.get('total', 0)} estructuras visibles</h3><p>Mapa interactivo de Cuba con las estructuras de apoyo identificadas.</p></div>
             <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
           </div>
@@ -3396,33 +3431,12 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         '"': '&quot;',
         "'": '&#39;'
       }}[char]));
-      const serviceSymbols = {{
-        gestion: 'G',
-        legal: '§',
-        contable: '$',
-        formalizacion: 'F',
-        tecnica: '⚙',
-        mentoria: 'M',
-        incubacion: 'I',
-        financiamiento: '$',
-        encadenamientos: '∞',
-        ventas: 'V',
-        marketing: 'P',
-        digitalizacion: 'D',
-        innovacion: '✦',
-        exportacion: '🌐',
-        calidad: '✓',
-        proyectos: 'P',
-        sostenibilidad: '↻',
-        genero: '♀',
-        otro: '✳'
-      }};
       const serviceIcon = (service, withLabel = false) => {{
         const name = escapeHtml(service.name || 'Servicio');
         const key = String(service.key || 'otro').replace(/[^a-z0-9_-]/gi, '');
-        const symbol = escapeHtml(serviceSymbols[key] || serviceSymbols.otro);
+        const iconUrl = escapeHtml(service.icon || '/prototype-assets/icons/services/otro-servicio.svg');
         const otherClass = service.is_other || key === 'otro' ? ' other' : '';
-        const icon = `<span class="service-icon service-${{key}}${{otherClass}}" title="${{name}}" aria-label="${{name}}">${{symbol}}</span>`;
+        const icon = `<span class="service-icon service-${{key}}${{otherClass}}" title="${{name}}" aria-label="${{name}}"><img src="${{iconUrl}}" alt="" loading="lazy" /></span>`;
         return withLabel ? `<div class="legend-item">${{icon}}<span>${{name}}</span></div>` : icon;
       }};
       document.getElementById('service-legend').innerHTML = serviceLegend.map((service) => serviceIcon(service, true)).join('');
@@ -3449,14 +3463,14 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       supportEntities.forEach((entity) => {{
         const serviceItems = Array.isArray(entity.serviceDetails) ? entity.serviceDetails : [];
         const serviceIcons = serviceItems.length
-          ? serviceItems.map((service) => serviceIcon(service)).join('')
+          ? serviceItems.filter((service) => !service.is_other).map((service) => serviceIcon(service)).join('')
           : `<span>${{escapeHtml(entity.services || 'Sin servicios registrados')}}</span>`;
         const otherServices = serviceItems
           .filter((service) => service.is_other)
           .map((service) => service.name)
           .filter(Boolean)
           .join(', ');
-        const otherLabel = otherServices ? `<span class="other-service-label">${{escapeHtml(otherServices)}}</span>` : '';
+        const otherLabel = otherServices ? `<div class="popup-other-services">${{serviceIcon({{ name: 'Otro servicio', key: 'otro', icon: '/prototype-assets/icons/services/otro-servicio.svg', is_other: true }})}} <b>Otro servicio:</b> ${{escapeHtml(otherServices)}}</div>` : '';
         const marker = L.marker([entity.lat, entity.lng], {{
           icon: markerIcon(entity.source === 'municipio')
         }}).bindPopup(`
@@ -3465,13 +3479,14 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             <p class="popup-type">${{escapeHtml(entity.type)}}</p>
             <p class="popup-coverage"><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}} · ${{escapeHtml(entity.municipality)}}, ${{escapeHtml(entity.province)}}</p>
             <div class="popup-contact-grid">
-              <div class="popup-contact"><span class="contact-icon">☎</span><span>${{escapeHtml(entity.contact)}}</span></div>
-              <div class="popup-contact"><span class="contact-icon">✉</span><span>${{escapeHtml(entity.email)}}</span></div>
-              <div class="popup-contact"><span class="contact-icon">☏</span><span>${{escapeHtml(entity.phone)}}</span></div>
-              <div class="popup-contact"><span class="contact-icon">⌖</span><span>${{escapeHtml(entity.address)}}</span></div>
+              <div class="popup-contact"><img class="contact-icon" src="/prototype-assets/icons/contacts/contacto.svg" alt="" /><span>${{escapeHtml(entity.contact)}}</span></div>
+              <div class="popup-contact"><img class="contact-icon" src="/prototype-assets/icons/contacts/correo.svg" alt="" /><span>${{escapeHtml(entity.email)}}</span></div>
+              <div class="popup-contact"><img class="contact-icon" src="/prototype-assets/icons/contacts/telefono.svg" alt="" /><span>${{escapeHtml(entity.phone)}}</span></div>
+              <div class="popup-contact"><img class="contact-icon" src="/prototype-assets/icons/contacts/direccion.svg" alt="" /><span>${{escapeHtml(entity.address)}}</span></div>
             </div>
             <div class="popup-services-title">Servicios registrados:</div>
-            <div class="popup-services-grid">${{serviceIcons}}${{otherLabel}}</div>
+            <div class="popup-services-grid">${{serviceIcons}}</div>
+            ${{otherLabel}}
           </div>
         `);
         marker.addTo(markerLayer);

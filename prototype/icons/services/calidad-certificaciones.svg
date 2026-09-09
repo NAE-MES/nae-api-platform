@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="31px" height="31px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 1.154 1.154"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .str0 {stroke:#B55E36;stroke-width:0.074;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:22.9256}
+    .fil0 {fill:none}
+   ]]>
+  </style>
+ </defs>
+ <g id="Capa_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <g id="_2768145928288">
+   <path class="fil0 str0" d="M0.577 0.822c0.192,0 0.348,-0.156 0.348,-0.348 0,-0.193 -0.156,-0.348 -0.348,-0.348 -0.192,0 -0.348,0.155 -0.348,0.348 0,0.192 0.156,0.348 0.348,0.348l0 0z"/>
+   <polyline class="fil0 str0" points="0.666,0.412 0.544,0.535 0.488,0.479 "/>
+   <path class="fil0 str0" d="M0.577 0.702c0.126,0 0.228,-0.103 0.228,-0.228 0,-0.126 -0.102,-0.228 -0.228,-0.228 -0.126,0 -0.228,0.102 -0.228,0.228 0,0.125 0.102,0.228 0.228,0.228l0 0z"/>
+   <polyline class="fil0 str0" points="0.397,0.772 0.398,1.028 0.577,0.946 0.757,1.028 0.757,0.771 "/>
+   <line class="fil0 str0" x1="0.577" y1="0.946" x2="0.578" y2= "0.827" />
+  </g>
+  <rect class="fil0" width="1.154" height="1.154"/>
+ </g>
+</svg>
