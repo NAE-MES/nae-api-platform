@@ -3400,7 +3400,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             continue
         visible_services = str(row.get("servicios") or "").strip() or "Sin servicios registrados"
         map_entities.append({
-            "id": row.get("operational_respuesta_id"),
+            "id": row.get("entidad_apoyo_id") or row.get("operational_respuesta_id"),
             "name": row.get("entidad_nombre") or "Sin nombre",
             "type": row.get("tipo_estructura_apoyo") or "Sin tipo",
             "province": row.get("provincia") or "Sin provincia",
