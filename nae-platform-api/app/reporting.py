@@ -3432,17 +3432,17 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
 
     entity_cards = []
     for row in rows:
+        card_id = row.get("entidad_apoyo_id") or row.get("operational_respuesta_id") or ""
         entity_cards.append(f"""
-        <article class="doc-item support-item">
+        <article class="doc-item support-item" data-entity-id="{escape(str(card_id), quote=True)}">
           <div>
             <h3>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</h3>
             <p>{escape(str(row.get('provincia') or ''))} · {escape(str(row.get('municipio') or ''))}</p>
             <p><strong>Tipo:</strong> {escape(str(row.get('tipo_estructura_apoyo') or 'Sin dato'))}</p>
             <p><strong>Cobertura:</strong> {escape(str(row.get('cobertura_descriptiva') or row.get('cobertura_principal') or 'Sin dato'))}</p>
-            <p><strong>Contacto:</strong> {escape(str(row.get('persona_contacto_cargo') or 'Sin dato'))}</p>
-            <p><strong>Teléfono:</strong> {escape(str(row.get('telefonos') or 'Sin dato'))}</p>
-            <p><strong>Correo:</strong> {escape(str(row.get('correo_electronico') or 'Sin dato'))}</p>
-            <p><strong>Servicios:</strong> {escape(str(row.get('servicios') or 'Sin servicios registrados'))}</p>
+            <p><strong>Contacto:</strong> {escape(str(row.get('persona_contacto_cargo') or 'Sin dato'))} · {escape(str(row.get('telefonos') or 'Sin teléfono'))} · {escape(str(row.get('correo_electronico') or 'Sin correo'))}</p>
+            <details><summary>Servicios</summary><p>{escape(str(row.get('servicios') or 'Sin servicios registrados'))}</p></details>
+            <button class="button secondary support-map-focus" type="button" data-entity-id="{escape(str(card_id), quote=True)}">Ver en mapa</button>
           </div>
         </article>
         """)
@@ -3464,6 +3464,10 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
       .support-item p {{ margin-bottom: 6px; }}
+      .support-item details {{ margin-top: 6px; }}
+      .support-item summary {{ cursor:pointer; color:var(--accent); font-weight:800; }}
+      .support-item details p {{ margin: 6px 0 0; }}
+      .support-map-focus {{ margin-top: 10px; min-height: 34px; padding: 0 12px; }}
       .map-shell {{ display: block; }}
       .leaflet-panel {{ position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }}
       .map-shell, .leaflet-panel, .leaflet-container, .leaflet-popup-content {{ font-family: Calibri, "Segoe UI", Arial, Helvetica, sans-serif; }}
@@ -3613,6 +3617,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
 
       const bounds = [];
       const markerLayer = L.layerGroup().addTo(map);
+      const markersByEntityId = new Map();
       const markerIcon = (isFallback) => L.divIcon({{
         className: '',
         html: `<span class="nae-marker ${{isFallback ? 'fallback' : ''}}"></span>`,
@@ -3651,6 +3656,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           </div>
         `);
         marker.addTo(markerLayer);
+        if (entity.id !== undefined && entity.id !== null) {{
+          markersByEntityId.set(String(entity.id), marker);
+        }}
         bounds.push([entity.lat, entity.lng]);
       }});
 
@@ -3692,6 +3700,17 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         }}
       }});
       renderSupportPage();
+
+      document.querySelectorAll('.support-map-focus').forEach((button) => {{
+        button.addEventListener('click', () => {{
+          const marker = markersByEntityId.get(String(button.dataset.entityId || ''));
+          if (!marker) return;
+          const latlng = marker.getLatLng();
+          map.setView(latlng, Math.max(map.getZoom(), 10), {{ animate: true }});
+          marker.openPopup();
+          document.getElementById('support-map').scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+        }});
+      }});
     </script>
   </body>
 </html>
