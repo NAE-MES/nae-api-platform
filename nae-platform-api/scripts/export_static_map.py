@@ -19,6 +19,7 @@ sys.path.insert(0, str(API_DIR))
 
 load_dotenv(API_DIR / ".env")
 
+from app.mapeo_survey import SERVICIOS_GRID_ROWS  # noqa: E402
 from app.reporting import SERVICE_ICON_FILES, _service_icon_key, get_support_entities  # noqa: E402
 
 
@@ -94,7 +95,8 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
-    services = _unique(service for entity in entities for service in entity["serviceList"])
+    canonical_services = list(SERVICIOS_GRID_ROWS)
+    all_services = _unique(set(canonical_services) | {service for entity in entities for service in entity["serviceList"]})
     payload = json.dumps(
         {
             "generatedAt": generated_at,
@@ -104,9 +106,9 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
                 "provinces": _unique(entity["province"] for entity in entities),
                 "municipalities": _unique(entity["municipality"] for entity in entities),
                 "types": _unique(entity["type"] for entity in entities),
-                "services": services,
+                "services": canonical_services,
             },
-            "serviceIcons": _load_service_icons(services),
+            "serviceIcons": _load_service_icons(all_services),
         },
         ensure_ascii=False,
     ).replace("</", "<\\/")
@@ -150,14 +152,17 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       .popup h3 {{ margin: 0 0 6px; color: var(--blue); font-size: 17px; }}
       .popup p {{ margin: 4px 0; font-size: 13px; }}
       .popup .services {{ max-height: 90px; overflow-y: auto; padding-right: 4px; }}
+      .popup-services-title {{ margin-top: 8px; color: #000; font-size: 12px; font-weight: 800; }}
+      .popup-services-grid {{ display: grid; grid-template-columns: repeat(10, 28px); gap: 4px; align-items: center; margin-top: 5px; }}
       .service-icons {{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }}
-      .service-icon {{ width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
-      .service-icon img {{ width: 19px; height: 19px; object-fit: contain; }}
+      .service-icon {{ width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #B55E36; border-radius: 4px; background: #fff; padding: 3px; }}
+      .service-icon img {{ width: 100%; height: 100%; object-fit: contain; display: block; }}
       .service-icon.more {{ color: var(--blue); font-size: 11px; font-weight: 800; }}
-      .legend {{ margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }}
-      .legend h2 {{ margin: 0 0 10px; color: var(--blue); font-size: 18px; }}
-      .legend-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }}
-      .legend-item {{ display: flex; align-items: center; gap: 8px; min-width: 0; color: #26384d; font-size: 12px; }}
+      .map-legend {{ border-top: 1px solid var(--line); background: #fff; padding: 12px 14px 14px; }}
+      .map-legend h2 {{ margin: 0; color: #000; font-size: 21px; line-height: 1; text-transform: uppercase; }}
+      .map-legend .legend-subtitle {{ color: #B55E36; font-size: 14px; font-weight: 700; margin: 4px 0 8px; }}
+      .legend-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px 18px; }}
+      .legend-item {{ display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 6px; align-items: center; min-width: 0; color: #000; font-size: 13px; line-height: 1.2; }}
       .legend-item span {{ overflow-wrap: anywhere; }}
       .list-head {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 10px; }}
       .list-head h2 {{ margin: 0; color: var(--blue); font-size: 20px; }}
@@ -181,6 +186,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
         .legend-grid {{ grid-template-columns: 1fr; }}
+        .popup-services-grid {{ grid-template-columns: repeat(6, 28px); }}
       }}
     </style>
   </head>
@@ -209,10 +215,11 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <span id="result-count">0 entidades visibles</span>
           <span>Los marcadores usan coordenadas validadas cuando existen; si no, ubicación municipal estimada.</span>
         </div>
-      </section>
-      <section class="legend">
-        <h2>Leyenda de servicios</h2>
-        <div id="service-legend" class="legend-grid"></div>
+        <div class="map-legend" aria-label="Leyenda de servicios">
+          <h2>Leyenda</h2>
+          <div class="legend-subtitle">Servicios registrados:</div>
+          <div id="service-legend" class="legend-grid"></div>
+        </div>
       </section>
       <section>
         <div class="list-head">
@@ -310,6 +317,10 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         const remaining = entity.serviceList.length - limit;
         return `<div class="service-icons">${{icons}}${{remaining > 0 ? `<span class="service-icon more" title="${{remaining}} servicios adicionales">+${{remaining}}</span>` : ''}}</div>`;
       }}
+      function serviceIconGrid(entity) {{
+        const icons = entity.serviceList.map(serviceIcon).filter(Boolean).join('');
+        return icons || `<span>${{escapeHtml(entity.services || 'Sin servicios registrados')}}</span>`;
+      }}
       function textMatch(entity, q) {{
         if (!q) return true;
         const haystack = [entity.name, entity.type, entity.province, entity.municipality, entity.coverage, entity.services, entity.contact, entity.phone, entity.email, entity.address].join(' ').toLocaleLowerCase('es');
@@ -328,8 +339,8 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <p><b>Tipo:</b> ${{escapeHtml(entity.type)}}</p>
           <p><b>Ubicación:</b> ${{escapeHtml(entity.province)}} / ${{escapeHtml(entity.municipality)}}</p>
           <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
-          ${{serviceIconStrip(entity, 10)}}
-          <p class="services"><b>Servicios:</b> ${{escapeHtml(entity.services)}}</p>
+          <div class="popup-services-title">Servicios registrados:</div>
+          <div class="popup-services-grid">${{serviceIconGrid(entity)}}</div>
           <p><b>Contacto:</b> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
           <p><b>Dirección:</b> ${{escapeHtml(entity.address)}}</p>
         </div>`;
@@ -366,7 +377,6 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <p>${{escapeHtml(entity.province)}} · ${{escapeHtml(entity.municipality)}}</p>
           <p><strong>Tipo:</strong> ${{escapeHtml(entity.type)}}</p>
           <p><strong>Cobertura:</strong> ${{escapeHtml(entity.coverage)}}</p>
-          ${{serviceIconStrip(entity, 10)}}
           <p><strong>Contacto:</strong> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
           <details><summary>Servicios</summary><p>${{escapeHtml(entity.services)}}</p></details>
           <div class="card-actions"><button class="secondary" type="button" data-focus="${{escapeHtml(entity.id)}}">Ver en mapa</button></div>
