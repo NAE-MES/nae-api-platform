@@ -105,6 +105,91 @@ def _entity_sort_key(row: Dict[str, Any]) -> tuple[tuple[int, str], str, str]:
     )
 
 
+def _coverage_summary_from_territories(territories: set[tuple[str, str]]) -> str:
+    if not territories:
+        return ""
+
+    all_municipalities = {
+        (province, item["nombre"])
+        for province, municipalities in CUBA_GEO.items()
+        for item in municipalities
+    }
+    if territories >= all_municipalities:
+        return "Todos los municipios del país"
+
+    by_province: Dict[str, set[str]] = {}
+    for province, municipality in territories:
+        if province and municipality:
+            by_province.setdefault(province, set()).add(municipality)
+
+    parts: List[str] = []
+    for province, municipalities in CUBA_GEO.items():
+        selected = by_province.get(province, set())
+        if not selected:
+            continue
+        official = [item["nombre"] for item in municipalities]
+        official_set = set(official)
+        if selected >= official_set:
+            if province == SPECIAL_MUNICIPALITY:
+                parts.append(SPECIAL_MUNICIPALITY)
+            else:
+                parts.append(f"Todos los municipios de la provincia de {province}")
+        else:
+            ordered = [municipality for municipality in official if municipality in selected]
+            extras = sorted(selected - official_set)
+            parts.append(f"{province}: {', '.join(ordered + extras)}")
+    return " / ".join(parts)
+
+
+def _attach_coverage_display(db, rows: List[Dict[str, Any]], canonical: bool) -> List[Dict[str, Any]]:
+    if not rows:
+        return rows
+
+    key_name = "entidad_apoyo_id" if canonical else "operational_respuesta_id"
+    ids = [row.get(key_name) for row in rows if row.get(key_name) is not None]
+    if not ids:
+        return rows
+
+    if canonical:
+        query = """
+            SELECT rel.entidad_apoyo_id AS row_id,
+                   COALESCE(p.nombre, ts.provincia_resuelta) AS provincia,
+                   COALESCE(mu.nombre, ts.municipio_resuelto) AS municipio
+            FROM operational.respuestas_entidades_apoyo rel
+            JOIN operational.respuestas_mapeo_territorios_servicio ts
+                ON ts.operational_respuesta_id = rel.operational_respuesta_id
+            LEFT JOIN operational.municipios mu ON mu.id = ts.municipio_id
+            LEFT JOIN operational.provincias p ON p.id = mu.provincia_id
+            WHERE rel.entidad_apoyo_id = ANY(:ids)
+              AND COALESCE(ts.requiere_revision, FALSE) = FALSE
+              AND COALESCE(p.nombre, ts.provincia_resuelta) IS NOT NULL
+              AND COALESCE(mu.nombre, ts.municipio_resuelto) IS NOT NULL
+        """
+    else:
+        query = """
+            SELECT ts.operational_respuesta_id AS row_id,
+                   COALESCE(p.nombre, ts.provincia_resuelta) AS provincia,
+                   COALESCE(mu.nombre, ts.municipio_resuelto) AS municipio
+            FROM operational.respuestas_mapeo_territorios_servicio ts
+            LEFT JOIN operational.municipios mu ON mu.id = ts.municipio_id
+            LEFT JOIN operational.provincias p ON p.id = mu.provincia_id
+            WHERE ts.operational_respuesta_id = ANY(:ids)
+              AND COALESCE(ts.requiere_revision, FALSE) = FALSE
+              AND COALESCE(p.nombre, ts.provincia_resuelta) IS NOT NULL
+              AND COALESCE(mu.nombre, ts.municipio_resuelto) IS NOT NULL
+        """
+
+    territory_rows = db.execute(text(query), {"ids": ids}).mappings().all()
+    territories_by_id: Dict[Any, set[tuple[str, str]]] = {}
+    for item in territory_rows:
+        territories_by_id.setdefault(item["row_id"], set()).add((item["provincia"], item["municipio"]))
+
+    for row in rows:
+        summary = _coverage_summary_from_territories(territories_by_id.get(row.get(key_name), set()))
+        row["cobertura_descriptiva"] = summary or row.get("cobertura_principal") or "Sin dato"
+    return rows
+
+
 def _coerce_json_list(value: Any) -> List[Dict[str, Any]]:
     if value is None:
         return []
@@ -1665,7 +1750,10 @@ def get_support_entities(
                 "limit": limit,
             },
             "total": len(rows),
-            "entidades": [_with_coordinates(dict(row)) for row in sorted(rows, key=_entity_sort_key)],
+            "entidades": [
+                _with_coordinates(row)
+                for row in sorted(_attach_coverage_display(db, [dict(row) for row in rows], canonical=False), key=_entity_sort_key)
+            ],
         }
     except ProgrammingError:
         db.rollback()
@@ -1898,7 +1986,10 @@ def _get_support_entities_canonical(
             "limit": limit,
         },
         "total": len(rows),
-        "entidades": [_with_coordinates(dict(row)) for row in sorted(rows, key=_entity_sort_key)],
+        "entidades": [
+            _with_coordinates(row)
+            for row in sorted(_attach_coverage_display(db, [dict(row) for row in rows], canonical=True), key=_entity_sort_key)
+        ],
     }
 
 
@@ -3307,7 +3398,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             "type": row.get("tipo_estructura_apoyo") or "Sin tipo",
             "province": row.get("provincia") or "Sin provincia",
             "municipality": row.get("municipio") or "Sin municipio",
-            "coverage": row.get("cobertura_principal") or "Sin dato",
+            "coverage": row.get("cobertura_descriptiva") or row.get("cobertura_principal") or "Sin dato",
             "services": visible_services,
             "serviceDetails": _support_service_details(row),
             "contact": row.get("persona_contacto_cargo") or "Sin dato",
@@ -3340,7 +3431,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             <h3>{escape(str(row.get('entidad_nombre') or 'Sin nombre'))}</h3>
             <p>{escape(str(row.get('provincia') or ''))} · {escape(str(row.get('municipio') or ''))}</p>
             <p><strong>Tipo:</strong> {escape(str(row.get('tipo_estructura_apoyo') or 'Sin dato'))}</p>
-            <p><strong>Cobertura:</strong> {escape(str(row.get('cobertura_principal') or 'Sin dato'))}</p>
+            <p><strong>Cobertura:</strong> {escape(str(row.get('cobertura_descriptiva') or row.get('cobertura_principal') or 'Sin dato'))}</p>
             <p><strong>Contacto:</strong> {escape(str(row.get('persona_contacto_cargo') or 'Sin dato'))}</p>
             <p><strong>Teléfono:</strong> {escape(str(row.get('telefonos') or 'Sin dato'))}</p>
             <p><strong>Correo:</strong> {escape(str(row.get('correo_electronico') or 'Sin dato'))}</p>
@@ -3525,7 +3616,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           <div class="popup-card">
             <strong>${{escapeHtml(entity.name)}}</strong>
             <p class="popup-type">${{escapeHtml(entity.type)}}</p>
-            <p class="popup-coverage"><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}} · ${{escapeHtml(entity.municipality)}}, ${{escapeHtml(entity.province)}}</p>
+            <p class="popup-coverage"><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
             <div class="popup-contact-grid">
               <div class="popup-contact"><img class="contact-icon" src="/prototype-assets/icons/contacts/contacto.svg" alt="" /><span>${{escapeHtml(entity.contact)}}</span></div>
               <div class="popup-contact"><img class="contact-icon" src="/prototype-assets/icons/contacts/correo.svg" alt="" /><span>${{escapeHtml(entity.email)}}</span></div>
