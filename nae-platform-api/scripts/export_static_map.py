@@ -8,6 +8,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 
@@ -18,12 +19,13 @@ sys.path.insert(0, str(API_DIR))
 
 load_dotenv(API_DIR / ".env")
 
-from app.reporting import get_support_entities  # noqa: E402
+from app.reporting import SERVICE_ICON_FILES, _service_icon_key, get_support_entities  # noqa: E402
 
 
 DEFAULT_OUTPUT = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_entidades_apoyo.html"
 LEAFLET_CSS = PROJECT_ROOT / "prototype" / "vendor" / "leaflet" / "leaflet.css"
 LEAFLET_JS = PROJECT_ROOT / "prototype" / "vendor" / "leaflet" / "leaflet.js"
+SERVICE_ICON_DIR = PROJECT_ROOT / "prototype" / "icons" / "services"
 
 
 def _clean_text(value: Any, default: str = "Sin dato") -> str:
@@ -74,11 +76,25 @@ def _unique(values: Iterable[str]) -> List[str]:
     return sorted({value for value in values if value and value != "Sin dato"})
 
 
+def _load_service_icons(services: Iterable[str]) -> Dict[str, str]:
+    icons: Dict[str, str] = {}
+    for service in services:
+        icon_key = _service_icon_key(service)
+        icon_file = SERVICE_ICON_FILES.get(icon_key, SERVICE_ICON_FILES["otro"])
+        icon_path = SERVICE_ICON_DIR / icon_file
+        if not icon_path.exists():
+            icon_path = SERVICE_ICON_DIR / SERVICE_ICON_FILES["otro"]
+        svg = icon_path.read_text(encoding="utf-8")
+        icons[service] = f"data:image/svg+xml;utf8,{quote(svg)}"
+    return icons
+
+
 def build_static_map_html(data: Dict[str, Any]) -> str:
     entities = _normalize_entities(data.get("entidades", []))
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
+    services = _unique(service for entity in entities for service in entity["serviceList"])
     payload = json.dumps(
         {
             "generatedAt": generated_at,
@@ -88,8 +104,9 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
                 "provinces": _unique(entity["province"] for entity in entities),
                 "municipalities": _unique(entity["municipality"] for entity in entities),
                 "types": _unique(entity["type"] for entity in entities),
-                "services": _unique(service for entity in entities for service in entity["serviceList"]),
+                "services": services,
             },
+            "serviceIcons": _load_service_icons(services),
         },
         ensure_ascii=False,
     ).replace("</", "<\\/")
@@ -126,13 +143,22 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       button {{ cursor: pointer; border-color: var(--blue); background: var(--blue); color: #fff; font-weight: 700; }}
       button.secondary {{ background: #fff; color: var(--blue); }}
       #map {{ height: min(68vh, 680px); min-height: 520px; background: #d8e8f1; }}
-      #map .leaflet-tile-pane {{ filter: contrast(1.10) saturate(1.02) brightness(.98); }}
+      #map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
       .summary {{ display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: var(--red); border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(200,20,47,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .popup h3 {{ margin: 0 0 6px; color: var(--blue); font-size: 17px; }}
       .popup p {{ margin: 4px 0; font-size: 13px; }}
       .popup .services {{ max-height: 90px; overflow-y: auto; padding-right: 4px; }}
+      .service-icons {{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }}
+      .service-icon {{ width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
+      .service-icon img {{ width: 19px; height: 19px; object-fit: contain; }}
+      .service-icon.more {{ color: var(--blue); font-size: 11px; font-weight: 800; }}
+      .legend {{ margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }}
+      .legend h2 {{ margin: 0 0 10px; color: var(--blue); font-size: 18px; }}
+      .legend-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }}
+      .legend-item {{ display: flex; align-items: center; gap: 8px; min-width: 0; color: #26384d; font-size: 12px; }}
+      .legend-item span {{ overflow-wrap: anywhere; }}
       .list-head {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 10px; }}
       .list-head h2 {{ margin: 0; color: var(--blue); font-size: 20px; }}
       .list {{ display: grid; gap: 10px; }}
@@ -147,12 +173,14 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       @media (max-width: 980px) {{
         .filters {{ grid-template-columns: 1fr 1fr; }}
         .filters input {{ grid-column: 1 / -1; }}
+        .legend-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       }}
       @media (max-width: 620px) {{
         .wrap {{ padding: 0 14px; }}
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
+        .legend-grid {{ grid-template-columns: 1fr; }}
       }}
     </style>
   </head>
@@ -182,6 +210,10 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <span>Los marcadores usan coordenadas validadas cuando existen; si no, ubicación municipal estimada.</span>
         </div>
       </section>
+      <section class="legend">
+        <h2>Leyenda de servicios</h2>
+        <div id="service-legend" class="legend-grid"></div>
+      </section>
       <section>
         <div class="list-head">
           <h2>Entidades</h2>
@@ -208,11 +240,15 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       const map = L.map('map', {{ zoomControl: true }}).setView([21.9, -79.5], 7);
       const tileProviders = [
         {{
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}',
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
           attribution: 'Tiles &copy; Esri'
         }},
         {{
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
+          attribution: 'Tiles &copy; Esri'
+        }},
+        {{
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}',
           attribution: 'Tiles &copy; Esri'
         }},
         {{
@@ -264,6 +300,16 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       function optionList(items, label) {{
         return `<option value="">${{label}}</option>` + items.map((item) => `<option value="${{escapeHtml(item)}}">${{escapeHtml(item)}}</option>`).join('');
       }}
+      function serviceIcon(service) {{
+        const src = payload.serviceIcons[service];
+        if (!src) return '';
+        return `<span class="service-icon" title="${{escapeHtml(service)}}"><img src="${{src}}" alt="" /></span>`;
+      }}
+      function serviceIconStrip(entity, limit = 8) {{
+        const icons = entity.serviceList.slice(0, limit).map(serviceIcon).join('');
+        const remaining = entity.serviceList.length - limit;
+        return `<div class="service-icons">${{icons}}${{remaining > 0 ? `<span class="service-icon more" title="${{remaining}} servicios adicionales">+${{remaining}}</span>` : ''}}</div>`;
+      }}
       function textMatch(entity, q) {{
         if (!q) return true;
         const haystack = [entity.name, entity.type, entity.province, entity.municipality, entity.coverage, entity.services, entity.contact, entity.phone, entity.email, entity.address].join(' ').toLocaleLowerCase('es');
@@ -282,6 +328,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <p><b>Tipo:</b> ${{escapeHtml(entity.type)}}</p>
           <p><b>Ubicación:</b> ${{escapeHtml(entity.province)}} / ${{escapeHtml(entity.municipality)}}</p>
           <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
+          ${{serviceIconStrip(entity, 10)}}
           <p class="services"><b>Servicios:</b> ${{escapeHtml(entity.services)}}</p>
           <p><b>Contacto:</b> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
           <p><b>Dirección:</b> ${{escapeHtml(entity.address)}}</p>
@@ -319,6 +366,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <p>${{escapeHtml(entity.province)}} · ${{escapeHtml(entity.municipality)}}</p>
           <p><strong>Tipo:</strong> ${{escapeHtml(entity.type)}}</p>
           <p><strong>Cobertura:</strong> ${{escapeHtml(entity.coverage)}}</p>
+          ${{serviceIconStrip(entity, 10)}}
           <p><strong>Contacto:</strong> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
           <details><summary>Servicios</summary><p>${{escapeHtml(entity.services)}}</p></details>
           <div class="card-actions"><button class="secondary" type="button" data-focus="${{escapeHtml(entity.id)}}">Ver en mapa</button></div>
@@ -340,6 +388,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       els.municipality.innerHTML = optionList(payload.lookups.municipalities, 'Todos los municipios');
       els.type.innerHTML = optionList(payload.lookups.types, 'Todos los tipos');
       els.service.innerHTML = optionList(payload.lookups.services, 'Todos los servicios');
+      document.getElementById('service-legend').innerHTML = payload.lookups.services.map((service) => `<div class="legend-item">${{serviceIcon(service)}}<span>${{escapeHtml(service)}}</span></div>`).join('');
       [els.q, els.province, els.municipality, els.type, els.service].forEach((el) => el.addEventListener('input', () => applyFilters(true)));
       els.clear.addEventListener('click', () => {{
         [els.q, els.province, els.municipality, els.type, els.service].forEach((el) => el.value = '');
