@@ -194,16 +194,16 @@ def test_session_cookie_expires(monkeypatch):
     assert main._is_valid_session_cookie(cookie) is False
 
 
-def test_public_navigation_keeps_private_links_when_logged_in():
+def test_public_navigation_keeps_private_links_when_logged_in(monkeypatch):
     client.cookies.clear()
     cookie = main._create_session_cookie("admin")
     client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
+    monkeypatch.setattr(main, "get_support_entities", lambda **kwargs: {"entidades": [], "lookups": {}, "filters": {}, "total": 0})
 
     response = client.get("/")
 
     assert response.status_code == 200
     assert "Mapa" in response.text
-    assert "Documentación" in response.text
     assert "Analítica" in response.text
     assert "Administración" in response.text
     assert "Cerrar sesión" in response.text
@@ -216,11 +216,6 @@ def test_public_navigation_hides_private_links_without_login():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Mapa" not in response.text
-    assert "Documentación" not in response.text
-    assert "Analítica" not in response.text
-    assert "documentación" not in response.text
-    assert "analítica" not in response.text
     assert "Administración" not in response.text
     assert "Cerrar sesión" not in response.text
     assert "Iniciar sesión" in response.text
@@ -229,6 +224,7 @@ def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
     client.cookies.clear()
     monkeypatch.setattr(main, "ANALYTICS_USERS", "jefe1:clave-jefe-1")
     monkeypatch.setattr(main, "ANALYTICS_REVIEW_USERS", "")
+    monkeypatch.setattr(main, "get_support_entities", lambda **kwargs: {"entidades": [], "lookups": {}, "filters": {}, "total": 0})
     cookie = main._create_session_cookie("jefe1")
     client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
 
@@ -236,7 +232,6 @@ def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
 
     assert response.status_code == 200
     assert "Mapa" in response.text
-    assert "Documentación" in response.text
     assert "Analítica" in response.text
     assert "Administración" not in response.text
     assert "Cerrar sesión" in response.text
@@ -350,7 +345,7 @@ def test_documentation_requires_login():
     response = client.get("/documentacion", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"].startswith("/login?")
+    assert response.headers["location"] == "/"
 
 
 def test_documentation_allows_authenticated_user():
@@ -358,10 +353,10 @@ def test_documentation_allows_authenticated_user():
     cookie = main._create_session_cookie("admin")
     client.cookies.set(main.AUTH_COOKIE_NAME, cookie)
 
-    response = client.get("/documentacion")
+    response = client.get("/documentacion", follow_redirects=False)
 
-    assert response.status_code == 200
-    assert "Documentación" in response.text
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
 
 def test_response_detail_endpoints(monkeypatch):

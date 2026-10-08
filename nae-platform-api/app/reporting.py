@@ -1059,10 +1059,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
         <div class="nav-inner">
           <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
           <div class="nav-links">
-            <a href="/">Inicio</a>
-            <a href="/encuesta">Encuesta</a>
-            <a href="/mapa-apoyo">Mapa</a>
-            <a href="/documentacion">Documentación</a>
+            <a href="/">Mapa</a>
             <a class="active locked" href="/analitica">Analítica</a>
             <a class="locked" href="/admin/administracion">Administración</a>
             <a class="locked" href="/logout">Cerrar sesión</a>
@@ -3096,10 +3093,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
       <div class="nav-inner">
         <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
         <div class="nav-links">
-          <a href="/">Inicio</a>
-          <a href="/encuesta">Encuesta</a>
-          <a href="/mapa-apoyo">Mapa</a>
-          <a href="/documentacion">Documentación</a>
+          <a href="/">Mapa</a>
           <a href="/analitica">Analítica</a>
           <a class="active" href="/admin/administracion">Administración</a>
           <a class="locked" href="/logout">Cerrar sesión</a>
@@ -3504,10 +3498,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       <div class="nav-inner">
         <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
         <div class="nav-links">
-          <a href="/">Inicio</a>
-          <a href="/encuesta">Encuesta</a>
-          <a class="active" href="/mapa-apoyo">Mapa</a>
-          <a href="/documentacion">Documentación</a>
+          <a class="active" href="/">Mapa</a>
           <a class="locked" href="/analitica">Analítica</a>
           {private_nav}
         </div>
@@ -4622,10 +4613,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
         <div class="nav-inner">
           <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
           <div class="nav-links">
-            <a href="/">Inicio</a>
-            <a href="/encuesta">Encuesta</a>
-            <a href="/mapa-apoyo">Mapa</a>
-            <a href="/documentacion">Documentación</a>
+            <a href="/">Mapa</a>
             <a class="active locked" href="/analitica">Analítica</a>
             {review_nav}
             <a class="locked" href="/logout">Cerrar sesión</a>
@@ -4669,4 +4657,5 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
     </html>
     """
     return html
+
 

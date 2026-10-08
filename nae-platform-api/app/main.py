@@ -216,8 +216,6 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
     <div class="nav-inner">
       <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
       <div class="nav-links">
-        <a href="/">Inicio</a>
-        <a href="/encuesta">Encuesta</a>
         <a class="active locked" href="/login">Iniciar sesión</a>
       </div>
     </div>
@@ -531,20 +529,26 @@ def detalle_respuesta_api(
 
 
 @app.get("/", response_class=HTMLResponse)
-def inicio_publico(request: Request):
-    return _render_prototype_page("index.html", "/", request)
+def inicio_publico(
+    request: Request,
+    limit: int = 200,
+    provincia: Optional[str] = None,
+    municipio: Optional[str] = None,
+    tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
+    q: Optional[str] = None,
+):
+    return mapa_apoyo(request, limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, servicio=servicio, q=q)
 
 
 @app.get("/encuesta", response_class=HTMLResponse)
 def encuesta_publica(request: Request):
-    return _render_prototype_page("encuesta.html", "/encuesta", request)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/documentacion", response_class=HTMLResponse)
 def documentacion_publica(request: Request):
-    if not _has_analytics_access(request):
-        return _redirect_to_login(request)
-    return _render_prototype_page("documentacion.html", "/documentacion", request)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/analitica", response_class=HTMLResponse)
