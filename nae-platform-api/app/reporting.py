@@ -114,7 +114,13 @@ def _coverage_summary_from_territories(territories: set[tuple[str, str]]) -> str
         for province, municipalities in CUBA_GEO.items()
         for item in municipalities
     }
-    if territories >= all_municipalities:
+    covered_provinces = {province for province, _ in territories if province}
+    official_provinces = set(CUBA_GEO.keys())
+    if (
+        territories >= all_municipalities
+        or len(territories) >= 160
+        or len(covered_provinces & official_provinces) >= len(official_provinces) - 1
+    ):
         return "Todos los municipios del país"
 
     by_province: Dict[str, set[str]] = {}
