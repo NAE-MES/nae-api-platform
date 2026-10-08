@@ -1493,6 +1493,7 @@ def get_support_entities(
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
     tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
     q: Optional[str] = None,
 ) -> Dict[str, Any]:
     clauses = ["COALESCE(op.version_encuesta, '') = 'mapeo_estructuras_v1'"]
@@ -1506,6 +1507,17 @@ def get_support_entities(
     if tipo:
         clauses.append("COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) = :tipo")
         params["tipo"] = tipo
+    if servicio:
+        clauses.append("""
+            EXISTS (
+                SELECT 1
+                FROM operational.respuestas_mapeo_servicios sf
+                WHERE sf.operational_respuesta_id = op.id
+                  AND sf.servicio = :servicio
+                  AND (sf.ofrece_actualmente = TRUE OR sf.requiere_fortalecer = TRUE)
+            )
+        """)
+        params["servicio"] = servicio
     if q:
         clauses.append("""
             (
@@ -1527,7 +1539,7 @@ def get_support_entities(
             text("SELECT to_regclass('operational.entidades_apoyo') IS NOT NULL")
         ).scalar()
         if has_entity_resolution:
-            return _get_support_entities_canonical(db, limit, provincia, municipio, tipo, q)
+            return _get_support_entities_canonical(db, limit, provincia, municipio, tipo, servicio, q)
 
         has_geocoding_table = db.execute(
             text("SELECT to_regclass('operational.geocodificacion_entidades') IS NOT NULL")
@@ -1624,11 +1636,15 @@ def get_support_entities(
             text("""
                 SELECT DISTINCT p.nombre AS provincia,
                        mu.nombre AS municipio,
-                       COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) AS tipo
+                       COALESCE(m.tipo_estructura_apoyo, op.tipo_institucion) AS tipo,
+                       s.servicio AS servicio
                 FROM operational.respuestas_encuesta op
                 JOIN operational.provincias p ON p.id = op.provincia_id
                 JOIN operational.municipios mu ON mu.id = op.municipio_id
                 LEFT JOIN operational.respuestas_mapeo_entidad m ON m.operational_respuesta_id = op.id
+                LEFT JOIN operational.respuestas_mapeo_servicios s
+                    ON s.operational_respuesta_id = op.id
+                   AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
                 WHERE COALESCE(op.version_encuesta, '') = 'mapeo_estructuras_v1'
             """)
         ).mappings().all()
@@ -1638,11 +1654,13 @@ def get_support_entities(
                 "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}, key=_province_sort_key),
                 "municipios": sorted({row["municipio"] for row in lookups if row["municipio"]}),
                 "tipos": sorted({row["tipo"] for row in lookups if row["tipo"]}),
+                "servicios": sorted({row["servicio"] for row in lookups if row["servicio"]}),
             },
             "filters": {
                 "provincia": provincia,
                 "municipio": municipio,
                 "tipo": tipo,
+                "servicio": servicio,
                 "q": q,
                 "limit": limit,
             },
@@ -1652,8 +1670,8 @@ def get_support_entities(
     except ProgrammingError:
         db.rollback()
         return {
-            "lookups": {"provincias": [], "municipios": [], "tipos": []},
-            "filters": {"provincia": provincia, "municipio": municipio, "tipo": tipo, "q": q, "limit": limit},
+            "lookups": {"provincias": [], "municipios": [], "tipos": [], "servicios": []},
+            "filters": {"provincia": provincia, "municipio": municipio, "tipo": tipo, "servicio": servicio, "q": q, "limit": limit},
             "total": 0,
             "entidades": [],
         }
@@ -1667,6 +1685,7 @@ def _get_support_entities_canonical(
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
     tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
     q: Optional[str] = None,
 ) -> Dict[str, Any]:
     clauses = ["ea.estado_revision <> 'descartada'"]
@@ -1680,6 +1699,18 @@ def _get_support_entities_canonical(
     if tipo:
         clauses.append("COALESCE(ea.tipo_estructura_apoyo, '') = :tipo")
         params["tipo"] = tipo
+    if servicio:
+        clauses.append("""
+            EXISTS (
+                SELECT 1
+                FROM operational.respuestas_entidades_apoyo rel_sf
+                JOIN operational.respuestas_mapeo_servicios sf ON sf.operational_respuesta_id = rel_sf.operational_respuesta_id
+                WHERE rel_sf.entidad_apoyo_id = ea.id
+                  AND sf.servicio = :servicio
+                  AND (sf.ofrece_actualmente = TRUE OR sf.requiere_fortalecer = TRUE)
+            )
+        """)
+        params["servicio"] = servicio
     if q:
         clauses.append("""
             (
@@ -1838,10 +1869,15 @@ def _get_support_entities_canonical(
         text("""
             SELECT DISTINCT p.nombre AS provincia,
                    mu.nombre AS municipio,
-                   ea.tipo_estructura_apoyo AS tipo
+                   ea.tipo_estructura_apoyo AS tipo,
+                   s.servicio AS servicio
             FROM operational.entidades_apoyo ea
             JOIN operational.provincias p ON p.id = ea.provincia_id
             JOIN operational.municipios mu ON mu.id = ea.municipio_id
+            LEFT JOIN operational.respuestas_entidades_apoyo rel_s ON rel_s.entidad_apoyo_id = ea.id
+            LEFT JOIN operational.respuestas_mapeo_servicios s
+                ON s.operational_respuesta_id = rel_s.operational_respuesta_id
+               AND (s.ofrece_actualmente = TRUE OR s.requiere_fortalecer = TRUE)
             WHERE ea.estado_revision <> 'descartada'
         """)
     ).mappings().all()
@@ -1851,11 +1887,13 @@ def _get_support_entities_canonical(
             "provincias": sorted({row["provincia"] for row in lookups if row["provincia"]}, key=_province_sort_key),
             "municipios": sorted({row["municipio"] for row in lookups if row["municipio"]}),
             "tipos": sorted({row["tipo"] for row in lookups if row["tipo"]}),
+            "servicios": sorted({row["servicio"] for row in lookups if row["servicio"]}),
         },
         "filters": {
             "provincia": provincia,
             "municipio": municipio,
             "tipo": tipo,
+            "servicio": servicio,
             "q": q,
             "limit": limit,
         },
@@ -3324,7 +3362,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <link rel="stylesheet" href="/prototype-assets/styles.css" />
     <style>
       .support-filters {{ margin-bottom: 18px; }}
-      .support-filters .toolbar {{ grid-template-columns: repeat(5, minmax(120px, 1fr)) auto; }}
+      .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(120px, 1fr)) auto; }}
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
       .support-item p {{ margin-bottom: 6px; }}
@@ -3340,7 +3378,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .nae-marker.fallback {{ opacity: .82; }}
-      .leaflet-popup-content {{ margin: 12px 14px; width: min(390px, 84vw) !important; max-height: min(70vh, 460px); overflow-y: auto; scrollbar-width: thin; }}
+      .leaflet-popup-content {{ margin: 12px 14px; width: min(470px, 88vw) !important; max-height: min(70vh, 460px); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; }}
+      .popup-card {{ overflow-x: hidden; }}
       .popup-card strong {{ color: #3A8DB8; display:block; font-size: 19px; font-weight: 700; line-height: 1.12; }}
       .popup-card .popup-type {{ color:#3A8DB8; font-size: 14px; margin: 3px 0 0; }}
       .popup-card .popup-coverage {{ color:#000; font-size: 14px; margin: 5px 0 10px; }}
@@ -3348,12 +3387,11 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .popup-contact {{ display:grid; grid-template-columns:22px minmax(0,1fr); gap:6px; align-items:start; }}
       .contact-icon {{ width:18px; height:18px; object-fit:contain; display:block; }}
       .popup-services-title {{ color:#B55E36; font-size: 14px; font-weight:700; margin: 8px 0 5px; }}
-      .popup-services-grid {{ display:grid; grid-template-columns:repeat(9, 30px); gap: 4px; align-items:center; }}
-      .service-icon {{ width:28px; height:28px; border:2px solid #B55E36; display:inline-flex; align-items:center; justify-content:center; background:#fff; border-radius:4px; padding:3px; }}
+      .popup-services-grid {{ display:grid; grid-template-columns:repeat(12, 28px); gap: 4px; align-items:center; }}
+      .service-icon {{ width:26px; height:26px; border:2px solid #B55E36; display:inline-flex; align-items:center; justify-content:center; background:#fff; border-radius:4px; padding:3px; }}
       .service-icon img {{ width:100%; height:100%; object-fit:contain; display:block; }}
       .service-icon.other {{ border-color:#8C6B0C; color:#8C6B0C; }}
-      .popup-other-services {{ margin-top:7px; color:#8C6B0C; font-size:12px; line-height:1.28; }}
-      .popup-other-services b {{ color:#8C6B0C; }}
+      .popup-other-services {{ display:grid; grid-template-columns:28px minmax(0,1fr); gap:6px; align-items:start; margin-top:7px; color:#8C6B0C; font-size:12px; line-height:1.28; }}
       .map-legend {{ border-top:1px solid var(--line); background:#fff; padding:12px 14px 14px; }}
       .map-legend h3 {{ margin:0; color:#000; font-size:21px; line-height:1; text-transform:uppercase; }}
       .map-legend .legend-subtitle {{ color:#B55E36; font-size:14px; font-weight:700; margin:4px 0 8px; }}
@@ -3361,7 +3399,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 82vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(6, 30px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 82vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(6, 28px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} }}
     </style>
   </head>
   <body>
@@ -3397,6 +3435,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           <label class="field"><span>Provincia</span><select name="provincia">{option_list(lookups.get('provincias', []), selected.get('provincia'))}</select></label>
           <label class="field"><span>Municipio</span><select name="municipio">{option_list(lookups.get('municipios', []), selected.get('municipio'))}</select></label>
           <label class="field"><span>Tipo entidad</span><select name="tipo">{option_list(lookups.get('tipos', []), selected.get('tipo'))}</select></label>
+          <label class="field"><span>Servicio</span><select name="servicio">{option_list(lookups.get('servicios', []), selected.get('servicio'))}</select></label>
           <label class="field"><span>Búsqueda</span><input name="q" value="{escape(str(selected.get('q') or ''))}" /></label>
           <label class="field"><span>Límite</span><input type="number" min="1" max="1000" name="limit" value="{escape(str(selected.get('limit') or 200))}" /></label>
           <div class="actions"><button class="button primary" type="submit">Aplicar</button><a class="button secondary" href="/mapa-apoyo">Limpiar</a></div>
@@ -3439,15 +3478,25 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         const icon = `<span class="service-icon service-${{key}}${{otherClass}}" title="${{name}}" aria-label="${{name}}"><img src="${{iconUrl}}" alt="" loading="lazy" /></span>`;
         return withLabel ? `<div class="legend-item">${{icon}}<span>${{name}}</span></div>` : icon;
       }};
+      const normalizeOtherService = (value) => {{
+        const text = String(value ?? '').trim();
+        const letters = text.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+        if (letters && letters === letters.toLocaleUpperCase('es-CU')) {{
+          const lower = text.toLocaleLowerCase('es-CU');
+          return lower.replace(/(^|[.!?]\\s+)([a-záéíóúüñ])/g, (_, prefix, chr) => prefix + chr.toLocaleUpperCase('es-CU'));
+        }}
+        return text;
+      }};
       document.getElementById('service-legend').innerHTML = serviceLegend.map((service) => serviceIcon(service, true)).join('');
       const map = L.map('support-map', {{
         scrollWheelZoom: false,
         zoomControl: true
       }}).setView([21.85, -79.55], 6);
 
-      L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors'
+      L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+        subdomains: 'abcd',
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
       }}).addTo(map);
 
       const bounds = [];
@@ -3467,10 +3516,10 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           : `<span>${{escapeHtml(entity.services || 'Sin servicios registrados')}}</span>`;
         const otherServices = serviceItems
           .filter((service) => service.is_other)
-          .map((service) => service.name)
+          .map((service) => normalizeOtherService(service.name))
           .filter(Boolean)
           .join(', ');
-        const otherLabel = otherServices ? `<div class="popup-other-services">${{serviceIcon({{ name: 'Otro servicio', key: 'otro', icon: '/prototype-assets/icons/services/otro-servicio.svg', is_other: true }})}} <b>Otro servicio:</b> ${{escapeHtml(otherServices)}}</div>` : '';
+        const otherLabel = otherServices ? `<div class="popup-other-services">${{serviceIcon({{ name: otherServices, key: 'otro', icon: '/prototype-assets/icons/services/otro-servicio.svg', is_other: true }})}}<span>${{escapeHtml(otherServices)}}</span></div>` : '';
         const marker = L.marker([entity.lat, entity.lng], {{
           icon: markerIcon(entity.source === 'municipio')
         }}).bindPopup(`

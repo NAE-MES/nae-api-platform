@@ -507,13 +507,14 @@ def mapa_apoyo(
     provincia: Optional[str] = None,
     municipio: Optional[str] = None,
     tipo: Optional[str] = None,
+    servicio: Optional[str] = None,
     q: Optional[str] = None,
 ):
     if not _has_analytics_access(request):
         return _redirect_to_login(request)
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
-    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, q=q)
+    data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, servicio=servicio, q=q)
     return render_support_entities_html(data, authenticated=_has_analytics_access(request), can_review=_has_review_access(request))
 
 @app.get("/api/v1/respuestas/{respuesta_id}")

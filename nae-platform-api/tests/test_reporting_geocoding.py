@@ -91,9 +91,8 @@ def test_support_map_popup_uses_filtered_services_only():
     assert entity_data["email"] == "nae@example.test"
     assert "Directorio PDF" in html
     assert "serviceLegend" in html
-    assert "tile.openstreetmap.org" in html
+    assert "basemaps.cartocdn.com/light_all" in html
     assert "server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map" not in html
-    assert "basemaps.cartocdn.com" not in html
 
 
 def test_support_entities_pdf_starts_with_pdf_header():
