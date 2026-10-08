@@ -3483,6 +3483,13 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .service-icon img {{ width:100%; height:100%; object-fit:contain; display:block; }}
       .service-icon.other {{ border-color:#8C6B0C; color:#8C6B0C; }}
       .popup-other-services {{ display:grid; grid-template-columns:28px minmax(0,1fr); gap:6px; align-items:start; margin-top:7px; color:#8C6B0C; font-size:12px; line-height:1.28; }}
+      .support-list-header {{ display:flex; justify-content:space-between; gap:16px; align-items:center; margin: 18px 0 10px; }}
+      .support-list-header h2 {{ margin:0; color:var(--nae-navy); font-size:22px; }}
+      .support-list-header p {{ margin:3px 0 0; color:#607080; font-size:13px; }}
+      .support-pagination {{ display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:14px; }}
+      .support-pagination button {{ min-height:34px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--nae-navy); font-weight:700; padding:0 12px; cursor:pointer; }}
+      .support-pagination button:disabled {{ opacity:.45; cursor:not-allowed; }}
+      .support-page-label {{ color:#607080; font-size:13px; font-weight:700; }}
       .map-legend {{ border-top:1px solid var(--line); background:#fff; padding:12px 14px 14px; }}
       .map-legend h3 {{ margin:0; color:#000; font-size:21px; line-height:1; text-transform:uppercase; }}
       .map-legend .legend-subtitle {{ color:#B55E36; font-size:14px; font-weight:700; margin:4px 0 8px; }}
@@ -3490,7 +3497,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 82vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(6, 28px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 82vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(6, 28px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
     </style>
   </head>
   <body>
@@ -3545,7 +3552,18 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         </div>
       </section>
 
-      <section class="support-list">{''.join(entity_cards)}</section>
+      <section class="support-list-header">
+        <div>
+          <h2>Entidades registradas</h2>
+          <p id="support-list-summary">{data.get('total', 0)} entidades en los filtros aplicados.</p>
+        </div>
+      </section>
+      <section id="support-list" class="support-list">{''.join(entity_cards)}</section>
+      <nav id="support-pagination" class="support-pagination" aria-label="Paginación de entidades">
+        <button type="button" id="support-prev">Anterior</button>
+        <span id="support-page-label" class="support-page-label"></span>
+        <button type="button" id="support-next">Siguiente</button>
+      </nav>
     </main>
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
     <script>
@@ -3634,6 +3652,39 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       }} else {{
         map.setView([21.85, -79.55], 6);
       }}
+
+      const supportCards = Array.from(document.querySelectorAll('#support-list .support-item'));
+      const pageSize = 10;
+      let currentPage = 1;
+      const totalPages = Math.max(1, Math.ceil(supportCards.length / pageSize));
+      const prevButton = document.getElementById('support-prev');
+      const nextButton = document.getElementById('support-next');
+      const pageLabel = document.getElementById('support-page-label');
+      const pagination = document.getElementById('support-pagination');
+      const renderSupportPage = () => {{
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        supportCards.forEach((card, index) => {{
+          card.style.display = index >= start && index < end ? '' : 'none';
+        }});
+        pageLabel.textContent = `Página ${{currentPage}} de ${{totalPages}}`;
+        prevButton.disabled = currentPage <= 1;
+        nextButton.disabled = currentPage >= totalPages;
+        pagination.style.display = supportCards.length > pageSize ? 'flex' : 'none';
+      }};
+      prevButton.addEventListener('click', () => {{
+        if (currentPage > 1) {{
+          currentPage -= 1;
+          renderSupportPage();
+        }}
+      }});
+      nextButton.addEventListener('click', () => {{
+        if (currentPage < totalPages) {{
+          currentPage += 1;
+          renderSupportPage();
+        }}
+      }});
+      renderSupportPage();
     </script>
   </body>
 </html>

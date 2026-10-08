@@ -218,7 +218,8 @@ def test_public_navigation_hides_private_links_without_login():
     assert response.status_code == 200
     assert "Administración" not in response.text
     assert "Cerrar sesión" not in response.text
-    assert "Iniciar sesión" in response.text
+    assert "Mapeo de Entidades de Apoyo" in response.text
+    assert "Entrar" in response.text
 
 def test_public_navigation_hides_review_for_non_reviewer(monkeypatch):
     client.cookies.clear()
@@ -243,7 +244,8 @@ def test_login_page_uses_public_navigation():
     response = client.get("/login")
 
     assert response.status_code == 200
-    assert "Iniciar sesión" in response.text
+    assert "Mapeo de Entidades de Apoyo" in response.text
+    assert "Entrar" in response.text
     assert "Mapa" not in response.text
     assert "Documentación" not in response.text
     assert "Analítica" not in response.text

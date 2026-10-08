@@ -199,33 +199,21 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
   <title>Acceso | NAE Platform</title>
   <link rel="stylesheet" href="/prototype-assets/styles.css" />
   <style>
-    .login-wrap {{ min-height: 46vh; display: grid; place-items: center; padding-top: 34px; padding-bottom: 42px; }}
-    .login-panel {{ width: min(460px, 100%); }}
+    body {{ min-height: 100vh; display: grid; place-items: center; background: #eef4f8; padding: 24px; }}
+    .login-panel {{ width: min(420px, 100%); background: #fff; border: 1px solid #d9e1e8; border-radius: 8px; box-shadow: 0 18px 45px rgba(24, 54, 84, .16); padding: 28px; }}
     .login-panel form {{ display: block; width: 100%; }}
-    .login-panel h1 {{ font-size: 25px; margin-bottom: 10px; }}
-    .login-panel p {{ color: #4b5b6b; }}
+    .login-panel h1 {{ font-size: 24px; margin: 0 0 4px; color: #12395b; }}
+    .login-panel p {{ color: #4b5b6b; margin: 0 0 18px; }}
     .login-panel label {{ display: block; width: 100%; margin: 14px 0 6px; color: #657383; font-size: 12px; font-weight: 800; text-transform: uppercase; }}
     .login-panel input {{ display: block; width: 100%; min-height: 42px; border: 1px solid #d9e1e8; border-radius: 6px; padding: 0 10px; font: inherit; }}
     .login-panel button {{ width: 100%; margin-top: 18px; }}
     .error {{ border:1px solid #f2b8b5; background:#fff0f0; color:#b42318; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:14px; }}
-    .login-actions {{ margin-top: 16px; }}
   </style>
 </head>
 <body>
-  <nav class="site-nav">
-    <div class="nav-inner">
-      <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
-      <div class="nav-links">
-        <a class="active locked" href="/login">Iniciar sesión</a>
-      </div>
-    </div>
-  </nav>
-  <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
-  <main class="page login-wrap">
-    <section class="login-panel card pad">
-      <p class="eyebrow">Área privada</p>
-      <h1>Acceso a analítica</h1>
-      <p>Ingrese sus credenciales para consultar el panel operativo.</p>
+    <section class="login-panel">
+      <h1>NAE</h1>
+      <p>Mapeo de Entidades de Apoyo</p>
       {error_html}
       <form method="post" action="/login">
         <input type="hidden" name="next" value="{safe_next_url}" />
@@ -235,9 +223,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
         <input id="password" name="password" type="password" autocomplete="current-password" required />
         <button class="button primary" type="submit">Entrar</button>
       </form>
-      <div class="login-actions"><a class="button secondary" href="/">Volver al inicio</a></div>
     </section>
-  </main>
 </body>
 </html>"""
     return HTMLResponse(html)
