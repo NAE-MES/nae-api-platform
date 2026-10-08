@@ -20,7 +20,25 @@ from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 from app.mapeo_survey import SERVICIOS_GRID_ROWS
 
-PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(CUBA_GEO.keys())}
+OFFICIAL_PROVINCE_ORDER = [
+    "Pinar del Río",
+    "Artemisa",
+    "La Habana",
+    "Mayabeque",
+    "Matanzas",
+    "Cienfuegos",
+    "Villa Clara",
+    "Sancti Spíritus",
+    "Ciego de Ávila",
+    "Camagüey",
+    "Las Tunas",
+    "Holguín",
+    "Granma",
+    "Santiago de Cuba",
+    "Guantánamo",
+    "Isla de la Juventud",
+]
+PROVINCE_ORDER = {province_name: index for index, province_name in enumerate(OFFICIAL_PROVINCE_ORDER)}
 SPECIAL_MUNICIPALITY = "Isla de la Juventud"
 SERVICE_ICON_KEYS = {
     "Gestión empresarial": "gestion",
