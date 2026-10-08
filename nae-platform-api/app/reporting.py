@@ -1787,7 +1787,8 @@ def _get_support_entities_canonical(
     q: Optional[str] = None,
 ) -> Dict[str, Any]:
     clauses = ["ea.estado_revision <> 'descartada'"]
-    params: Dict[str, Any] = {"limit": limit}
+    fetch_limit = max(limit, 1000)
+    params: Dict[str, Any] = {"limit": fetch_limit}
     if provincia:
         clauses.append("p.nombre = :provincia")
         params["provincia"] = provincia
