@@ -206,10 +206,40 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       let markers = new Map();
 
       const map = L.map('map', {{ zoomControl: true }}).setView([21.9, -79.5], 7);
-      L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors'
-      }}).addTo(map);
+      const tileProviders = [
+        {{
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}',
+          attribution: 'Tiles &copy; Esri'
+        }},
+        {{
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
+          attribution: 'Tiles &copy; Esri'
+        }},
+        {{
+          url: 'https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',
+          attribution: '&copy; OpenStreetMap contributors'
+        }}
+      ];
+      let tileProviderIndex = 0;
+      let tileLayer = null;
+      function addTileLayer(index) {{
+        if (tileLayer) {{
+          map.removeLayer(tileLayer);
+        }}
+        const provider = tileProviders[index];
+        tileLayer = L.tileLayer(provider.url, {{
+          maxZoom: 18,
+          attribution: provider.attribution
+        }});
+        tileLayer.on('tileerror', () => {{
+          if (tileProviderIndex < tileProviders.length - 1) {{
+            tileProviderIndex += 1;
+            addTileLayer(tileProviderIndex);
+          }}
+        }});
+        tileLayer.addTo(map);
+      }}
+      addTileLayer(tileProviderIndex);
       const markerLayer = L.layerGroup().addTo(map);
       const markerIcon = L.divIcon({{ className: '', html: '<span class="nae-marker"></span>', iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -24] }});
 
