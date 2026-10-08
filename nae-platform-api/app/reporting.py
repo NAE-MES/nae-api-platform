@@ -130,7 +130,11 @@ def _entity_sort_key(row: Dict[str, Any]) -> tuple[tuple[int, str], str, str]:
     )
 
 
-def _coverage_summary_from_territories(territories: set[tuple[str, str]]) -> str:
+def _coverage_summary_from_territories(
+    territories: set[tuple[str, str]],
+    priority_province: Optional[str] = None,
+    priority_municipality: Optional[str] = None,
+) -> str:
     if not territories:
         return ""
 
@@ -153,8 +157,15 @@ def _coverage_summary_from_territories(territories: set[tuple[str, str]]) -> str
         if province and municipality:
             by_province.setdefault(province, set()).add(municipality)
 
+    province_names = [province for province in OFFICIAL_PROVINCE_ORDER if province in CUBA_GEO]
+    province_names.extend(province for province in CUBA_GEO if province not in province_names)
+    if priority_province in province_names:
+        province_names.remove(priority_province)
+        province_names.insert(0, priority_province)
+
     parts: List[str] = []
-    for province, municipalities in CUBA_GEO.items():
+    for province in province_names:
+        municipalities = CUBA_GEO[province]
         selected = by_province.get(province, set())
         if not selected:
             continue
@@ -167,6 +178,9 @@ def _coverage_summary_from_territories(territories: set[tuple[str, str]]) -> str
                 parts.append(f"Todos los municipios de la provincia de {province}")
         else:
             ordered = [municipality for municipality in official if municipality in selected]
+            if province == priority_province and priority_municipality in ordered:
+                ordered.remove(priority_municipality)
+                ordered.insert(0, priority_municipality)
             extras = sorted(selected - official_set)
             parts.append(f"{province}: {', '.join(ordered + extras)}")
     return " / ".join(parts)
@@ -216,7 +230,11 @@ def _attach_coverage_display(db, rows: List[Dict[str, Any]], canonical: bool) ->
         territories_by_id.setdefault(item["row_id"], set()).add((item["provincia"], item["municipio"]))
 
     for row in rows:
-        summary = _coverage_summary_from_territories(territories_by_id.get(row.get(key_name), set()))
+        summary = _coverage_summary_from_territories(
+            territories_by_id.get(row.get(key_name), set()),
+            priority_province=row.get("provincia"),
+            priority_municipality=row.get("municipio"),
+        )
         row["cobertura_descriptiva"] = summary or row.get("cobertura_principal") or "Sin dato"
     return rows
 

@@ -16,7 +16,12 @@ os.environ.setdefault("SESSION_SECRET", "test-session-secret")
 os.environ.setdefault("SESSION_MAX_AGE_SECONDS", "28800")
 os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
 
-from app.reporting import _with_coordinates, build_support_entities_pdf, render_support_entities_html
+from app.reporting import (
+    _coverage_summary_from_territories,
+    _with_coordinates,
+    build_support_entities_pdf,
+    render_support_entities_html,
+)
 
 
 def test_with_coordinates_prefers_validated_geocoding():
@@ -107,3 +112,21 @@ def test_support_entities_pdf_starts_with_pdf_header():
     })
 
     assert pdf.startswith(b"%PDF-1.4")
+
+
+def test_coverage_summary_prioritizes_entity_location():
+    summary = _coverage_summary_from_territories(
+        {
+            ("Camagüey", "Camagüey"),
+            ("La Habana", "Habana del Este"),
+            ("Pinar del Río", "Pinar del Río"),
+            ("Pinar del Río", "Viñales"),
+            ("Pinar del Río", "Los Palacios"),
+        },
+        priority_province="Pinar del Río",
+        priority_municipality="Los Palacios",
+    )
+
+    assert summary.startswith("Pinar del Río: Los Palacios")
+    assert "La Habana: Habana del Este" in summary
+    assert "Camagüey: Camagüey" in summary
