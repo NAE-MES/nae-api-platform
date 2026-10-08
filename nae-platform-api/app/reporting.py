@@ -4,6 +4,7 @@ import csv
 import json
 import math
 import textwrap
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from html import escape
@@ -97,11 +98,17 @@ def _province_sort_key(value: Any) -> tuple[int, str]:
     return (PROVINCE_ORDER.get(province, 999), province)
 
 
+def _sort_text(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(text.casefold().split())
+
+
 def _entity_sort_key(row: Dict[str, Any]) -> tuple[tuple[int, str], str, str]:
     return (
         _province_sort_key(row.get("provincia")),
-        str(row.get("municipio") or ""),
-        str(row.get("entidad_nombre") or row.get("nombre_canonico") or ""),
+        _sort_text(row.get("municipio")),
+        _sort_text(row.get("entidad_nombre") or row.get("nombre_canonico")),
     )
 
 
