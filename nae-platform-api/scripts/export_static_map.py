@@ -20,7 +20,7 @@ sys.path.insert(0, str(API_DIR))
 load_dotenv(API_DIR / ".env")
 
 from app.mapeo_survey import SERVICIOS_GRID_ROWS  # noqa: E402
-from app.reporting import SERVICE_ICON_FILES, _service_icon_key, get_support_entities  # noqa: E402
+from app.reporting import SERVICE_ICON_FILES, _service_icon_key, _support_service_details, get_support_entities  # noqa: E402
 
 
 DEFAULT_OUTPUT = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_entidades_apoyo.html"
@@ -47,6 +47,11 @@ def _normalize_entities(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
             continue
 
         services = _clean_text(row.get("servicios"), "Sin servicios registrados")
+        service_details = _support_service_details(row)
+        service_list = [item["name"] for item in service_details if not item.get("is_other")]
+        other_services = [item["name"] for item in service_details if item.get("is_other")]
+        if not service_list and not other_services and services != "Sin servicios registrados":
+            other_services = [services]
         entities.append(
             {
                 "id": _entity_id(row),
@@ -59,7 +64,8 @@ def _normalize_entities(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     "Sin dato",
                 ),
                 "services": services,
-                "serviceList": [item.strip() for item in services.split(",") if item.strip()],
+                "serviceList": service_list,
+                "otherServices": other_services,
                 "contact": _clean_text(row.get("persona_contacto_cargo")),
                 "phone": _clean_text(row.get("telefonos"), "Sin telefono"),
                 "email": _clean_text(row.get("correo_electronico"), "Sin correo"),
@@ -96,7 +102,12 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
     canonical_services = list(SERVICIOS_GRID_ROWS)
-    all_services = _unique(set(canonical_services) | {service for entity in entities for service in entity["serviceList"]})
+    legend_services = canonical_services + ["Otro servicio"]
+    all_services = _unique(
+        set(legend_services)
+        | {service for entity in entities for service in entity["serviceList"]}
+        | {service for entity in entities for service in entity["otherServices"]}
+    )
     payload = json.dumps(
         {
             "generatedAt": generated_at,
@@ -107,6 +118,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
                 "municipalities": _unique(entity["municipality"] for entity in entities),
                 "types": _unique(entity["type"] for entity in entities),
                 "services": canonical_services,
+                "legendServices": legend_services,
             },
             "serviceIcons": _load_service_icons(all_services),
         },
@@ -153,10 +165,12 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       .popup p {{ margin: 4px 0; font-size: 13px; }}
       .popup .services {{ max-height: 90px; overflow-y: auto; padding-right: 4px; }}
       .popup-services-title {{ margin-top: 8px; color: #000; font-size: 12px; font-weight: 800; }}
-      .popup-services-grid {{ display: grid; grid-template-columns: repeat(10, 28px); gap: 4px; align-items: center; margin-top: 5px; }}
+      .popup-services-grid {{ display: grid; grid-template-columns: repeat(10, 24px); gap: 4px; align-items: center; margin-top: 5px; }}
+      .popup-other-services {{ display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 6px; align-items: start; margin-top: 7px; color: #7c5608; font-size: 12px; line-height: 1.25; }}
       .service-icons {{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }}
       .service-icon {{ width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #B55E36; border-radius: 4px; background: #fff; padding: 3px; }}
       .service-icon img {{ width: 100%; height: 100%; object-fit: contain; display: block; }}
+      .popup-services-grid .service-icon, .popup-other-services .service-icon {{ width: 24px; height: 24px; border: 0; border-radius: 0; background: transparent; padding: 0; }}
       .service-icon.more {{ color: var(--blue); font-size: 11px; font-weight: 800; }}
       .map-legend {{ border-top: 1px solid var(--line); background: #fff; padding: 12px 14px 14px; }}
       .map-legend h2 {{ margin: 0; color: #000; font-size: 21px; line-height: 1; text-transform: uppercase; }}
@@ -186,7 +200,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
         .legend-grid {{ grid-template-columns: 1fr; }}
-        .popup-services-grid {{ grid-template-columns: repeat(6, 28px); }}
+        .popup-services-grid {{ grid-template-columns: repeat(6, 24px); }}
       }}
     </style>
   </head>
@@ -308,7 +322,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         return `<option value="">${{label}}</option>` + items.map((item) => `<option value="${{escapeHtml(item)}}">${{escapeHtml(item)}}</option>`).join('');
       }}
       function serviceIcon(service) {{
-        const src = payload.serviceIcons[service];
+        const src = payload.serviceIcons[service] || payload.serviceIcons['Otro servicio'];
         if (!src) return '';
         return `<span class="service-icon" title="${{escapeHtml(service)}}"><img src="${{src}}" alt="" /></span>`;
       }}
@@ -320,6 +334,11 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       function serviceIconGrid(entity) {{
         const icons = entity.serviceList.map(serviceIcon).filter(Boolean).join('');
         return icons || `<span>${{escapeHtml(entity.services || 'Sin servicios registrados')}}</span>`;
+      }}
+      function otherServiceLabel(entity) {{
+        const otherServices = entity.otherServices || [];
+        if (!otherServices.length) return '';
+        return `<div class="popup-other-services">${{serviceIcon('Otro servicio')}}<span>${{escapeHtml(otherServices.join(', '))}}</span></div>`;
       }}
       function textMatch(entity, q) {{
         if (!q) return true;
@@ -341,6 +360,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
           <div class="popup-services-title">Servicios registrados:</div>
           <div class="popup-services-grid">${{serviceIconGrid(entity)}}</div>
+          ${{otherServiceLabel(entity)}}
           <p><b>Contacto:</b> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
           <p><b>Dirección:</b> ${{escapeHtml(entity.address)}}</p>
         </div>`;
@@ -398,7 +418,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       els.municipality.innerHTML = optionList(payload.lookups.municipalities, 'Todos los municipios');
       els.type.innerHTML = optionList(payload.lookups.types, 'Todos los tipos');
       els.service.innerHTML = optionList(payload.lookups.services, 'Todos los servicios');
-      document.getElementById('service-legend').innerHTML = payload.lookups.services.map((service) => `<div class="legend-item">${{serviceIcon(service)}}<span>${{escapeHtml(service)}}</span></div>`).join('');
+      document.getElementById('service-legend').innerHTML = payload.lookups.legendServices.map((service) => `<div class="legend-item">${{serviceIcon(service)}}<span>${{escapeHtml(service)}}</span></div>`).join('');
       [els.q, els.province, els.municipality, els.type, els.service].forEach((el) => el.addEventListener('input', () => applyFilters(true)));
       els.clear.addEventListener('click', () => {{
         [els.q, els.province, els.municipality, els.type, els.service].forEach((el) => el.value = '');
