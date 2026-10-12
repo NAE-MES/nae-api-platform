@@ -3526,11 +3526,12 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .popup-contact {{ display:grid; grid-template-columns:22px minmax(0,1fr); gap:6px; align-items:start; }}
       .contact-icon {{ width:18px; height:18px; object-fit:contain; display:block; }}
       .popup-services-title {{ color:#B55E36; font-size: 14px; font-weight:700; margin: 8px 0 5px; }}
-      .popup-services-grid {{ display:grid; grid-template-columns:repeat(12, 28px); gap: 4px; align-items:center; }}
+      .popup-services-grid {{ display:grid; grid-template-columns:repeat(10, 24px); gap: 4px; align-items:center; }}
       .service-icon {{ width:26px; height:26px; border:2px solid #B55E36; display:inline-flex; align-items:center; justify-content:center; background:#fff; border-radius:4px; padding:3px; }}
       .service-icon img {{ width:100%; height:100%; object-fit:contain; display:block; }}
       .service-icon.other {{ border-color:#8C6B0C; color:#8C6B0C; }}
-      .popup-other-services {{ display:grid; grid-template-columns:28px minmax(0,1fr); gap:6px; align-items:start; margin-top:7px; color:#8C6B0C; font-size:12px; line-height:1.28; }}
+      .popup-services-grid .service-icon, .popup-other-services .service-icon {{ width:24px; height:24px; border:0; border-radius:0; background:transparent; padding:0; }}
+      .popup-other-services {{ display:grid; grid-template-columns:24px minmax(0,1fr); gap:6px; align-items:start; margin-top:7px; color:#8C6B0C; font-size:12px; line-height:1.28; }}
       .support-list-header {{ display:flex; justify-content:space-between; gap:16px; align-items:center; margin: 18px 0 10px; }}
       .support-list-header h2 {{ margin:0; color:var(--nae-navy); font-size:22px; }}
       .support-list-header p {{ margin:3px 0 0; color:#607080; font-size:13px; }}
@@ -3545,7 +3546,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 82vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(6, 28px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
+      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
     </style>
   </head>
   <body>
@@ -3570,6 +3571,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         </div>
         <div class="actions">
           <a class="button secondary" href="{escape(pdf_url)}">Directorio PDF</a>
+          <a class="button secondary" href="/mapa-offline.html">Mapa offline</a>
         </div>
       </header>
 
@@ -3642,9 +3644,13 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         return text;
       }};
       document.getElementById('service-legend').innerHTML = serviceLegend.map((service) => serviceIcon(service, true)).join('');
+      const cubaBounds = L.latLngBounds([[18.6, -86.1], [24.2, -73.6]]);
       const map = L.map('support-map', {{
         scrollWheelZoom: false,
-        zoomControl: true
+        zoomControl: true,
+        minZoom: 5,
+        maxBounds: cubaBounds.pad(0.35),
+        maxBoundsViscosity: 0.85
       }}).setView([21.85, -79.55], 6);
 
       L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
@@ -3702,7 +3708,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       if (bounds.length > 1) {{
         map.fitBounds(bounds, {{ padding: [48, 48], maxZoom: 7 }});
       }} else {{
-        map.setView([21.85, -79.55], 6);
+        map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: 6 }});
       }}
 
       const supportCards = Array.from(document.querySelectorAll('#support-list .support-item'));

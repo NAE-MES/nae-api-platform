@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlencode
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
@@ -480,6 +480,21 @@ def entidades_apoyo_pdf(
         content=pdf_content,
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="directorio_entidades_apoyo_nae.pdf"'},
+    )
+
+
+@app.get("/mapa-offline.html")
+def mapa_offline_html(request: Request):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    offline_map = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_entidades_apoyo.html"
+    if not offline_map.exists():
+        raise HTTPException(status_code=404, detail="Mapa offline no disponible")
+    return FileResponse(
+        offline_map,
+        media_type="text/html; charset=utf-8",
+        filename="mapa_entidades_apoyo.html",
+        headers={"Content-Disposition": 'attachment; filename="mapa_entidades_apoyo.html"'},
     )
 
 
