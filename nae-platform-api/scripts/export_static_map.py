@@ -200,7 +200,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
         .legend-grid {{ grid-template-columns: 1fr; }}
-        .popup-services-grid {{ grid-template-columns: repeat(6, 24px); }}
+        .popup-services-grid {{ grid-template-columns: repeat(10, 24px); }}
       }}
     </style>
   </head>
