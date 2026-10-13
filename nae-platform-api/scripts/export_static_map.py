@@ -418,7 +418,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         window.scrollTo({{ top: document.getElementById('map').getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }});
       }}
       function resetMapView() {{
-        map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: isTouchMap ? 5 : 6 }});
+        map.setView([21.85, -79.55], isTouchMap ? 6 : 7, {{ animate: true }});
       }}
       function renderMarkers() {{
         markerLayer.clearLayers();

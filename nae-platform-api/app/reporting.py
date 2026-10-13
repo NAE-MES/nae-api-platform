@@ -3742,7 +3742,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         bounds.push([entity.lat, entity.lng]);
       }});
 
-      const resetMapView = () => map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: isTouchMap ? 5 : 6 }});
+      const cubaCenter = [21.85, -79.55];
+      const initialZoom = isTouchMap ? 6 : 7;
+      const resetMapView = () => map.setView(cubaCenter, initialZoom, {{ animate: true }});
       resetMapView();
       document.getElementById('reset-map')?.addEventListener('click', resetMapView);
 
