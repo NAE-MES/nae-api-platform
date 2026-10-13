@@ -3649,9 +3649,13 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       const map = L.map('support-map', {{
         scrollWheelZoom: false,
         zoomControl: true,
+        tap: false,
+        bounceAtZoomLimits: false,
         minZoom: 5,
         maxBounds: cubaBounds.pad(0.35),
-        maxBoundsViscosity: 0.85
+        maxBoundsViscosity: 0.85,
+        wheelDebounceTime: 120,
+        wheelPxPerZoomLevel: 140
       }}).setView([21.85, -79.55], 6);
 
       L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{

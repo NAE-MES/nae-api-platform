@@ -258,7 +258,18 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       let filtered = [...payload.entities];
       let markers = new Map();
 
-      const map = L.map('map', {{ zoomControl: true }}).setView([21.9, -79.5], 7);
+      const cubaBounds = L.latLngBounds([[18.6, -86.1], [24.2, -73.6]]);
+      const map = L.map('map', {{
+        zoomControl: true,
+        scrollWheelZoom: false,
+        tap: false,
+        bounceAtZoomLimits: false,
+        minZoom: 5,
+        maxBounds: cubaBounds.pad(0.35),
+        maxBoundsViscosity: 0.85,
+        wheelDebounceTime: 120,
+        wheelPxPerZoomLevel: 140
+      }}).setView([21.9, -79.5], 7);
       const tileProviders = [
         {{
           url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
@@ -384,7 +395,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           const bounds = L.latLngBounds(filtered.map((entity) => [entity.lat, entity.lng]));
           map.fitBounds(bounds.pad(0.14), {{ maxZoom: 9 }});
         }} else {{
-          map.setView([21.9, -79.5], 7);
+          map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: 6 }});
         }}
       }}
       function renderList() {{
