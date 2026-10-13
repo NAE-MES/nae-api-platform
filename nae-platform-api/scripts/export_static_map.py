@@ -302,8 +302,8 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         tap: false,
         bounceAtZoomLimits: false,
         minZoom: isTouchMap ? 5 : 6,
-        maxBounds: cubaBounds.pad(0.18),
-        maxBoundsViscosity: 0.85,
+        maxBounds: cubaBounds.pad(0.75),
+        maxBoundsViscosity: 0.25,
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.9, -79.5], 7);

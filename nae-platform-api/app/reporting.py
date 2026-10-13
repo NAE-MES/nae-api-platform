@@ -3687,8 +3687,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         tap: false,
         bounceAtZoomLimits: false,
         minZoom: isTouchMap ? 5 : 6,
-        maxBounds: cubaBounds.pad(0.18),
-        maxBoundsViscosity: 0.85,
+        maxBounds: cubaBounds.pad(0.75),
+        maxBoundsViscosity: 0.25,
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.85, -79.55], 6);
