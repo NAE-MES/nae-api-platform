@@ -161,7 +161,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       header {{ background: #fff; border-bottom: 1px solid var(--line); }}
       .wrap {{ max-width: min(1600px, calc(100vw - 32px)); margin: 0 auto; padding: 0; }}
       .top {{ display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 0; }}
-      .brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
+      .brand-word {{ display:inline-flex; align-items:center; min-height:38px; color:#0f2d5b; font-size:24px; font-weight:900; letter-spacing:.02em; }}
       .hero-banner {{ display:block; width:100%; height:auto; background:#203747; }}
       .page-title {{ padding: 28px 0 18px; }}
       .eyebrow {{ margin:0 0 8px; color:#3A8DB8; font-size:13px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }}
@@ -176,7 +176,9 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       button.secondary {{ background: #fff; color: var(--blue); }}
       #map {{ height: min(68vh, 680px); min-height: 520px; background: #d8e8f1; }}
       #map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
-      .summary {{ display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }}
+      .summary {{ display: flex; justify-content: space-between; align-items:center; gap: 16px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }}
+      .summary-text {{ display:flex; flex-direction:column; gap:4px; }}
+      .reset-map {{ min-height:34px; padding:0 12px; white-space:nowrap; }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: var(--red); border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(200,20,47,.18); }}
       .nae-marker::after {{ content: ""; position: absolute; width: 8px; height: 8px; left: 5px; top: 5px; border-radius: 999px; background: #fff; }}
       .popup h3 {{ margin: 0 0 6px; color: var(--blue); font-size: 17px; }}
@@ -214,7 +216,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       }}
       @media (max-width: 620px) {{
         .wrap {{ max-width: none; padding: 0 14px; }}
-        .brand-id {{ width:154px; max-width:38vw; }}
+        .brand-word {{ min-height:34px; font-size:22px; }}
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
@@ -226,10 +228,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
   <body>
     <header>
       <div class="wrap top">
-        <picture>
-          <source media="(max-width: 620px)" srcset="{identifier_mobile}" />
-          <img class="brand-id" src="{identifier_desktop}" alt="Mapeo de Entidades de Apoyo NAE" />
-        </picture>
+        <span class="brand-word">NAE</span>
         <div class="badge">Generado: {escape(generated_at)}</div>
       </div>
       <picture>
@@ -254,8 +253,11 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         </div>
         <div id="map"></div>
         <div class="summary">
-          <span id="result-count">0 entidades visibles</span>
-          <span>Los marcadores usan coordenadas validadas cuando existen; si no, ubicación municipal estimada.</span>
+          <div class="summary-text">
+            <span id="result-count">0 entidades visibles</span>
+            <span>Los marcadores usan coordenadas validadas cuando existen; si no, ubicación municipal estimada.</span>
+          </div>
+          <button id="reset-map" class="secondary reset-map" type="button">Restablecer</button>
         </div>
         <div class="map-legend" aria-label="Leyenda de servicios">
           <h2>Leyenda</h2>
@@ -286,7 +288,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       let filtered = [...payload.entities];
       let markers = new Map();
 
-      const cubaBounds = L.latLngBounds([[18.6, -86.1], [24.2, -73.6]]);
+      const cubaBounds = L.latLngBounds([[19.2, -85.4], [23.7, -73.8]]);
       const isTouchMap = window.matchMedia('(pointer: coarse)').matches;
       const map = L.map('map', {{
         zoomControl: true,
@@ -297,7 +299,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         tap: false,
         bounceAtZoomLimits: false,
         minZoom: isTouchMap ? 5 : 6,
-        maxBounds: cubaBounds.pad(0.35),
+        maxBounds: cubaBounds.pad(0.18),
         maxBoundsViscosity: 0.85,
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
@@ -415,6 +417,9 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         marker.openPopup();
         window.scrollTo({{ top: document.getElementById('map').getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }});
       }}
+      function resetMapView() {{
+        map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: isTouchMap ? 5 : 6 }});
+      }}
       function renderMarkers() {{
         markerLayer.clearLayers();
         markers = new Map();
@@ -423,11 +428,11 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
           marker.addTo(markerLayer);
           markers.set(String(entity.id), marker);
         }});
-        if (filtered.length) {{
+        if (filtered.length && filtered.length < payload.entities.length) {{
           const bounds = L.latLngBounds(filtered.map((entity) => [entity.lat, entity.lng]));
           map.fitBounds(bounds.pad(0.14), {{ maxZoom: 9 }});
         }} else {{
-          map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: 6 }});
+          resetMapView();
         }}
       }}
       function renderList() {{
@@ -469,6 +474,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       }});
       els.prev.addEventListener('click', () => {{ currentPage -= 1; renderList(); }});
       els.next.addEventListener('click', () => {{ currentPage += 1; renderList(); }});
+      document.getElementById('reset-map').addEventListener('click', resetMapView);
       applyFilters(true);
     </script>
   </body>

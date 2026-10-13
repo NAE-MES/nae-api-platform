@@ -3498,7 +3498,10 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <style>
       .support-filters {{ margin-bottom: 18px; }}
       .map-page {{ max-width: min(1600px, calc(100vw - 32px)); }}
-      .map-brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
+      .site-nav {{ z-index: 1200; }}
+      .nav-inner {{ position: relative; }}
+      .map-brand-word {{ display:inline-flex; align-items:center; min-height:38px; color:#0f2d5b; font-size:24px; font-weight:900; letter-spacing:.02em; }}
+      .mobile-menu-toggle {{ display:none; min-height:34px; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--nae-navy); font-weight:800; padding:0 12px; cursor:pointer; }}
       .map-hero {{ position:relative; background:#203747; }}
       .map-banner {{ display:block; width:100%; height:auto; background:#203747; }}
       .map-hero-actions {{ position:absolute; inset:0; max-width:min(1600px, calc(100vw - 32px)); margin:0 auto; display:flex; align-items:center; justify-content:flex-end; gap:10px; pointer-events:none; }}
@@ -3519,6 +3522,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .support-map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .support-map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .support-map-caption .map-note {{ max-width: 620px; }}
+      .caption-actions {{ display:flex; justify-content:flex-end; min-width:138px; }}
+      .map-reset {{ min-height:34px; padding:0 12px; }}
       #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #cfe1ec; }}
       #support-map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
       .nae-marker {{ position: relative; display: block; width: 24px; height: 24px; background: #cf142b; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 9px 18px rgba(15,23,42,.30), 0 0 0 5px rgba(207,20,43,.18); }}
@@ -3553,19 +3558,17 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} .map-brand-id {{ width:154px; max-width:38vw; }} .map-hero-actions {{ inset:auto 0 22px; max-width:none; padding:0 24px; justify-content:center; }} .map-hero-actions .button {{ flex:1 1 0; max-width:244px; min-height:64px; font-size:clamp(16px, 4vw, 24px); border-radius:8px; }} #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
+      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} .map-brand-word {{ min-height:34px; font-size:22px; }} .mobile-menu-toggle {{ display:inline-flex; align-items:center; justify-content:center; }} .site-nav .nav-links {{ display:none; position:absolute; top:calc(100% + 8px); left:0; right:0; z-index:1300; flex-direction:column; align-items:stretch; gap:6px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; box-shadow:0 14px 34px rgba(14,31,56,.14); }} .site-nav.menu-open .nav-links {{ display:flex; }} .site-nav .nav-links a {{ justify-content:center; width:100%; }} .map-hero-actions {{ inset:auto 0 8px; max-width:none; padding:0 18px; justify-content:center; gap:8px; }} .map-hero-actions .button {{ flex:0 1 156px; max-width:156px; min-height:38px; padding:0 10px; font-size:13px; border-radius:7px; }} #support-map {{ min-height: 460px; height: 460px; }} .support-map-caption {{ gap:12px; }} .caption-actions {{ justify-content:flex-start; min-width:0; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
     </style>
   </head>
   <body>
     <nav class="site-nav">
       <div class="nav-inner">
-        <a class="nav-title" href="/" aria-label="Mapeo de Entidades de Apoyo">
-          <picture>
-            <source media="(max-width: 720px)" srcset="/images/mapeo/identificador_movil.svg" />
-            <img class="map-brand-id" src="/images/mapeo/identificador_desktop.svg" alt="Mapeo de Entidades de Apoyo NAE" />
-          </picture>
+        <a class="nav-title" href="/" aria-label="NAE">
+          <span class="map-brand-word">NAE</span>
         </a>
-        <div class="nav-links">
+        <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="map-nav-links">Menú</button>
+        <div class="nav-links" id="map-nav-links">
           <a class="active" href="/">Mapa</a>
           <a class="locked" href="/analitica">Analítica</a>
           {private_nav}
@@ -3609,6 +3612,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           <div class="support-map-caption">
             <div><h3>{data.get('total', 0)} estructuras visibles</h3><p>Mapa interactivo de Cuba con las estructuras de apoyo identificadas.</p></div>
             <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
+            <div class="caption-actions"><button class="button secondary map-reset" id="reset-map" type="button">Restablecer</button></div>
           </div>
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
           <div class="map-legend" aria-label="Leyenda de servicios">
@@ -3636,6 +3640,14 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <script>
       const supportEntities = {map_entities_json};
       const serviceLegend = {service_legend_json};
+      const nav = document.querySelector('.site-nav');
+      const menuToggle = document.querySelector('.mobile-menu-toggle');
+      if (nav && menuToggle) {{
+        menuToggle.addEventListener('click', () => {{
+          const isOpen = nav.classList.toggle('menu-open');
+          menuToggle.setAttribute('aria-expanded', String(isOpen));
+        }});
+      }}
       const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({{
         '&': '&amp;',
         '<': '&lt;',
@@ -3661,7 +3673,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         return text;
       }};
       document.getElementById('service-legend').innerHTML = serviceLegend.map((service) => serviceIcon(service, true)).join('');
-      const cubaBounds = L.latLngBounds([[18.6, -86.1], [24.2, -73.6]]);
+      const cubaBounds = L.latLngBounds([[19.2, -85.4], [23.7, -73.8]]);
       const isTouchMap = window.matchMedia('(pointer: coarse)').matches;
       const map = L.map('support-map', {{
         scrollWheelZoom: !isTouchMap,
@@ -3672,7 +3684,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         tap: false,
         bounceAtZoomLimits: false,
         minZoom: isTouchMap ? 5 : 6,
-        maxBounds: cubaBounds.pad(0.35),
+        maxBounds: cubaBounds.pad(0.18),
         maxBoundsViscosity: 0.85,
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
@@ -3730,11 +3742,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         bounds.push([entity.lat, entity.lng]);
       }});
 
-      if (bounds.length > 1) {{
-        map.fitBounds(bounds, {{ padding: [48, 48], maxZoom: 7 }});
-      }} else {{
-        map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: 6 }});
-      }}
+      const resetMapView = () => map.fitBounds(cubaBounds, {{ padding: [24, 24], maxZoom: isTouchMap ? 5 : 6 }});
+      resetMapView();
+      document.getElementById('reset-map')?.addEventListener('click', resetMapView);
 
       const supportCards = Array.from(document.querySelectorAll('#support-list .support-item'));
       const pageSize = 10;
