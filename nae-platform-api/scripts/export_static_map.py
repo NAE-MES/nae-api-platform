@@ -220,6 +220,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
+        .leaflet-popup-content {{ max-height: min(58vh, 330px); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; }}
         .legend-grid {{ grid-template-columns: 1fr; }}
         .popup-services-grid {{ grid-template-columns: repeat(10, 24px); }}
       }}
@@ -416,8 +417,11 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       function focusEntity(id) {{
         const marker = markers.get(String(id));
         if (!marker) return;
-        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 12), {{ animate: true }});
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 12), {{ animate: false }});
         marker.openPopup();
+        setTimeout(() => {{
+          marker.getPopup()?.update();
+        }}, 80);
         window.scrollTo({{ top: document.getElementById('map').getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }});
       }}
       function resetMapView() {{
@@ -427,7 +431,13 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         markerLayer.clearLayers();
         markers = new Map();
         filtered.forEach((entity) => {{
-          const marker = L.marker([entity.lat, entity.lng], {{ icon: markerIcon }}).bindPopup(popupHtml(entity), {{ maxWidth: 360 }});
+          const marker = L.marker([entity.lat, entity.lng], {{ icon: markerIcon }}).bindPopup(popupHtml(entity), {{
+            maxWidth: 360,
+            autoPan: true,
+            keepInView: true,
+            autoPanPaddingTopLeft: [32, isTouchMap ? 170 : 110],
+            autoPanPaddingBottomRight: [32, 42]
+          }});
           marker.addTo(markerLayer);
           markers.set(String(entity.id), marker);
         }});
