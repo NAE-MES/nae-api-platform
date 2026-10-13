@@ -3497,6 +3497,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <link rel="stylesheet" href="/prototype-assets/styles.css" />
     <style>
       .support-filters {{ margin-bottom: 18px; }}
+      .map-page {{ max-width: min(1600px, calc(100vw - 32px)); }}
       .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(120px, 1fr)) auto; }}
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
@@ -3546,7 +3547,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
+      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
     </style>
   </head>
   <body>
@@ -3562,7 +3563,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     </nav>
     <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
 
-    <main class="page">
+    <main class="page map-page">
       <header class="page-header">
         <div>
           <p class="eyebrow">Consulta pública</p>

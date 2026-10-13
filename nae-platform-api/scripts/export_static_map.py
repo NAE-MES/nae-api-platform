@@ -145,7 +145,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       * {{ box-sizing: border-box; }}
       body {{ margin: 0; font-family: Calibri, "Segoe UI", Arial, sans-serif; color: var(--ink); background: var(--paper); }}
       header {{ background: #fff; border-bottom: 1px solid var(--line); }}
-      .wrap {{ max-width: 1320px; margin: 0 auto; padding: 0 24px; }}
+      .wrap {{ max-width: min(1600px, calc(100vw - 32px)); margin: 0 auto; padding: 0; }}
       .top {{ display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 0; }}
       h1 {{ margin: 0; color: var(--blue); font-size: 26px; line-height: 1.15; }}
       .subtitle {{ margin: 4px 0 0; color: var(--muted); font-size: 14px; }}
@@ -195,7 +195,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         .legend-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       }}
       @media (max-width: 620px) {{
-        .wrap {{ padding: 0 14px; }}
+        .wrap {{ max-width: none; padding: 0 14px; }}
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
