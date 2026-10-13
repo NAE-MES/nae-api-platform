@@ -3500,7 +3500,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .map-page {{ max-width: min(1600px, calc(100vw - 32px)); }}
       .site-nav {{ z-index: 1200; }}
       .nav-inner {{ position: relative; }}
-      .map-brand-word {{ display:inline-flex; align-items:center; min-height:38px; color:#0f2d5b; font-size:24px; font-weight:900; letter-spacing:.02em; }}
+      .map-brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
       .mobile-menu-toggle {{ display:none; min-height:34px; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--nae-navy); font-weight:800; padding:0 12px; cursor:pointer; }}
       .map-hero {{ position:relative; background:#203747; }}
       .map-banner {{ display:block; width:100%; height:auto; background:#203747; }}
@@ -3558,14 +3558,17 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} .map-brand-word {{ min-height:34px; font-size:22px; }} .mobile-menu-toggle {{ display:inline-flex; align-items:center; justify-content:center; }} .site-nav .nav-links {{ display:none; position:absolute; top:calc(100% + 8px); left:0; right:0; z-index:1300; flex-direction:column; align-items:stretch; gap:6px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; box-shadow:0 14px 34px rgba(14,31,56,.14); }} .site-nav.menu-open .nav-links {{ display:flex; }} .site-nav .nav-links a {{ justify-content:center; width:100%; }} .map-hero-actions {{ inset:auto 0 8px; max-width:none; padding:0 18px; justify-content:center; gap:8px; }} .map-hero-actions .button {{ flex:0 1 156px; max-width:156px; min-height:38px; padding:0 10px; font-size:13px; border-radius:7px; }} #support-map {{ min-height: 460px; height: 460px; }} .support-map-caption {{ gap:12px; }} .caption-actions {{ justify-content:flex-start; min-width:0; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
+      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} .map-brand-id {{ width:154px; max-width:42vw; }} .mobile-menu-toggle {{ display:inline-flex; align-items:center; justify-content:center; }} .site-nav .nav-links {{ display:none; position:absolute; top:calc(100% + 8px); left:0; right:0; z-index:1300; flex-direction:column; align-items:stretch; gap:6px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; box-shadow:0 14px 34px rgba(14,31,56,.14); }} .site-nav.menu-open .nav-links {{ display:flex; }} .site-nav .nav-links a {{ justify-content:center; width:100%; }} .map-hero-actions {{ inset:auto 0 8px; max-width:none; padding:0 18px; justify-content:center; gap:8px; }} .map-hero-actions .button {{ flex:0 1 156px; max-width:156px; min-height:38px; padding:0 10px; font-size:13px; border-radius:7px; }} #support-map {{ min-height: 460px; height: 460px; }} .support-map-caption {{ gap:12px; }} .caption-actions {{ justify-content:flex-start; min-width:0; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
     </style>
   </head>
   <body>
     <nav class="site-nav">
       <div class="nav-inner">
-        <a class="nav-title" href="/" aria-label="NAE">
-          <span class="map-brand-word">NAE</span>
+        <a class="nav-title" href="/" aria-label="Mapeo de Entidades de Apoyo NAE">
+          <picture>
+            <source media="(max-width: 720px)" srcset="/images/mapeo/identificador_movil.svg" />
+            <img class="map-brand-id" src="/images/mapeo/identificador_desktop.svg" alt="Mapeo de Entidades de Apoyo NAE" />
+          </picture>
         </a>
         <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="map-nav-links">Menú</button>
         <div class="nav-links" id="map-nav-links">

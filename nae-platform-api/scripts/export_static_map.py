@@ -161,7 +161,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       header {{ background: #fff; border-bottom: 1px solid var(--line); }}
       .wrap {{ max-width: min(1600px, calc(100vw - 32px)); margin: 0 auto; padding: 0; }}
       .top {{ display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 0; }}
-      .brand-word {{ display:inline-flex; align-items:center; min-height:38px; color:#0f2d5b; font-size:24px; font-weight:900; letter-spacing:.02em; }}
+      .brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
       .hero-banner {{ display:block; width:100%; height:auto; background:#203747; }}
       .page-title {{ padding: 28px 0 18px; }}
       .eyebrow {{ margin:0 0 8px; color:#3A8DB8; font-size:13px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }}
@@ -216,7 +216,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       }}
       @media (max-width: 620px) {{
         .wrap {{ max-width: none; padding: 0 14px; }}
-        .brand-word {{ min-height:34px; font-size:22px; }}
+        .brand-id {{ width:154px; max-width:42vw; }}
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
@@ -228,7 +228,10 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
   <body>
     <header>
       <div class="wrap top">
-        <span class="brand-word">NAE</span>
+        <picture>
+          <source media="(max-width: 620px)" srcset="{identifier_mobile}" />
+          <img class="brand-id" src="{identifier_desktop}" alt="Mapeo de Entidades de Apoyo NAE" />
+        </picture>
         <div class="badge">Generado: {escape(generated_at)}</div>
       </div>
       <picture>
