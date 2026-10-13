@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -27,6 +28,10 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_entidades
 LEAFLET_CSS = PROJECT_ROOT / "prototype" / "vendor" / "leaflet" / "leaflet.css"
 LEAFLET_JS = PROJECT_ROOT / "prototype" / "vendor" / "leaflet" / "leaflet.js"
 SERVICE_ICON_DIR = PROJECT_ROOT / "prototype" / "icons" / "services"
+BANNER_DESKTOP = PROJECT_ROOT / "images" / "mapeo" / "banner_desktop.webp"
+BANNER_MOBILE = PROJECT_ROOT / "images" / "mapeo" / "banner_movil.webp"
+IDENTIFIER_DESKTOP = PROJECT_ROOT / "images" / "mapeo" / "identificador_desktop.svg"
+IDENTIFIER_MOBILE = PROJECT_ROOT / "images" / "mapeo" / "identificador_movil.svg"
 
 
 def _clean_text(value: Any, default: str = "Sin dato") -> str:
@@ -96,11 +101,20 @@ def _load_service_icons(services: Iterable[str]) -> Dict[str, str]:
     return icons
 
 
+def _asset_data_uri(path: Path, mime_type: str) -> str:
+    content = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{content}"
+
+
 def build_static_map_html(data: Dict[str, Any]) -> str:
     entities = _normalize_entities(data.get("entidades", []))
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
+    banner_desktop = _asset_data_uri(BANNER_DESKTOP, "image/webp")
+    banner_mobile = _asset_data_uri(BANNER_MOBILE, "image/webp")
+    identifier_desktop = _asset_data_uri(IDENTIFIER_DESKTOP, "image/svg+xml")
+    identifier_mobile = _asset_data_uri(IDENTIFIER_MOBILE, "image/svg+xml")
     canonical_services = list(SERVICIOS_GRID_ROWS)
     legend_services = canonical_services + ["Otro servicio"]
     all_services = _unique(
@@ -147,6 +161,8 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       header {{ background: #fff; border-bottom: 1px solid var(--line); }}
       .wrap {{ max-width: min(1600px, calc(100vw - 32px)); margin: 0 auto; padding: 0; }}
       .top {{ display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 0; }}
+      .brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
+      .hero-banner {{ display:block; width:100%; height:auto; background:#203747; }}
       h1 {{ margin: 0; color: var(--blue); font-size: 26px; line-height: 1.15; }}
       .subtitle {{ margin: 4px 0 0; color: var(--muted); font-size: 14px; }}
       .badge {{ border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; color: var(--blue-2); font-weight: 700; background: #f8fbff; white-space: nowrap; }}
@@ -196,6 +212,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       }}
       @media (max-width: 620px) {{
         .wrap {{ max-width: none; padding: 0 14px; }}
+        .brand-id {{ width:154px; max-width:38vw; }}
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
         .filters {{ grid-template-columns: 1fr; }}
         #map {{ min-height: 460px; }}
@@ -207,12 +224,16 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
   <body>
     <header>
       <div class="wrap top">
-        <div>
-          <h1>Mapa de Entidades de Apoyo a NAE</h1>
-          <p class="subtitle">Versión exportable generada desde la base de datos de la plataforma.</p>
-        </div>
+        <picture>
+          <source media="(max-width: 620px)" srcset="{identifier_mobile}" />
+          <img class="brand-id" src="{identifier_desktop}" alt="Mapeo de Entidades de Apoyo NAE" />
+        </picture>
         <div class="badge">Generado: {escape(generated_at)}</div>
       </div>
+      <picture>
+        <source media="(max-width: 620px)" srcset="{banner_mobile}" />
+        <img class="hero-banner" src="{banner_desktop}" alt="Fortalecimiento de capacidades" />
+      </picture>
     </header>
     <main class="wrap">
       <section class="panel">
@@ -259,12 +280,16 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       let markers = new Map();
 
       const cubaBounds = L.latLngBounds([[18.6, -86.1], [24.2, -73.6]]);
+      const isTouchMap = window.matchMedia('(pointer: coarse)').matches;
       const map = L.map('map', {{
         zoomControl: true,
-        scrollWheelZoom: false,
+        scrollWheelZoom: !isTouchMap,
+        dragging: !isTouchMap,
+        touchZoom: false,
+        doubleClickZoom: !isTouchMap,
         tap: false,
         bounceAtZoomLimits: false,
-        minZoom: 5,
+        minZoom: isTouchMap ? 5 : 6,
         maxBounds: cubaBounds.pad(0.35),
         maxBoundsViscosity: 0.85,
         wheelDebounceTime: 120,
