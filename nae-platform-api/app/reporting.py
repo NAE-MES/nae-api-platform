@@ -3499,7 +3499,11 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .support-filters {{ margin-bottom: 18px; }}
       .map-page {{ max-width: min(1600px, calc(100vw - 32px)); }}
       .map-brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
+      .map-hero {{ position:relative; background:#203747; }}
       .map-banner {{ display:block; width:100%; height:auto; background:#203747; }}
+      .map-hero-actions {{ position:absolute; inset:0; max-width:min(1600px, calc(100vw - 32px)); margin:0 auto; display:flex; align-items:center; justify-content:flex-end; gap:10px; pointer-events:none; }}
+      .map-hero-actions .button {{ min-height:42px; border-color:#3A8DB8; background:rgba(0, 50, 71, .24); color:#73BFFF; font-weight:800; pointer-events:auto; }}
+      .map-hero-actions .button:hover {{ background:rgba(58, 141, 184, .18); }}
       .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(120px, 1fr)) auto; }}
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
@@ -3549,7 +3553,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .legend-item {{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; align-items:center; color:#000; font-size:13px; line-height:1.2; }}
       @media (max-width: 1100px) {{ .legend-grid {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }} }}
       @media (max-width: 900px) {{ .support-filters .toolbar {{ grid-template-columns: 1fr; }} .support-map-caption {{ align-items: flex-start; flex-direction: column; }} .legend-grid {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} }}
-      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} .map-brand-id {{ width:154px; max-width:38vw; }} #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
+      @media (max-width: 720px) {{ .map-page {{ max-width:none; }} .map-brand-id {{ width:154px; max-width:38vw; }} .map-hero-actions {{ inset:auto 0 22px; max-width:none; padding:0 24px; justify-content:center; }} .map-hero-actions .button {{ flex:1 1 0; max-width:244px; min-height:64px; font-size:clamp(16px, 4vw, 24px); border-radius:8px; }} #support-map {{ min-height: 460px; height: 460px; }} .leaflet-popup-content {{ width:min(340px, 90vw) !important; }} .popup-contact-grid {{ grid-template-columns:1fr; }} .popup-services-grid {{ grid-template-columns:repeat(10, 24px); }} .legend-grid {{ grid-template-columns:1fr 1fr; gap:8px 10px; }} .legend-item {{ font-size:12px; }} .support-list-header {{ align-items:flex-start; flex-direction:column; }} .support-pagination {{ justify-content:space-between; }} }}
     </style>
   </head>
   <body>
@@ -3568,10 +3572,16 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         </div>
       </div>
     </nav>
-    <picture>
-      <source media="(max-width: 720px)" srcset="/images/mapeo/banner_movil.webp" />
-      <img class="map-banner" src="/images/mapeo/banner_desktop.webp" alt="Fortalecimiento de capacidades" />
-    </picture>
+    <section class="map-hero" aria-label="Fortalecimiento de capacidades">
+      <picture>
+        <source media="(max-width: 720px)" srcset="/images/mapeo/banner_movil.webp" />
+        <img class="map-banner" src="/images/mapeo/banner_desktop.webp" alt="Fortalecimiento de capacidades" />
+      </picture>
+      <div class="map-hero-actions">
+        <a class="button secondary" href="{escape(pdf_url)}">↓ Directorio PDF</a>
+        <a class="button secondary" href="/mapa-offline.html">↓ Mapa offline</a>
+      </div>
+    </section>
 
     <main class="page map-page">
       <header class="page-header">
@@ -3579,10 +3589,6 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           <p class="eyebrow">Consulta pública</p>
           <h1>Mapa de estructuras de apoyo</h1>
           <p class="lead">Visualización territorial de estructuras encuestadas y capacidades de apoyo identificadas para nuevos actores económicos.</p>
-        </div>
-        <div class="actions">
-          <a class="button secondary" href="{escape(pdf_url)}">Directorio PDF</a>
-          <a class="button secondary" href="/mapa-offline.html">Mapa offline</a>
         </div>
       </header>
 

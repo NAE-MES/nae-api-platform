@@ -163,8 +163,10 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       .top {{ display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 0; }}
       .brand-id {{ display:block; width:230px; max-width:32vw; height:auto; }}
       .hero-banner {{ display:block; width:100%; height:auto; background:#203747; }}
+      .page-title {{ padding: 28px 0 18px; }}
+      .eyebrow {{ margin:0 0 8px; color:#3A8DB8; font-size:13px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }}
       h1 {{ margin: 0; color: var(--blue); font-size: 26px; line-height: 1.15; }}
-      .subtitle {{ margin: 4px 0 0; color: var(--muted); font-size: 14px; }}
+      .subtitle {{ margin: 10px 0 0; color: var(--muted); font-size: 15px; max-width:760px; }}
       .badge {{ border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; color: var(--blue-2); font-weight: 700; background: #f8fbff; white-space: nowrap; }}
       main {{ padding: 20px 0 32px; }}
       .panel {{ background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 34px rgba(14, 31, 56, .08); }}
@@ -236,6 +238,11 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       </picture>
     </header>
     <main class="wrap">
+      <section class="page-title">
+        <p class="eyebrow">Consulta pública</p>
+        <h1>Mapa de estructuras de apoyo</h1>
+        <p class="subtitle">Visualización territorial de estructuras encuestadas y capacidades de apoyo identificadas para nuevos actores económicos.</p>
+      </section>
       <section class="panel">
         <div class="filters">
           <input id="q" type="search" placeholder="Buscar por nombre, servicio, contacto o municipio" />
