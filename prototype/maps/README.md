@@ -51,6 +51,18 @@ los senderos, caminos y ciclovias se muestran desde 16 con trazo discontinuo.
 La cobertura depende de los datos registrados en OpenStreetMap y no garantiza
 que todas las vias existentes esten incluidas o tengan nombre.
 
+En las versiones con calles, desde zoom 9 los nombres se ubican sobre las
+poblaciones registradas en OpenStreetMap, no sobre el centro geometrico del
+municipio. Las aldeas aparecen desde zoom 11 y los caserios desde 14. Esto evita
+que al ampliar sobre un nombre municipal, como Cacocum, se llegue a una zona
+rural alejada de la cabecera. Los limites municipales no cambian.
+`poblaciones-cuba.geojson` y `poblaciones-fuentes.json` contienen esos puntos y
+su procedencia. Para regenerarlos sin reprocesar las calles:
+
+```powershell
+python tools/prepare_offline_cartography.py --places-only
+```
+
 Preparacion y exportacion de la version nacional:
 
 ```powershell

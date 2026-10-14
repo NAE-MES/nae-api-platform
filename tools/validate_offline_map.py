@@ -74,6 +74,12 @@ with sync_playwright() as p:
             if national:
                 metadata = json.loads((ROOT/'prototype/maps/calles-cuba-fuentes.json').read_text(encoding='utf-8'))
                 assert page.evaluate('offlineCartography.streets.features.length') == metadata['features']
+                cacocum = page.evaluate("offlineCartography.places.features.find(f=>f.properties.name==='Cacocum' && f.properties.kind==='town').geometry.coordinates")
+                assert -76.34 < cacocum[0] < -76.31 and 20.73 < cacocum[1] < 20.76
+                page.evaluate('(coords)=>{map.setView([coords[1],coords[0]],15,{animate:false});}',cacocum)
+                assert page.evaluate('offlineBasemap.roads.getLayers().length') > 50
+                assert page.locator('.municipality-label').filter(has_text='Cacocum').count() == 1
+                page.screenshot(path=str(output/f'cacocum-corregido-{width}.png'))
                 cities = [(22.42,-83.70),(22.81,-82.76),(23.13,-82.38),(22.96,-82.15),(23.04,-81.58),
                           (22.15,-80.45),(22.41,-79.96),(21.93,-79.44),(21.84,-78.76),(21.38,-77.92),
                           (20.96,-76.95),(20.89,-76.26),(20.38,-76.65),(20.02,-75.83),(20.14,-75.21),(21.88,-82.80)]

@@ -12,6 +12,10 @@ function addOfflineBasemap(map, cartography) {
   });
   const labels = L.layerGroup().addTo(map);
   const roadLabels = L.layerGroup().addTo(map);
+  map.createPane('offlinePlaceLabels').style.zIndex = 550;
+  map.createPane('offlineRoadLabels').style.zIndex = 540;
+  const priority = { city: 0, town: 1, village: 2, hamlet: 3 };
+  const placeFeatures = [...(cartography.places?.features || [])].sort((a, b) => priority[a.properties.kind] - priority[b.properties.kind]);
   let roads = null;
   let streetFeatures = [];
   if (cartography.streets) {
@@ -43,6 +47,7 @@ function addOfflineBasemap(map, cartography) {
     text.textContent = name;
     return L.marker(latlng, {
       interactive: false,
+      pane: className.includes('road-label') ? 'offlineRoadLabels' : 'offlinePlaceLabels',
       icon: L.divIcon({ className, html: text.outerHTML, iconSize: [0, 0] })
     });
   }
@@ -50,15 +55,36 @@ function addOfflineBasemap(map, cartography) {
     const zoom = map.getZoom();
     labels.clearLayers();
     roadLabels.clearLayers();
+    const occupied = [];
+    function reserveLabel(point, name) {
+      const pixel = map.latLngToContainerPoint(point);
+      const halfWidth = Math.min(150, Math.max(30, name.length * 6)) / 2 + 4;
+      const rect = { left: pixel.x - halfWidth, right: pixel.x + halfWidth, top: pixel.y - 15, bottom: pixel.y + 15 };
+      if (occupied.some(other => rect.left < other.right && rect.right > other.left && rect.top < other.bottom && rect.bottom > other.top)) return false;
+      occupied.push(rect);
+      return true;
+    }
     if (zoom >= 8) municipalities.addTo(map);
     else map.removeLayer(municipalities);
-    const collection = zoom >= 9 ? cartography.municipalities : cartography.provinces;
-    collection.features.forEach((feature) => {
-      const point = feature.properties.label;
-      if (map.getBounds().contains(point)) {
-        label(point, feature.properties.name, zoom >= 9 ? 'offline-label municipality-label' : 'offline-label province-label').addTo(labels);
-      }
-    });
+    if (cartography.places && zoom >= 9) {
+      placeFeatures.forEach((feature) => {
+        const kind = feature.properties.kind;
+        if (kind === 'village' && zoom < 11) return;
+        if (kind === 'hamlet' && zoom < 14) return;
+        const point = L.latLng(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
+        if (map.getBounds().contains(point) && reserveLabel(point, feature.properties.name)) {
+          label(point, feature.properties.name, 'offline-label municipality-label place-label').addTo(labels);
+        }
+      });
+    } else {
+      const collection = zoom >= 9 ? cartography.municipalities : cartography.provinces;
+      collection.features.forEach((feature) => {
+        const point = feature.properties.label;
+        if (map.getBounds().contains(point)) {
+          label(point, feature.properties.name, zoom >= 9 ? 'offline-label municipality-label' : 'offline-label province-label').addTo(labels);
+        }
+      });
+    }
     if (roads) {
       roads.clearLayers();
       if (zoom >= 7) {
@@ -84,7 +110,7 @@ function addOfflineBasemap(map, cartography) {
         roads.eachLayer((layer) => {
           const name = layer.feature.properties.name;
           const point = layer.getBounds().getCenter();
-          if (name && names.size < 45 && !names.has(name) && map.getBounds().contains(point)) {
+          if (name && names.size < 45 && !names.has(name) && map.getBounds().contains(point) && reserveLabel(point, name)) {
             names.add(name);
             label(point, name, 'offline-label road-label').addTo(roadLabels);
           }

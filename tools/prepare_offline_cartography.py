@@ -125,6 +125,29 @@ def boundaries():
     print('Validado: 15 provincias, Isla de la Juventud y', len(seen), 'municipios', flush=True)
 
 
+def places():
+    import osmium
+    source = 'https://download.geofabrik.de/central-america/cuba-latest.osm.pbf'
+    pbf = download(source, CACHE / 'cuba-latest.osm.pbf')
+    features = []
+
+    class Places(osmium.SimpleHandler):
+        def node(self, node):
+            kind = node.tags.get('place')
+            name = node.tags.get('name:es') or node.tags.get('name')
+            if kind in {'city', 'town', 'village', 'hamlet'} and name and node.location.valid():
+                features.append(dict(type='Feature', properties=dict(name=name, kind=kind),
+                                     geometry=dict(type='Point', coordinates=[node.location.lon, node.location.lat])))
+
+    Places().apply_file(str(pbf))
+    write_json(OUT / 'poblaciones-cuba.geojson', dict(type='FeatureCollection', features=features))
+    with osmium.io.Reader(str(pbf)) as reader:
+        timestamp = reader.header().get('osmosis_replication_timestamp')
+    write_json(OUT / 'poblaciones-fuentes.json', dict(source=source, license='ODbL 1.0',
+               source_timestamp=timestamp, features=len(features), sha256=hashlib.sha256(pbf.read_bytes()).hexdigest()))
+    print('Poblaciones:', len(features), flush=True)
+
+
 def streets(national=False):
     import osmium
     source = 'https://download.geofabrik.de/central-america/cuba-latest.osm.pbf'
@@ -171,10 +194,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--streets', action='store_true')
     parser.add_argument('--national-streets', action='store_true')
+    parser.add_argument('--places-only', action='store_true')
     args = parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.places_only:
+        places()
+        raise SystemExit(0)
     boundaries()
     if args.streets:
         streets()
     if args.national_streets:
         streets(national=True)
+        places()

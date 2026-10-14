@@ -128,6 +128,8 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         streets_loader = f"offlineCartography.streets = JSON.parse(pako.ungzip(Uint8Array.from(atob('{compressed}'), c => c.charCodeAt(0)), {{to: 'string'}}));"
     elif streets_sample:
         cartography["streets"] = json.loads((maps_dir / "muestra-calles-habana.geojson").read_text(encoding="utf-8"))
+    if national_streets or streets_sample:
+        cartography["places"] = json.loads((maps_dir / "poblaciones-cuba.geojson").read_text(encoding="utf-8"))
     cartography_json = json.dumps(cartography, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     map_variant = "Calles y carreteras de Cuba" if national_streets else ("Detalle de calles: La Habana (muestra)" if streets_sample else "Cartografía territorial de Cuba")
     banner_desktop = _asset_data_uri(BANNER_DESKTOP, "image/webp")
@@ -199,6 +201,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
       .offline-label {{ border:0; background:transparent; pointer-events:none; }}
       .offline-label span {{ display:block; width:max-content; max-width:150px; transform:translate(-50%,-50%); text-align:center; color:#354a42; font-size:12px; font-weight:700; line-height:1.1; text-shadow:1px 1px 2px #fff,-1px -1px 2px #fff; }}
       .municipality-label span {{ font-size:11px; font-weight:400; }}
+      .place-label span {{ font-size:12px; font-weight:700; }}
       .road-label span {{ color:#64615b; font-size:10px; font-weight:400; }}
       .summary {{ display: flex; justify-content: space-between; align-items:center; gap: 16px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }}
       .summary-text {{ display:flex; flex-direction:column; gap:4px; }}
