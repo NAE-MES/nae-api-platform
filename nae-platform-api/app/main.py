@@ -483,6 +483,16 @@ def entidades_apoyo_pdf(
     )
 
 
+@app.get("/directorio.pdf")
+def directorio_editorial_pdf(request: Request):
+    _require_analytics_access(request, None)
+    return FileResponse(
+        PROJECT_ROOT / "docs" / "directorio_final.pdf",
+        media_type="application/pdf",
+        filename="Directorio final 26-10-08.pdf",
+    )
+
+
 @app.get("/mapa-offline.html")
 def mapa_offline_html(request: Request):
     if not _has_analytics_access(request):

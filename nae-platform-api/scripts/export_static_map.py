@@ -111,6 +111,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
+    popup_js = (PROJECT_ROOT / "prototype" / "map-popup.js").read_text(encoding="utf-8")
     banner_desktop = _asset_data_uri(BANNER_DESKTOP, "image/webp")
     banner_mobile = _asset_data_uri(BANNER_MOBILE, "image/webp")
     identifier_desktop = _asset_data_uri(IDENTIFIER_DESKTOP, "image/svg+xml")
@@ -284,6 +285,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
     </main>
     <script>
 {leaflet_js}
+{popup_js}
     </script>
     <script>
       const payload = {payload};
@@ -308,6 +310,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.9, -79.5], 7);
+      const popupController = configureSupportMapPopups(map);
       const tileProviders = [
         {{
           url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
@@ -417,11 +420,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       function focusEntity(id) {{
         const marker = markers.get(String(id));
         if (!marker) return;
-        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 12), {{ animate: false }});
-        marker.openPopup();
-        setTimeout(() => {{
-          marker.getPopup()?.update();
-        }}, 80);
+        popupController.focus(marker, Math.max(map.getZoom(), 12));
         window.scrollTo({{ top: document.getElementById('map').getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }});
       }}
       function resetMapView() {{
@@ -431,13 +430,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         markerLayer.clearLayers();
         markers = new Map();
         filtered.forEach((entity) => {{
-          const marker = L.marker([entity.lat, entity.lng], {{ icon: markerIcon }}).bindPopup(popupHtml(entity), {{
-            maxWidth: 360,
-            autoPan: true,
-            keepInView: true,
-            autoPanPaddingTopLeft: [32, isTouchMap ? 170 : 110],
-            autoPanPaddingBottomRight: [32, 42]
-          }});
+          const marker = L.marker([entity.lat, entity.lng], {{ icon: markerIcon }}).bindPopup(popupHtml(entity), popupController.options);
           marker.addTo(markerLayer);
           markers.set(String(entity.id), marker);
         }});

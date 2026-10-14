@@ -3504,7 +3504,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .mobile-menu-toggle {{ display:none; min-height:34px; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--nae-navy); font-weight:800; padding:0 12px; cursor:pointer; }}
       .map-hero {{ position:relative; background:#203747; }}
       .map-banner {{ display:block; width:100%; height:auto; background:#203747; }}
-      .map-hero-actions {{ position:absolute; inset:0; max-width:min(1600px, calc(100vw - 32px)); margin:0 auto; display:flex; align-items:center; justify-content:flex-end; gap:10px; pointer-events:none; }}
+      .map-hero-actions {{ position:absolute; inset:0; max-width:1180px; padding:0 24px; margin:0 auto; display:flex; align-items:center; justify-content:flex-end; gap:10px; pointer-events:none; }}
       .map-hero-actions .button {{ min-height:42px; border-color:#3A8DB8; background:rgba(0, 50, 71, .24); color:#73BFFF; font-weight:800; pointer-events:auto; }}
       .map-hero-actions .button:hover {{ background:rgba(58, 141, 184, .18); }}
       .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(120px, 1fr)) auto; }}
@@ -3584,7 +3584,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         <img class="map-banner" src="/images/mapeo/banner_desktop.webp" alt="Fortalecimiento de capacidades" />
       </picture>
       <div class="map-hero-actions">
-        <a class="button secondary" href="{escape(pdf_url)}">↓ Directorio PDF</a>
+        <a class="button secondary" href="/directorio.pdf">↓ Directorio PDF</a>
         <a class="button secondary" href="/mapa-offline.html">↓ Mapa offline</a>
       </div>
     </section>
@@ -3640,6 +3640,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       </nav>
     </main>
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
+    <script src="/prototype-assets/map-popup.js"></script>
     <script>
       const supportEntities = {map_entities_json};
       const serviceLegend = {service_legend_json};
@@ -3692,6 +3693,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.85, -79.55], 6);
+      const popupController = configureSupportMapPopups(map);
 
       L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
         maxZoom: 18,
@@ -3737,13 +3739,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             <div class="popup-services-grid">${{serviceIcons}}</div>
             ${{otherLabel}}
           </div>
-        `, {{
-          autoPan: true,
-          keepInView: true,
-          maxWidth: 470,
-          autoPanPaddingTopLeft: [32, isTouchMap ? 170 : 110],
-          autoPanPaddingBottomRight: [32, 42]
-        }});
+        `, popupController.options);
         marker.addTo(markerLayer);
         if (entity.id !== undefined && entity.id !== null) {{
           markersByEntityId.set(String(entity.id), marker);
@@ -3794,12 +3790,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         button.addEventListener('click', () => {{
           const marker = markersByEntityId.get(String(button.dataset.entityId || ''));
           if (!marker) return;
-          const latlng = marker.getLatLng();
-          map.setView(latlng, Math.max(map.getZoom(), 10), {{ animate: false }});
-          marker.openPopup();
-          setTimeout(() => {{
-            marker.getPopup()?.update();
-          }}, 80);
+          popupController.focus(marker, Math.max(map.getZoom(), 10));
           document.getElementById('support-map').scrollIntoView({{ behavior: 'smooth', block: 'center' }});
         }});
       }});
