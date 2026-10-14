@@ -3507,6 +3507,13 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .map-hero-actions {{ position:absolute; inset:0; max-width:1180px; padding:0 24px; margin:0 auto; display:flex; align-items:center; justify-content:flex-end; gap:10px; pointer-events:none; }}
       .map-hero-actions .button {{ min-height:42px; border-color:#3A8DB8; background:rgba(0, 50, 71, .24); color:#73BFFF; font-weight:800; pointer-events:auto; }}
       .map-hero-actions .button:hover {{ background:rgba(58, 141, 184, .18); }}
+      .offline-download {{ position:relative; pointer-events:auto; }}
+      .offline-download summary {{ list-style:none; cursor:pointer; }}
+      .offline-download summary::-webkit-details-marker {{ display:none; }}
+      .offline-download-options {{ position:absolute; right:0; top:calc(100% + 6px); z-index:1100; min-width:228px; padding:6px; background:#fff; border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.18); }}
+      .offline-download-options a {{ display:block; padding:12px; color:#173b75; font-size:14px; text-decoration:none; white-space:nowrap; }}
+      .offline-download-options a:hover {{ background:#edf4fa; }}
+      @media (max-width:720px) {{ .map-hero-actions .offline-download {{ flex:0 1 156px; max-width:156px; }} .offline-download summary.button {{ width:100%; max-width:none; }} }}
       .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(120px, 1fr)) auto; }}
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
@@ -3585,7 +3592,13 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       </picture>
       <div class="map-hero-actions">
         <a class="button secondary" href="/directorio.pdf">↓ Directorio PDF</a>
-        <a class="button secondary" href="/mapa-offline.html">↓ Mapa offline</a>
+        <details class="offline-download">
+          <summary class="button secondary">↓ Mapa offline</summary>
+          <div class="offline-download-options">
+            <a href="/mapa-offline.html">Territorial · Ligero</a>
+            <a href="/mapa-offline-calles.html">Con calles de toda Cuba</a>
+          </div>
+        </details>
       </div>
     </section>
 

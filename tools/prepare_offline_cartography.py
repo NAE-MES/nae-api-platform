@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import gzip
 import json
 from pathlib import Path
 import re
@@ -124,26 +125,27 @@ def boundaries():
     print('Validado: 15 provincias, Isla de la Juventud y', len(seen), 'municipios', flush=True)
 
 
-def streets():
+def streets(national=False):
     import osmium
     source = 'https://download.geofabrik.de/central-america/cuba-latest.osm.pbf'
     pbf = download(source, CACHE / 'cuba-latest.osm.pbf')
-    region = box(-82.55, 22.96, -82.28, 23.20)
+    region = None if national else box(-82.55, 22.96, -82.28, 23.20)
     roads = []
 
     class Roads(osmium.SimpleHandler):
         def way(self, way):
             highway = way.tags.get('highway')
-            if highway not in {'motorway','trunk','primary','secondary','tertiary','residential','unclassified','living_street','service','motorway_link','trunk_link','primary_link','secondary_link','tertiary_link'}:
+            if highway not in {'motorway','trunk','primary','secondary','tertiary','residential','unclassified','living_street','service','motorway_link','trunk_link','primary_link','secondary_link','tertiary_link','pedestrian','footway','cycleway','path','track','steps','bridleway','road','busway'}:
                 return
             try:
                 geometry = shape(json.loads(factory.create_linestring(way)))
-                if not geometry.intersects(region):
+                if region is not None and not geometry.intersects(region):
                     return
-                geometry = geometry.intersection(region)
+                if region is not None:
+                    geometry = geometry.intersection(region)
                 if geometry.geom_type not in {'LineString', 'MultiLineString'}:
                     return
-                roads.append(dict(type='Feature', properties=dict(name=way.tags.get('name', ''), kind=highway), geometry=compact_geometry(geometry, 0.00002)))
+                roads.append(dict(type='Feature', bbox=[round(v,5) for v in geometry.bounds], properties=dict(name=way.tags.get('name', ''), kind=highway), geometry=compact_geometry(geometry, 0.00002)))
             except (RuntimeError, ValueError):
                 return
 
@@ -151,19 +153,28 @@ def streets():
     Roads().apply_file(str(pbf), locations=True, idx='flex_mem')
     with osmium.io.Reader(str(pbf)) as reader:
         source_timestamp = reader.header().get('osmosis_replication_timestamp')
-    write_json(OUT / 'muestra-calles-habana.geojson', dict(type='FeatureCollection', features=roads))
-    write_json(OUT / 'muestra-calles-fuentes.json', dict(source=source, license='ODbL 1.0', attribution='OpenStreetMap contributors',
-               generated_at=datetime.now(timezone.utc).isoformat(), bbox=list(region.bounds), features=len(roads),
+    stem = 'calles-cuba' if national else 'muestra-calles-habana'
+    collection = dict(type='FeatureCollection', features=roads)
+    if national:
+        encoded = json.dumps(collection, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        (OUT / 'calles-cuba.geojson.gz').write_bytes(gzip.compress(encoded, mtime=0))
+    else:
+        write_json(OUT / (stem + '.geojson'), collection)
+    write_json(OUT / ('calles-cuba-fuentes.json' if national else 'muestra-calles-fuentes.json'), dict(source=source, license='ODbL 1.0', attribution='OpenStreetMap contributors',
+               generated_at=datetime.now(timezone.utc).isoformat(), bbox=None if national else list(region.bounds), features=len(roads),
                source_timestamp=source_timestamp,
                sha256=hashlib.sha256(pbf.read_bytes()).hexdigest()))
-    print('Muestra La Habana:', len(roads), 'tramos de calles', flush=True)
+    print('Cuba:' if national else 'Muestra La Habana:', len(roads), 'tramos de calles', flush=True)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--streets', action='store_true')
+    parser.add_argument('--national-streets', action='store_true')
     args = parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     boundaries()
     if args.streets:
         streets()
+    if args.national_streets:
+        streets(national=True)

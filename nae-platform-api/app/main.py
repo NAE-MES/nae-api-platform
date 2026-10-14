@@ -518,6 +518,16 @@ def mapa_offline_calles_muestra(request: Request):
     return FileResponse(sample, media_type="text/html; charset=utf-8", filename="mapa_muestra_calles_habana.html")
 
 
+@app.get("/mapa-offline-calles.html")
+def mapa_offline_calles(request: Request):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    national = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_calles_cuba.html"
+    if not national.exists():
+        raise HTTPException(status_code=404, detail="Mapa nacional con calles no disponible")
+    return FileResponse(national, media_type="text/html; charset=utf-8", filename="mapa_calles_cuba.html")
+
+
 
 @app.get("/mapa-apoyo", response_class=HTMLResponse)
 def mapa_apoyo(

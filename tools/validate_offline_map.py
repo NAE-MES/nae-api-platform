@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import sys
 import time
+import argparse
 
 from playwright.sync_api import sync_playwright
 
@@ -11,6 +12,9 @@ sys.path.insert(0, str(ROOT / 'nae-platform-api' / 'scripts'))
 from export_static_map import build_static_map_html
 
 output = ROOT / 'reportes' / 'mapa_exportable'
+parser = argparse.ArgumentParser()
+parser.add_argument('--national-only', action='store_true')
+args = parser.parse_args()
 snapshot = (output / 'mapa_entidades_apoyo.html').read_text(encoding='utf-8')
 payload, _ = json.JSONDecoder().raw_decode(snapshot.split('const payload = ', 1)[1])
 fields = {'id':'entidad_apoyo_id', 'name':'entidad_nombre', 'type':'tipo_estructura_apoyo',
@@ -27,12 +31,16 @@ for entity in payload['entities']:
 
 with sync_playwright() as p:
     browser = p.firefox.launch()
-    for sample in [False, True]:
+    for variant in (['national'] if args.national_only else ['territorial','sample','national']):
+        sample = variant == 'sample'
+        national = variant == 'national'
+        if national and not (ROOT/'prototype/maps/calles-cuba.geojson.gz').exists():
+            continue
         if sample and not (ROOT/'prototype/maps/muestra-calles-habana.geojson').exists():
             continue
-        filename = 'mapa_muestra_calles_habana.html' if sample else 'mapa_offline_territorial.html'
+        filename = 'mapa_calles_cuba.html' if national else ('mapa_muestra_calles_habana.html' if sample else 'mapa_offline_territorial.html')
         path = output / filename
-        path.write_text(build_static_map_html({'entidades':rows}, streets_sample=sample), encoding='utf-8')
+        path.write_text(build_static_map_html({'entidades':rows}, streets_sample=sample, national_streets=national), encoding='utf-8')
         for width, height in [(390,844), (1440,1000)]:
             context = browser.new_context(viewport={'width':width,'height':height}, offline=True, has_touch=width<720)
             page = context.new_page()
@@ -47,7 +55,7 @@ with sync_playwright() as p:
             assert page.evaluate('offlineBasemap.municipalities.getLayers().length') == 168
             assert page.evaluate('payload.entities.length') == len(rows)
             page.locator('.map-expand-button[aria-expanded]').click()
-            page.evaluate('map.setView([21.85,-79.55],6,{animate:false})')
+            page.evaluate('() => { map.setView([21.85,-79.55],6,{animate:false}); }')
             page.wait_for_timeout(250)
             pixels = page.evaluate('''() => {
               const canvas=document.querySelector('#map canvas');
@@ -56,13 +64,23 @@ with sync_playwright() as p:
               return drawn;
             }''')
             assert pixels > 1000, 'Blank basemap'
-            page.screenshot(path=str(output / f'{"calles" if sample else "territorial"}-{width}.png'))
-            if sample:
-                page.evaluate('map.setView([23.115,-82.38],15,{animate:false})')
+            page.screenshot(path=str(output / f'{variant}-{width}.png'))
+            if sample or national:
+                page.evaluate('() => { map.setView([23.115,-82.38],15,{animate:false}); }')
                 page.wait_for_timeout(350)
                 assert page.evaluate('map.hasLayer(offlineBasemap.roads)')
                 assert page.evaluate('offlineBasemap.roads.getLayers().length') > 100
-                page.screenshot(path=str(output / f'calles-detalle-{width}.png'))
+                page.screenshot(path=str(output / f'{variant}-detalle-{width}.png'))
+            if national:
+                metadata = json.loads((ROOT/'prototype/maps/calles-cuba-fuentes.json').read_text(encoding='utf-8'))
+                assert page.evaluate('offlineCartography.streets.features.length') == metadata['features']
+                cities = [(22.42,-83.70),(22.81,-82.76),(23.13,-82.38),(22.96,-82.15),(23.04,-81.58),
+                          (22.15,-80.45),(22.41,-79.96),(21.93,-79.44),(21.84,-78.76),(21.38,-77.92),
+                          (20.96,-76.95),(20.89,-76.26),(20.38,-76.65),(20.02,-75.83),(20.14,-75.21),(21.88,-82.80)]
+                for lat, lng in cities:
+                    page.evaluate('(point)=>{ map.setView(point,14,{animate:false}); }',[lat,lng])
+                    assert page.evaluate('offlineBasemap.roads.getLayers().length') > 5, (lat,lng)
+                print(f'OK calles en 15 provincias e Isla de la Juventud ({width}px)',flush=True)
             page.get_by_role('button',name='Salir del mapa ampliado').click()
             page.locator('[data-focus]').first.click()
             page.locator('.leaflet-popup-close-button').click()

@@ -106,7 +106,7 @@ def _asset_data_uri(path: Path, mime_type: str) -> str:
     return f"data:{mime_type};base64,{content}"
 
 
-def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False) -> str:
+def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, national_streets: bool = False) -> str:
     entities = _normalize_entities(data.get("entidades", []))
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
@@ -118,10 +118,18 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False) ->
         "provinces": json.loads((maps_dir / "cuba-provincias.geojson").read_text(encoding="utf-8")),
         "municipalities": json.loads((maps_dir / "cuba-municipios.geojson").read_text(encoding="utf-8")),
     }
-    if streets_sample:
+    inflate_js = ""
+    streets_loader = ""
+    if national_streets:
+        vendor_dir = PROJECT_ROOT / "prototype" / "vendor" / "pako"
+        notices = "\n\n".join((vendor_dir / name).read_text(encoding="utf-8") for name in ("LICENSE", "LICENSE.zlib"))
+        inflate_js = "/*\n" + notices + "\n*/\n" + (vendor_dir / "pako_inflate.min.js").read_text(encoding="utf-8")
+        compressed = base64.b64encode((maps_dir / "calles-cuba.geojson.gz").read_bytes()).decode("ascii")
+        streets_loader = f"offlineCartography.streets = JSON.parse(pako.ungzip(Uint8Array.from(atob('{compressed}'), c => c.charCodeAt(0)), {{to: 'string'}}));"
+    elif streets_sample:
         cartography["streets"] = json.loads((maps_dir / "muestra-calles-habana.geojson").read_text(encoding="utf-8"))
     cartography_json = json.dumps(cartography, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-    map_variant = "Detalle de calles: La Habana (muestra)" if streets_sample else "Cartografía territorial de Cuba"
+    map_variant = "Calles y carreteras de Cuba" if national_streets else ("Detalle de calles: La Habana (muestra)" if streets_sample else "Cartografía territorial de Cuba")
     banner_desktop = _asset_data_uri(BANNER_DESKTOP, "image/webp")
     banner_mobile = _asset_data_uri(BANNER_MOBILE, "image/webp")
     identifier_desktop = _asset_data_uri(IDENTIFIER_DESKTOP, "image/svg+xml")
@@ -303,6 +311,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False) ->
 {leaflet_js}
 {popup_js}
 {basemap_js}
+{inflate_js}
     </script>
     <script>
       const payload = {payload};
@@ -329,6 +338,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False) ->
       }}).setView([21.9, -79.5], 7);
       const popupController = configureSupportMapPopups(map, () => resetMapView());
       const offlineCartography = {cartography_json};
+      {streets_loader}
       const offlineBasemap = addOfflineBasemap(map, offlineCartography);
       const markerLayer = L.layerGroup().addTo(map);
       const markerIcon = L.divIcon({{ className: '', html: '<span class="nae-marker"></span>', iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -24] }});
@@ -473,11 +483,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Exporta el mapa de entidades NAE como HTML estatico.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Ruta del HTML a generar.")
     parser.add_argument("--limit", type=int, default=1000, help="Cantidad maxima de entidades a exportar.")
-    parser.add_argument("--streets-sample", action="store_true", help="Incluye muestra de calles de La Habana.")
+    variants = parser.add_mutually_exclusive_group()
+    variants.add_argument("--streets-sample", action="store_true", help="Incluye muestra de calles de La Habana.")
+    variants.add_argument("--national-streets", action="store_true", help="Incluye calles y carreteras de Cuba.")
     args = parser.parse_args()
 
     data = get_support_entities(limit=args.limit)
-    html = build_static_map_html(data, streets_sample=args.streets_sample)
+    html = build_static_map_html(data, streets_sample=args.streets_sample, national_streets=args.national_streets)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(html, encoding="utf-8")
     print(f"HTML generado: {args.output}")

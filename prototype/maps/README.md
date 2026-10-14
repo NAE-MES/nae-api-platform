@@ -32,6 +32,44 @@ consultar y algunos se muestran desde zoom 15. La ausencia de una calle en los
 datos no significa que no exista. La muestra no incluye imagenes satelitales,
 edificios, navegacion de rutas ni busqueda de direcciones.
 
+## Calles de toda Cuba
+
+`calles-cuba.geojson.gz` contiene los tramos del extracto nacional de
+OpenStreetMap/Geofabrik, incluidos los de Isla de la Juventud. La fecha y el hash
+del origen y el numero de tramos estan en `calles-cuba-fuentes.json`. Se incluyen
+calles, carreteras, vias peatonales, ciclovias y caminos; no edificios ni otros
+objetos OSM que no sean vias de esos tipos.
+
+El HTML nacional incrusta los datos comprimidos y Pako 2.1.0 para descomprimirlos
+localmente. Pako esta distribuido en `prototype/vendor/pako/`, con su licencia;
+no se consulta ningun CDN. No se necesita instalar un descompresor.
+
+Solo se crean trazados del area visible, con un margen del 10 %. Desde zoom 7
+aparecen las vias principales; desde 10 las secundarias, desde 12 las terciarias
+y desde 13 las calles locales. Los nombres aparecen desde 15 cuando existen;
+los senderos, caminos y ciclovias se muestran desde 16 con trazo discontinuo.
+La cobertura depende de los datos registrados en OpenStreetMap y no garantiza
+que todas las vias existentes esten incluidas o tengan nombre.
+
+Preparacion y exportacion de la version nacional:
+
+```powershell
+python tools/prepare_offline_cartography.py --national-streets
+```
+
+```bash
+./.venv/bin/python scripts/export_static_map.py --national-streets --output ../reportes/mapa_exportable/mapa_calles_cuba.html
+```
+
+Descarga protegida: `/mapa-offline-calles.html`. El menu `Mapa offline` ofrece
+la version territorial ligera y la nacional con calles.
+
+Validacion especifica sin conexion:
+
+```powershell
+python tools/validate_offline_map.py --national-only
+```
+
 ## Licencia y atribucion
 
 Las capas derivadas mantienen **Open Database License (ODbL) 1.0**. La aplicacion

@@ -13,15 +13,28 @@ function addOfflineBasemap(map, cartography) {
   const labels = L.layerGroup().addTo(map);
   const roadLabels = L.layerGroup().addTo(map);
   let roads = null;
+  let streetFeatures = [];
   if (cartography.streets) {
-    roads = L.geoJSON(cartography.streets, {
+    streetFeatures = cartography.streets.features;
+    streetFeatures.forEach((feature) => {
+      if (!feature.bbox) {
+        const bounds = L.geoJSON(feature).getBounds();
+        feature.bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+      }
+    });
+    roads = L.geoJSON(null, {
       renderer,
       style(feature) {
         const major = /motorway|trunk|primary|secondary/.test(feature.properties.kind);
-        return { color: major ? '#bd9257' : '#a9aaa2', weight: major ? 2.2 : 1.1, opacity: 0.9 };
+        const pedestrian = /^(footway|path|track|steps|bridleway|cycleway)$/.test(feature.properties.kind);
+        return { color: major ? '#bd9257' : '#a9aaa2', weight: major ? 2.2 : 1.1, opacity: 0.9, dashArray: pedestrian ? '3 3' : null };
       },
       onEachFeature(feature, layer) {
-        if (feature.properties.name) layer.bindTooltip(feature.properties.name);
+        if (feature.properties.name) {
+          const text = document.createElement('span');
+          text.textContent = feature.properties.name;
+          layer.bindTooltip(text);
+        }
       }
     });
   }
@@ -47,7 +60,24 @@ function addOfflineBasemap(map, cartography) {
       }
     });
     if (roads) {
-      if (zoom >= 11) roads.addTo(map);
+      roads.clearLayers();
+      if (zoom >= 7) {
+        const bounds = map.getBounds().pad(0.1);
+        const west = bounds.getWest(), east = bounds.getEast();
+        const south = bounds.getSouth(), north = bounds.getNorth();
+        // Only instantiate paths in the viewport; rural and city detail grows with zoom.
+        streetFeatures.forEach((feature) => {
+          const box = feature.bbox;
+          if (box[2] < west || box[0] > east || box[3] < south || box[1] > north) return;
+          const kind = feature.properties.kind;
+          if (zoom < 16 && /^(footway|path|track|steps|bridleway|cycleway)$/.test(kind)) return;
+          if (zoom < 10 && !/^(motorway|trunk|primary)(_link)?$/.test(kind)) return;
+          if (zoom < 12 && !/^(motorway|trunk|primary|secondary)(_link)?$/.test(kind)) return;
+          if (zoom < 13 && !/^(motorway|trunk|primary|secondary|tertiary)(_link)?$/.test(kind)) return;
+          roads.addData(feature);
+        });
+        roads.addTo(map);
+      }
       else map.removeLayer(roads);
       if (zoom >= 15) {
         const names = new Set();
