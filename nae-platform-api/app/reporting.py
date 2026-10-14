@@ -3681,8 +3681,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       const isTouchMap = window.matchMedia('(pointer: coarse)').matches;
       const map = L.map('support-map', {{
         scrollWheelZoom: !isTouchMap,
-        dragging: !isTouchMap,
-        touchZoom: false,
+        dragging: true,
+        touchZoom: true,
         doubleClickZoom: !isTouchMap,
         zoomControl: true,
         tap: false,
@@ -3693,7 +3693,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.85, -79.55], 6);
-      const popupController = configureSupportMapPopups(map);
+      const popupController = configureSupportMapPopups(map, () => resetMapView());
 
       L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
         maxZoom: 18,

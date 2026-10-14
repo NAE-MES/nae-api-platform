@@ -1,6 +1,64 @@
-function configureSupportMapPopups(map) {
+function configureSupportMapPopups(map, resetView) {
+  if (!document.getElementById('support-map-expand-style')) {
+    const style = document.createElement('style');
+    style.id = 'support-map-expand-style';
+    style.textContent = `
+      .support-map-expanded { position:fixed !important; inset:0 !important; width:100% !important; height:100dvh !important; min-height:0 !important; z-index:5000 !important; border-radius:0 !important; }
+      .map-expand-button { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 10px; border:0; background:#fff; color:#173b75; font:700 14px Arial,sans-serif; cursor:pointer; }
+      .map-expand-button span { font-size:24px; line-height:1; }
+    `;
+    document.head.appendChild(style);
+  }
+  const container = map.getContainer();
+  let expanded = false;
+  let previousOverflow = '';
+  const expandButton = document.createElement('button');
+  expandButton.type = 'button';
+  expandButton.className = 'map-expand-button';
+  expandButton.title = 'Ampliar mapa';
+  expandButton.setAttribute('aria-label', 'Ampliar mapa');
+  expandButton.setAttribute('aria-expanded', 'false');
+  expandButton.innerHTML = '<span aria-hidden="true">&#x26F6;</span>';
+  const resetButton = document.createElement('button');
+  resetButton.type = 'button';
+  resetButton.className = 'map-expand-button';
+  resetButton.textContent = 'Restablecer';
+  resetButton.style.display = 'none';
+  resetButton.addEventListener('click', () => {
+    map.closePopup();
+    resetView();
+  });
+  function toggleExpanded() {
+    expanded = !expanded;
+    if (expanded) previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = expanded ? 'hidden' : previousOverflow;
+    container.classList.toggle('support-map-expanded', expanded);
+    expandButton.title = expanded ? 'Salir del mapa ampliado' : 'Ampliar mapa';
+    expandButton.setAttribute('aria-label', expandButton.title);
+    expandButton.setAttribute('aria-expanded', String(expanded));
+    expandButton.innerHTML = expanded ? 'Salir' : '<span aria-hidden="true">&#x26F6;</span>';
+    resetButton.style.display = expanded ? 'flex' : 'none';
+    requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+  }
+  const ExpandControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      const control = L.DomUtil.create('div', 'leaflet-bar');
+      control.style.display = 'flex';
+      control.appendChild(resetButton);
+      control.appendChild(expandButton);
+      L.DomEvent.disableClickPropagation(control);
+      L.DomEvent.disableScrollPropagation(control);
+      return control;
+    }
+  });
+  map.addControl(new ExpandControl());
+  expandButton.addEventListener('click', toggleExpanded);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && expanded) toggleExpanded();
+  });
   const navigationBounds = map.options.maxBounds;
-  const options = { autoPan: true, keepInView: false, maxWidth: 470, autoPanPadding: [16, 16] };
+  const options = { autoPan: true, keepInView: false, maxWidth: 470, autoPanPaddingTopLeft: [16, 16], autoPanPaddingBottomRight: [16, 64] };
   function fitPopup(popup) {
     const element = popup.getElement();
     if (!element) return;
@@ -8,7 +66,7 @@ function configureSupportMapPopups(map) {
     const size = map.getSize();
     content.style.setProperty('width', Math.min(470, size.x - 72) + 'px', 'important');
     content.style.setProperty('max-width', Math.min(470, size.x - 72) + 'px', 'important');
-    content.style.setProperty('max-height', Math.max(80, size.y - 100) + 'px', 'important');
+    content.style.setProperty('max-height', Math.max(80, size.y - 148) + 'px', 'important');
     content.style.overflowY = 'auto';
     content.style.overflowWrap = 'anywhere';
     element.querySelectorAll('.popup-services-grid').forEach((grid) => {

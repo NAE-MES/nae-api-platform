@@ -299,8 +299,8 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       const map = L.map('map', {{
         zoomControl: true,
         scrollWheelZoom: !isTouchMap,
-        dragging: !isTouchMap,
-        touchZoom: false,
+        dragging: true,
+        touchZoom: true,
         doubleClickZoom: !isTouchMap,
         tap: false,
         bounceAtZoomLimits: false,
@@ -310,7 +310,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.9, -79.5], 7);
-      const popupController = configureSupportMapPopups(map);
+      const popupController = configureSupportMapPopups(map, () => resetMapView());
       const tileProviders = [
         {{
           url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
