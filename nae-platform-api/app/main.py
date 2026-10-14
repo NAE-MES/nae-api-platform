@@ -508,6 +508,16 @@ def mapa_offline_html(request: Request):
     )
 
 
+@app.get("/mapa-offline-calles-muestra.html")
+def mapa_offline_calles_muestra(request: Request):
+    if not _has_analytics_access(request):
+        return _redirect_to_login(request)
+    sample = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_muestra_calles_habana.html"
+    if not sample.exists():
+        raise HTTPException(status_code=404, detail="Muestra de calles no disponible")
+    return FileResponse(sample, media_type="text/html; charset=utf-8", filename="mapa_muestra_calles_habana.html")
+
+
 
 @app.get("/mapa-apoyo", response_class=HTMLResponse)
 def mapa_apoyo(

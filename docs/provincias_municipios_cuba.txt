@@ -1,0 +1,209 @@
+CUBA — PROVINCIAS Y MUNICIPIOS SEGÚN EL ORDEN OFICIAL DEL CoDPA
+Fuente de ordenamiento: Codificador de la División Político-Administrativa (CoDPA),
+aprobado por la Resolución No. 129 de 25 de octubre de 2010.
+Cuba: 15 provincias y 168 municipios, incluido el Municipio Especial Isla de la Juventud.
+
+NOTA:
+- El orden se conserva según los códigos oficiales del CoDPA.
+- Los códigos provinciales van del 21 al 35 y el Municipio Especial utiliza el código 40.
+- Los municipios se muestran según su código oficial dentro de cada provincia.
+
+21 — PINAR DEL RÍO
+2101 — Sandino
+2102 — Mantua
+2103 — Minas de Matahambre
+2104 — Viñales
+2105 — La Palma
+2106 — Los Palacios
+2107 — Consolación del Sur
+2108 — Pinar del Río
+2109 — San Luis
+2110 — San Juan y Martínez
+2111 — Guane
+
+22 — ARTEMISA
+2201 — Bahía Honda
+2202 — Mariel
+2203 — Guanajay
+2204 — Caimito
+2205 — Bauta
+2206 — San Antonio de los Baños
+2207 — Güira de Melena
+2208 — Alquízar
+2209 — Artemisa
+2210 — Candelaria
+2211 — San Cristóbal
+
+23 — LA HABANA
+2301 — Playa
+2302 — Plaza de la Revolución
+2303 — Centro Habana
+2304 — La Habana Vieja
+2305 — Regla
+2306 — La Habana del Este
+2307 — Guanabacoa
+2308 — San Miguel del Padrón
+2309 — Diez de Octubre
+2310 — Cerro
+2311 — Marianao
+2312 — La Lisa
+2313 — Boyeros
+2314 — Arroyo Naranjo
+2315 — Cotorro
+
+24 — MAYABEQUE
+2401 — Bejucal
+2402 — San José de las Lajas
+2403 — Jaruco
+2404 — Santa Cruz del Norte
+2405 — Madruga
+2406 — Nueva Paz
+2407 — San Nicolás
+2408 — Güines
+2409 — Melena del Sur
+2410 — Batabanó
+2411 — Quivicán
+
+25 — MATANZAS
+2501 — Matanzas
+2502 — Cárdenas
+2503 — Martí
+2504 — Colón
+2505 — Perico
+2506 — Jovellanos
+2507 — Pedro Betancourt
+2508 — Limonar
+2509 — Unión de Reyes
+2510 — Ciénaga de Zapata
+2511 — Jagüey Grande
+2512 — Calimete
+2513 — Los Arabos
+
+26 — VILLA CLARA
+2601 — Corralillo
+2602 — Quemado de Güines
+2603 — Sagua la Grande
+2604 — Encrucijada
+2605 — Camajuaní
+2606 — Caibarién
+2607 — Remedios
+2608 — Placetas
+2609 — Santa Clara
+2610 — Cifuentes
+2611 — Santo Domingo
+2612 — Ranchuelo
+2613 — Manicaragua
+
+27 — CIENFUEGOS
+2701 — Aguada de Pasajeros
+2702 — Rodas
+2703 — Palmira
+2704 — Lajas
+2705 — Cruces
+2706 — Cumanayagua
+2707 — Cienfuegos
+2708 — Abreus
+
+28 — SANCTI SPÍRITUS
+2801 — Yaguajay
+2802 — Jatibonico
+2803 — Taguasco
+2804 — Cabaiguán
+2805 — Fomento
+2806 — Trinidad
+2807 — Sancti Spíritus
+2808 — La Sierpe
+
+29 — CIEGO DE ÁVILA
+2901 — Chambas
+2902 — Morón
+2903 — Bolivia
+2904 — Primero de Enero
+2905 — Ciro Redondo
+2906 — Florencia
+2907 — Majagua
+2908 — Ciego de Ávila
+2909 — Venezuela
+2910 — Baraguá
+
+30 — CAMAGÜEY
+3001 — Carlos Manuel de Céspedes
+3002 — Esmeralda
+3003 — Sierra de Cubitas
+3004 — Minas
+3005 — Nuevitas
+3006 — Guáimaro
+3007 — Sibanicú
+3008 — Camagüey
+3009 — Florida
+3010 — Vertientes
+3011 — Jimaguayú
+3012 — Najasa
+3013 — Santa Cruz del Sur
+
+31 — LAS TUNAS
+3101 — Manatí
+3102 — Puerto Padre
+3103 — Jesús Menéndez
+3104 — Majibacoa
+3105 — Las Tunas
+3106 — Jobabo
+3107 — Colombia
+3108 — Amancio
+
+32 — HOLGUÍN
+3201 — Gibara
+3202 — Rafael Freyre
+3203 — Banes
+3204 — Antilla
+3205 — Báguanos
+3206 — Holguín
+3207 — Calixto García
+3208 — Cacocum
+3209 — Urbano Noris
+3210 — Cueto
+3211 — Mayarí
+3212 — Frank País
+3213 — Sagua de Tánamo
+3214 — Moa
+
+33 — GRANMA
+3301 — Río Cauto
+3302 — Cauto Cristo
+3303 — Jiguaní
+3304 — Bayamo
+3305 — Yara
+3306 — Manzanillo
+3307 — Campechuela
+3308 — Media Luna
+3309 — Niquero
+3310 — Pilón
+3311 — Bartolomé Masó
+3312 — Buey Arriba
+3313 — Guisa
+
+34 — SANTIAGO DE CUBA
+3401 — Contramaestre
+3402 — Mella
+3403 — San Luis
+3404 — Segundo Frente
+3405 — Songo-La Maya
+3406 — Santiago de Cuba
+3407 — Palma Soriano
+3408 — Tercer Frente
+3409 — Guamá
+
+35 — GUANTÁNAMO
+3501 — El Salvador
+3502 — Manuel Tames
+3503 — Yateras
+3504 — Baracoa
+3505 — Maisí
+3506 — Imías
+3507 — San Antonio del Sur
+3508 — Caimanera
+3509 — Guantánamo
+3510 — Niceto Pérez
+
+40 — MUNICIPIO ESPECIAL ISLA DE LA JUVENTUD
+4001 — Isla de la Juventud

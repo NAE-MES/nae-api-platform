@@ -106,12 +106,22 @@ def _asset_data_uri(path: Path, mime_type: str) -> str:
     return f"data:{mime_type};base64,{content}"
 
 
-def build_static_map_html(data: Dict[str, Any]) -> str:
+def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False) -> str:
     entities = _normalize_entities(data.get("entidades", []))
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
     popup_js = (PROJECT_ROOT / "prototype" / "map-popup.js").read_text(encoding="utf-8")
+    basemap_js = (PROJECT_ROOT / "prototype" / "offline-basemap.js").read_text(encoding="utf-8")
+    maps_dir = PROJECT_ROOT / "prototype" / "maps"
+    cartography = {
+        "provinces": json.loads((maps_dir / "cuba-provincias.geojson").read_text(encoding="utf-8")),
+        "municipalities": json.loads((maps_dir / "cuba-municipios.geojson").read_text(encoding="utf-8")),
+    }
+    if streets_sample:
+        cartography["streets"] = json.loads((maps_dir / "muestra-calles-habana.geojson").read_text(encoding="utf-8"))
+    cartography_json = json.dumps(cartography, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    map_variant = "Detalle de calles: La Habana (muestra)" if streets_sample else "Cartografía territorial de Cuba"
     banner_desktop = _asset_data_uri(BANNER_DESKTOP, "image/webp")
     banner_mobile = _asset_data_uri(BANNER_MOBILE, "image/webp")
     identifier_desktop = _asset_data_uri(IDENTIFIER_DESKTOP, "image/svg+xml")
@@ -145,6 +155,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none';" />
     <title>Mapa exportable - Entidades de apoyo a los NAE</title>
     <style>
 {leaflet_css}
@@ -177,6 +188,10 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
       button.secondary {{ background: #fff; color: var(--blue); }}
       #map {{ height: min(68vh, 680px); min-height: 520px; background: #d8e8f1; }}
       #map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
+      .offline-label {{ border:0; background:transparent; pointer-events:none; }}
+      .offline-label span {{ display:block; width:max-content; max-width:150px; transform:translate(-50%,-50%); text-align:center; color:#354a42; font-size:12px; font-weight:700; line-height:1.1; text-shadow:1px 1px 2px #fff,-1px -1px 2px #fff; }}
+      .municipality-label span {{ font-size:11px; font-weight:400; }}
+      .road-label span {{ color:#64615b; font-size:10px; font-weight:400; }}
       .summary {{ display: flex; justify-content: space-between; align-items:center; gap: 16px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }}
       .summary-text {{ display:flex; flex-direction:column; gap:4px; }}
       .reset-map {{ min-height:34px; padding:0 12px; white-space:nowrap; }}
@@ -243,9 +258,10 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
     </header>
     <main class="wrap">
       <section class="page-title">
-        <p class="eyebrow">Consulta pública</p>
+        <p class="eyebrow">Mapa sin conexión</p>
         <h1>Mapa de estructuras de apoyo</h1>
         <p class="subtitle">Visualización territorial de estructuras encuestadas y capacidades de apoyo identificadas para nuevos actores económicos.</p>
+        <p class="subtitle">{map_variant} · Datos al {escape(generated_at)}</p>
       </section>
       <section class="panel">
         <div class="filters">
@@ -286,6 +302,7 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
     <script>
 {leaflet_js}
 {popup_js}
+{basemap_js}
     </script>
     <script>
       const payload = {payload};
@@ -311,44 +328,8 @@ def build_static_map_html(data: Dict[str, Any]) -> str:
         wheelPxPerZoomLevel: 140
       }}).setView([21.9, -79.5], 7);
       const popupController = configureSupportMapPopups(map, () => resetMapView());
-      const tileProviders = [
-        {{
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
-          attribution: 'Tiles &copy; Esri'
-        }},
-        {{
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
-          attribution: 'Tiles &copy; Esri'
-        }},
-        {{
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}',
-          attribution: 'Tiles &copy; Esri'
-        }},
-        {{
-          url: 'https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',
-          attribution: '&copy; OpenStreetMap contributors'
-        }}
-      ];
-      let tileProviderIndex = 0;
-      let tileLayer = null;
-      function addTileLayer(index) {{
-        if (tileLayer) {{
-          map.removeLayer(tileLayer);
-        }}
-        const provider = tileProviders[index];
-        tileLayer = L.tileLayer(provider.url, {{
-          maxZoom: 18,
-          attribution: provider.attribution
-        }});
-        tileLayer.on('tileerror', () => {{
-          if (tileProviderIndex < tileProviders.length - 1) {{
-            tileProviderIndex += 1;
-            addTileLayer(tileProviderIndex);
-          }}
-        }});
-        tileLayer.addTo(map);
-      }}
-      addTileLayer(tileProviderIndex);
+      const offlineCartography = {cartography_json};
+      const offlineBasemap = addOfflineBasemap(map, offlineCartography);
       const markerLayer = L.layerGroup().addTo(map);
       const markerIcon = L.divIcon({{ className: '', html: '<span class="nae-marker"></span>', iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -24] }});
 
@@ -492,10 +473,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Exporta el mapa de entidades NAE como HTML estatico.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Ruta del HTML a generar.")
     parser.add_argument("--limit", type=int, default=1000, help="Cantidad maxima de entidades a exportar.")
+    parser.add_argument("--streets-sample", action="store_true", help="Incluye muestra de calles de La Habana.")
     args = parser.parse_args()
 
     data = get_support_entities(limit=args.limit)
-    html = build_static_map_html(data)
+    html = build_static_map_html(data, streets_sample=args.streets_sample)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(html, encoding="utf-8")
     print(f"HTML generado: {args.output}")
