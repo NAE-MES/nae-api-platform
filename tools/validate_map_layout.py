@@ -69,6 +69,13 @@ with sync_playwright() as p:
 
                 check_fit('initial')
                 reset_and_check()
+                page.evaluate('()=>{map.setView([23.13,-82.38],12,{animate:false});}')
+                reset = page.locator('#reset-map')
+                reset.click()
+                assert page.evaluate('map.getBounds().contains(cubaBounds)'),(engine,version,width,'reset not expanded')
+                map_box = page.locator('#support-map' if version=='online' else '#map').bounding_box()
+                reset_box = reset.bounding_box()
+                assert reset_box['y'] >= map_box['y'] + map_box['height'],(engine,version,width,'reset below map')
                 if width<500:
                     page.screenshot(path=str(out/f'{engine}-{version}-{width}-filtros.png'))
                 page.locator('.map-expand-button[aria-expanded]').click()

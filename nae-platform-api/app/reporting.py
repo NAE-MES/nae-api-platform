@@ -3529,7 +3529,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .support-map-caption h3 {{ margin-bottom: 4px; color: var(--nae-navy); }}
       .support-map-caption p {{ margin: 0; color: #435466; font-size: 13px; }}
       .support-map-caption .map-note {{ max-width: 620px; }}
-      .caption-actions {{ display:flex; justify-content:flex-end; min-width:138px; }}
+      .caption-actions {{ display:flex; justify-content:flex-end; padding:12px 16px; border-bottom:1px solid var(--line); background:#fff; }}
       .map-reset {{ min-height:34px; padding:0 12px; }}
       #support-map {{ width: 100%; height: min(68vh, 680px); min-height: 520px; background: #cfe1ec; }}
       #support-map .leaflet-tile-pane {{ filter: contrast(1.08) saturate(1.04) brightness(.99); }}
@@ -3628,9 +3628,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
           <div class="support-map-caption">
             <div><h3>{data.get('total', 0)} estructuras visibles</h3><p>Mapa interactivo de Cuba con las estructuras de apoyo identificadas.</p></div>
             <p class="map-note">Ubicación actual por municipio. La coordenada exacta por dirección se integrará con geocodificación controlada.</p>
-            <div class="caption-actions"><button class="button secondary map-reset" id="reset-map" type="button">Restablecer</button></div>
           </div>
           <div id="support-map" role="img" aria-label="Mapa interactivo de Cuba con estructuras de apoyo identificadas"></div>
+          <div class="caption-actions"><button class="button secondary map-reset" id="reset-map" type="button">Restablecer</button></div>
           <div class="map-legend" aria-label="Leyenda de servicios">
             <h3>Leyenda</h3>
             <div class="legend-subtitle">Servicios registrados:</div>
