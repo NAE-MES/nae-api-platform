@@ -33,8 +33,23 @@ function configureSupportMapPopups(map, resetView, homeBounds) {
     const zoom = map.getBoundsZoom(homeBounds, false, [40, 40]);
     const center = map.project(homeBounds.getSouthWest(), zoom)
       .add(map.project(homeBounds.getNorthEast(), zoom)).divideBy(2);
+    const limitedCenter = center.clone();
+    const bounds = map.options.maxBounds;
+    if (bounds) {
+      const nw = map.project(bounds.getNorthWest(), zoom);
+      const se = map.project(bounds.getSouthEast(), zoom);
+      const half = map.getSize().divideBy(2);
+      // Leaflet centers an oversized viewport within its navigation limits.
+      for (const axis of ['x', 'y']) {
+        const low = nw[axis] + half[axis];
+        const high = se[axis] - half[axis];
+        limitedCenter[axis] = low > high ? (nw[axis] + se[axis]) / 2
+          : Math.max(low, Math.min(high, center[axis]));
+      }
+    }
+    const current = map.project(map.getCenter(), zoom);
     const atHome = Math.abs(map.getZoom() - zoom) < 0.01
-      && map.project(map.getCenter(), zoom).distanceTo(center) <= 1;
+      && (current.distanceTo(center) <= 1 || current.distanceTo(limitedCenter) <= 1);
     resetButton.disabled = atHome;
     const externalReset = document.getElementById('reset-map');
     if (externalReset) externalReset.disabled = atHome;
