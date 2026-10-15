@@ -20,6 +20,34 @@ from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 from app.mapeo_survey import SERVICIOS_GRID_ROWS
 
+
+def _platform_header(active: str, can_review: bool = False, authenticated: bool = True, include_banner: bool = True) -> str:
+    def link(path: str, label: str, key: str) -> str:
+        current = ' aria-current="page"' if active == key else ""
+        return f'<a href="{path}"{current}>{label}</a>'
+
+    admin = link('/admin/administracion', 'Administración', 'admin') if authenticated and can_review else ""
+    logout = '''<a href="/logout" class="platform-logout" title="Cerrar sesión" aria-label="Cerrar sesión"><img src="/prototype-assets/icons/navigation/log-out.svg" alt="" /><span>Cerrar sesión</span></a>''' if authenticated else ""
+    more = f'''<details class="platform-more"><summary class="mobile-menu-toggle" title="Más opciones" aria-label="Más opciones"><img src="/prototype-assets/icons/navigation/ellipsis-vertical.svg" alt="" /></summary><div class="platform-dropdown">{admin}</div></details>''' if admin else ""
+    header = f'''<nav class="site-nav platform-nav">
+      <div class="nav-inner platform-nav-inner">
+        <a class="platform-brand" href="/" aria-label="Mapeo de Entidades de Apoyo NAE">
+          <picture><source media="(max-width:720px)" srcset="/images/mapeo/identificador_movil.svg" /><img src="/images/mapeo/identificador_desktop.svg" alt="Mapeo de Entidades de Apoyo NAE" /></picture>
+        </a>
+        <div class="platform-primary">
+          {link('/', 'Mapa', 'mapa')}
+          {link('/analitica', 'Analítica', 'analitica')}
+          <span class="platform-admin">{admin}</span>{logout}
+        </div>{more}
+      </div>
+    </nav>'''
+    banner = '''<picture class="platform-banner">
+      <source media="(max-width:720px)" srcset="/images/mapeo/banner_movil.webp" />
+      <img src="/images/mapeo/banner_desktop.webp" alt="Fortalecimiento de capacidades" />
+    </picture>'''
+    return header + (banner if include_banner else "")
+
+
 OFFICIAL_PROVINCE_ORDER = [
     "Pinar del Río",
     "Artemisa",
@@ -1205,10 +1233,6 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
           <div class="kpi danger"><span>Rechazadas</span><strong>{rechazadas}</strong><small>No avanzan al análisis</small></div>
         </section>
     """
-
-    review_nav = ""
-    if can_review:
-        review_nav = '\n            <a class="locked" href="/admin/administracion">Administración</a>'
 
     html = f"""
     <!doctype html>
@@ -3133,18 +3157,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
     </style>
   </head>
   <body>
-    <nav class="site-nav">
-      <div class="nav-inner">
-        <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
-        <div class="nav-links">
-          <a href="/">Mapa</a>
-          <a href="/analitica">Analítica</a>
-          <a class="active" href="/admin/administracion">Administración</a>
-          <a class="locked" href="/logout">Cerrar sesión</a>
-        </div>
-      </div>
-    </nav>
-    <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+    {_platform_header('admin', can_review=True)}
     <main class="page">
       <header class="page-header">
         <div>
@@ -3514,7 +3527,9 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       .offline-download-options a {{ display:block; padding:12px; color:#173b75; font-size:14px; text-decoration:none; white-space:nowrap; }}
       .offline-download-options a:hover {{ background:#edf4fa; }}
       @media (max-width:720px) {{ .map-hero-actions .offline-download {{ flex:0 1 156px; max-width:156px; }} .offline-download summary.button {{ width:100%; max-width:none; }} }}
-      .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(120px, 1fr)) auto; }}
+      .support-filters .toolbar {{ grid-template-columns: repeat(6, minmax(0, 1fr)) auto; align-items:end; }}
+      .support-filters .actions {{ align-self:end; margin:0; flex-wrap:nowrap; }}
+      .support-filters .actions .button {{ min-height:40px; }}
       .support-list {{ display: grid; gap: 12px; margin-top: 18px; }}
       .support-item {{ align-items: start; grid-template-columns: minmax(0, 1fr); }}
       .support-item p {{ margin-bottom: 6px; }}
@@ -3569,22 +3584,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     </style>
   </head>
   <body>
-    <nav class="site-nav">
-      <div class="nav-inner">
-        <a class="nav-title" href="/" aria-label="Mapeo de Entidades de Apoyo NAE">
-          <picture>
-            <source media="(max-width: 720px)" srcset="/images/mapeo/identificador_movil.svg" />
-            <img class="map-brand-id" src="/images/mapeo/identificador_desktop.svg" alt="Mapeo de Entidades de Apoyo NAE" />
-          </picture>
-        </a>
-        <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="map-nav-links">Menú</button>
-        <div class="nav-links" id="map-nav-links">
-          <a class="active" href="/">Mapa</a>
-          <a class="locked" href="/analitica">Analítica</a>
-          {private_nav}
-        </div>
-      </div>
-    </nav>
+    {_platform_header('mapa', can_review=can_review, authenticated=authenticated, include_banner=False)}
     <section class="map-hero" aria-label="Fortalecimiento de capacidades">
       <picture>
         <source media="(max-width: 720px)" srcset="/images/mapeo/banner_movil.webp" />
@@ -3657,14 +3657,6 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <script>
       const supportEntities = {map_entities_json};
       const serviceLegend = {service_legend_json};
-      const nav = document.querySelector('.site-nav');
-      const menuToggle = document.querySelector('.mobile-menu-toggle');
-      if (nav && menuToggle) {{
-        menuToggle.addEventListener('click', () => {{
-          const isOpen = nav.classList.toggle('menu-open');
-          menuToggle.setAttribute('aria-expanded', String(isOpen));
-        }});
-      }}
       const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({{
         '&': '&amp;',
         '<': '&lt;',
@@ -3707,7 +3699,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.85, -79.55], 6);
-      const popupController = configureSupportMapPopups(map, () => resetMapView());
+      const popupController = configureSupportMapPopups(map, () => resetMapView(), cubaBounds);
 
       L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
         maxZoom: 18,
@@ -4791,18 +4783,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
       </style>
     </head>
     <body>
-      <nav class="site-nav">
-        <div class="nav-inner">
-          <a class="nav-title" href="/"><strong>NAE</strong><span>Mapeo de Entidades de Apoyo</span></a>
-          <div class="nav-links">
-            <a href="/">Mapa</a>
-            <a class="active locked" href="/analitica">Analítica</a>
-            {review_nav}
-            <a class="locked" href="/logout">Cerrar sesión</a>
-          </div>
-        </div>
-      </nav>
-      <img class="brand-strip" style="height:auto;max-height:none;object-fit:contain;" src="/images/banner-mapeo.jpeg" alt="NAE - Proyecto de cooperación internacional" />
+      {_platform_header('analitica', can_review=can_review)}
       <main class="analytics-main">
         <div class="shell layout">
           {filters_html}

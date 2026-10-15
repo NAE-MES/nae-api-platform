@@ -69,9 +69,11 @@ with sync_playwright() as p:
 
                 check_fit('initial')
                 reset_and_check()
+                assert page.locator('#reset-map').is_disabled()
                 page.evaluate('()=>{map.setView([23.13,-82.38],12,{animate:false});}')
                 reset = page.locator('#reset-map')
                 reset.click()
+                assert reset.is_disabled()
                 assert page.evaluate('map.getBounds().contains(cubaBounds)'),(engine,version,width,'reset not expanded')
                 map_box = page.locator('#support-map' if version=='online' else '#map').bounding_box()
                 reset_box = reset.bounding_box()
@@ -82,6 +84,7 @@ with sync_playwright() as p:
                 page.wait_for_timeout(100)
                 page.evaluate('()=>{map.setView([23.13,-82.38],12,{animate:false});}')
                 page.locator('.support-map-expanded').get_by_role('button',name='Restablecer',exact=True).click()
+                assert page.locator('.support-map-expanded').get_by_role('button',name='Restablecer',exact=True).is_disabled()
                 assert page.evaluate('map.getBounds().contains(cubaBounds)'),(engine,version,width,'reset expanded')
                 rect=page.locator('.support-map-expanded').bounding_box()
                 assert abs(rect['width']-width)<=1 and abs(rect['height']-height)<=1,rect

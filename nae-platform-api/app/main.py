@@ -207,13 +207,13 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
     .login-panel label {{ display: block; width: 100%; margin: 14px 0 6px; color: #657383; font-size: 12px; font-weight: 800; text-transform: uppercase; }}
     .login-panel input {{ display: block; width: 100%; min-height: 42px; border: 1px solid #d9e1e8; border-radius: 6px; padding: 0 10px; font: inherit; }}
     .login-panel button {{ width: 100%; margin-top: 18px; }}
+    .login-logo {{ display:block; width:280px; max-width:100%; height:auto; margin:0 auto 18px; }}
     .error {{ border:1px solid #f2b8b5; background:#fff0f0; color:#b42318; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:14px; }}
   </style>
 </head>
 <body>
     <section class="login-panel">
-      <h1>NAE</h1>
-      <p>Mapeo de Entidades de Apoyo</p>
+      <img class="login-logo" src="/images/mapeo/identificador_login.svg" alt="Mapeo de Entidades de Apoyo - NAE Fortalecimiento de capacidades" />
       {error_html}
       <form method="post" action="/login">
         <input type="hidden" name="next" value="{safe_next_url}" />

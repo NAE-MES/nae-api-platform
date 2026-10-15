@@ -342,7 +342,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         wheelDebounceTime: 120,
         wheelPxPerZoomLevel: 140
       }}).setView([21.9, -79.5], 7);
-      const popupController = configureSupportMapPopups(map, () => resetMapView());
+      const popupController = configureSupportMapPopups(map, () => resetMapView(), cubaBounds);
       const offlineCartography = {cartography_json};
       {streets_loader}
       const offlineBasemap = addOfflineBasemap(map, offlineCartography);
@@ -407,11 +407,11 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
           <p><b>Tipo:</b> ${{escapeHtml(entity.type)}}</p>
           <p><b>Ubicación:</b> ${{escapeHtml(entity.province)}} / ${{escapeHtml(entity.municipality)}}</p>
           <p><b>Cobertura:</b> ${{escapeHtml(entity.coverage)}}</p>
+          <p><b>Contacto:</b> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
+          <p><b>Dirección:</b> ${{escapeHtml(entity.address)}}</p>
           <div class="popup-services-title">Servicios registrados:</div>
           <div class="popup-services-grid">${{serviceIconGrid(entity)}}</div>
           ${{otherServiceLabel(entity)}}
-          <p><b>Contacto:</b> ${{escapeHtml(entity.contact)}} · ${{escapeHtml(entity.phone)}} · ${{escapeHtml(entity.email)}}</p>
-          <p><b>Dirección:</b> ${{escapeHtml(entity.address)}}</p>
         </div>`;
       }}
       function focusEntity(id) {{

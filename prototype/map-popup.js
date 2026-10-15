@@ -1,4 +1,4 @@
-function configureSupportMapPopups(map, resetView) {
+function configureSupportMapPopups(map, resetView, homeBounds) {
   if (!document.getElementById('support-map-expand-style')) {
     const style = document.createElement('style');
     style.id = 'support-map-expand-style';
@@ -6,6 +6,7 @@ function configureSupportMapPopups(map, resetView) {
       .support-map-expanded { position:fixed !important; inset:0 !important; width:100% !important; height:100vh !important; height:100dvh !important; min-height:0 !important; z-index:5000 !important; border-radius:0 !important; }
       .map-expand-button { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 10px; border:0; background:#fff; color:#173b75; font:700 14px Arial,sans-serif; cursor:pointer; }
       .map-expand-button span { font-size:24px; line-height:1; }
+      .map-expand-button:disabled, #reset-map:disabled { opacity:.45; cursor:default; }
     `;
     document.head.appendChild(style);
   }
@@ -28,6 +29,18 @@ function configureSupportMapPopups(map, resetView) {
     map.closePopup();
     resetView();
   });
+  function syncResetState() {
+    const zoom = map.getBoundsZoom(homeBounds, false, [40, 40]);
+    const center = map.project(homeBounds.getSouthWest(), zoom)
+      .add(map.project(homeBounds.getNorthEast(), zoom)).divideBy(2);
+    const atHome = Math.abs(map.getZoom() - zoom) < 0.01
+      && map.project(map.getCenter(), zoom).distanceTo(center) <= 1;
+    resetButton.disabled = atHome;
+    const externalReset = document.getElementById('reset-map');
+    if (externalReset) externalReset.disabled = atHome;
+  }
+  map.on('moveend zoomend', syncResetState);
+  map.whenReady(syncResetState);
   function toggleExpanded() {
     expanded = !expanded;
     if (expanded) previousOverflow = document.body.style.overflow;
@@ -95,7 +108,9 @@ function configureSupportMapPopups(map, resetView) {
     map.setMaxBounds(navigationBounds);
   });
   map.on('resize', () => {
-    if (map.getZoom() <= map.getMinZoom() + 0.01) requestAnimationFrame(resetView);
+    requestAnimationFrame(() => {
+      if (map.getZoom() <= map.getMinZoom() + 0.01) resetView();
+    });
     map.eachLayer((layer) => {
       if (layer instanceof L.Popup && layer.isOpen()) fitPopup(layer);
     });
