@@ -192,7 +192,9 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
       .badge {{ border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; color: var(--blue-2); font-weight: 700; background: #f8fbff; white-space: nowrap; }}
       main {{ padding: 20px 0 32px; }}
       .panel {{ background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 34px rgba(14, 31, 56, .08); }}
-      .filters {{ display: grid; grid-template-columns: 1.5fr repeat(4, minmax(150px, 1fr)) auto; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }}
+      .filters {{ display: grid; grid-template-columns: minmax(0,1.5fr) repeat(4, minmax(0,1fr)) auto; min-width:0; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }}
+      .filters > * {{ min-width:0; }}
+      .filters input, .filters select {{ display:block; width:100%; max-width:100%; min-width:0; }}
       input, select, button {{ min-height: 38px; border-radius: 8px; border: 1px solid var(--line); padding: 0 10px; font: inherit; background: #fff; }}
       button {{ cursor: pointer; border-color: var(--blue); background: var(--blue); color: #fff; font-weight: 700; }}
       button.secondary {{ background: #fff; color: var(--blue); }}
@@ -228,7 +230,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
       .list-head {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 10px; }}
       .list-head h2 {{ margin: 0; color: var(--blue); font-size: 20px; }}
       .list {{ display: grid; gap: 10px; }}
-      .card {{ background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }}
+      .card {{ min-width:0; overflow-wrap:anywhere; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }}
       .card h3 {{ margin: 0 0 5px; color: var(--blue-2); font-size: 17px; }}
       .card p {{ margin: 5px 0; color: #26384d; }}
       .card details {{ margin-top: 8px; }}
@@ -237,7 +239,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
       .pager {{ display: flex; justify-content: center; gap: 8px; align-items: center; margin-top: 14px; }}
       .pager span {{ min-width: 120px; text-align: center; color: var(--muted); }}
       @media (max-width: 980px) {{
-        .filters {{ grid-template-columns: 1fr 1fr; }}
+        .filters {{ grid-template-columns: minmax(0,1fr) minmax(0,1fr); }}
         .filters input {{ grid-column: 1 / -1; }}
         .legend-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       }}
@@ -245,7 +247,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         .wrap {{ max-width: none; padding: 0 14px; }}
         .brand-id {{ width:154px; max-width:42vw; }}
         .top, .summary, .list-head {{ flex-direction: column; align-items: flex-start; }}
-        .filters {{ grid-template-columns: 1fr; }}
+        .filters {{ grid-template-columns: minmax(0,1fr); }}
         #map {{ min-height: 460px; }}
         .leaflet-popup-content {{ max-height: min(58vh, 330px); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; }}
         .legend-grid {{ grid-template-columns: 1fr; }}
@@ -333,7 +335,8 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         doubleClickZoom: !isTouchMap,
         tap: false,
         bounceAtZoomLimits: false,
-        minZoom: isTouchMap ? 5 : 6,
+        minZoom: 4,
+        zoomSnap: 0.25,
         maxBounds: cubaBounds.pad(0.75),
         maxBoundsViscosity: 0.25,
         wheelDebounceTime: 120,
@@ -418,7 +421,15 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         window.scrollTo({{ top: document.getElementById('map').getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }});
       }}
       function resetMapView() {{
-        map.setView([21.85, -79.55], isTouchMap ? 6 : 7, {{ animate: true }});
+        map.closePopup();
+        const navigationBounds = map.options.maxBounds;
+        map.setMaxBounds(null);
+        map.stop();
+        map.invalidateSize({{ pan: false }});
+        // Avoid a second animated zoom while restoring the view after a resize.
+        map.options.minZoom = map.getBoundsZoom(cubaBounds, false, [40, 40]);
+        map.fitBounds(cubaBounds, {{ padding: [20, 20], animate: false }});
+        map.setMaxBounds(navigationBounds);
       }}
       function renderMarkers() {{
         markerLayer.clearLayers();

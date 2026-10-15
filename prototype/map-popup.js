@@ -3,7 +3,7 @@ function configureSupportMapPopups(map, resetView) {
     const style = document.createElement('style');
     style.id = 'support-map-expand-style';
     style.textContent = `
-      .support-map-expanded { position:fixed !important; inset:0 !important; width:100% !important; height:100dvh !important; min-height:0 !important; z-index:5000 !important; border-radius:0 !important; }
+      .support-map-expanded { position:fixed !important; inset:0 !important; width:100% !important; height:100vh !important; height:100dvh !important; min-height:0 !important; z-index:5000 !important; border-radius:0 !important; }
       .map-expand-button { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 10px; border:0; background:#fff; color:#173b75; font:700 14px Arial,sans-serif; cursor:pointer; }
       .map-expand-button span { font-size:24px; line-height:1; }
     `;
@@ -58,7 +58,7 @@ function configureSupportMapPopups(map, resetView) {
     if (event.key === 'Escape' && expanded) toggleExpanded();
   });
   const navigationBounds = map.options.maxBounds;
-  const options = { autoPan: true, keepInView: false, maxWidth: 470, autoPanPaddingTopLeft: [16, 16], autoPanPaddingBottomRight: [16, 64] };
+  const options = { autoPan: false, keepInView: false, maxWidth: 470 };
   function fitPopup(popup) {
     const element = popup.getElement();
     if (!element) return;
@@ -73,9 +73,16 @@ function configureSupportMapPopups(map, resetView) {
       grid.style.overflowX = 'auto';
     });
     popup.update();
+    const frame = container.getBoundingClientRect();
+    const card = element.getBoundingClientRect();
+    const dx = card.left < frame.left + 16 ? card.left - frame.left - 16
+      : Math.max(0, card.right - frame.right + 16);
+    const dy = card.top < frame.top + 16 ? card.top - frame.top - 16
+      : Math.max(0, card.bottom - frame.bottom + 64);
+    if (dx || dy) map.panBy([dx, dy], { animate: false });
   }
   map.on('popupopen', (event) => {
-    // Let auto-pan place the whole card, including its close button, inside the map.
+    // Leave room to place the whole card, including its close button, inside the map.
     map.setMaxBounds(null);
     if (map.zoomControl) map.zoomControl.getContainer().style.visibility = 'hidden';
     fitPopup(event.popup);
@@ -88,6 +95,7 @@ function configureSupportMapPopups(map, resetView) {
     map.setMaxBounds(navigationBounds);
   });
   map.on('resize', () => {
+    if (map.getZoom() <= map.getMinZoom() + 0.01) requestAnimationFrame(resetView);
     map.eachLayer((layer) => {
       if (layer instanceof L.Popup && layer.isOpen()) fitPopup(layer);
     });
@@ -96,6 +104,7 @@ function configureSupportMapPopups(map, resetView) {
     options,
     focus(marker, zoom) {
       map.closePopup();
+      map.setMaxBounds(null);
       map.stop();
       map.setView(marker.getLatLng(), zoom, { animate: false });
       marker.openPopup();

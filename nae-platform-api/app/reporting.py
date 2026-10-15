@@ -3700,7 +3700,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         zoomControl: true,
         tap: false,
         bounceAtZoomLimits: false,
-        minZoom: isTouchMap ? 5 : 6,
+        minZoom: 4,
+        zoomSnap: 0.25,
         maxBounds: cubaBounds.pad(0.75),
         maxBoundsViscosity: 0.25,
         wheelDebounceTime: 120,
@@ -3760,9 +3761,17 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         bounds.push([entity.lat, entity.lng]);
       }});
 
-      const cubaCenter = [21.85, -79.55];
-      const initialZoom = isTouchMap ? 6 : 7;
-      const resetMapView = () => map.setView(cubaCenter, initialZoom, {{ animate: true }});
+      const resetMapView = () => {{
+        map.closePopup();
+        const navigationBounds = map.options.maxBounds;
+        map.setMaxBounds(null);
+        map.stop();
+        map.invalidateSize({{ pan: false }});
+        // Avoid a second animated zoom while restoring the view after a resize.
+        map.options.minZoom = map.getBoundsZoom(cubaBounds, false, [40, 40]);
+        map.fitBounds(cubaBounds, {{ padding: [20, 20], animate: false }});
+        map.setMaxBounds(navigationBounds);
+      }};
       resetMapView();
       document.getElementById('reset-map')?.addEventListener('click', resetMapView);
 
