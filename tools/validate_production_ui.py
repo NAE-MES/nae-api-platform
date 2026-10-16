@@ -65,6 +65,7 @@ with sync_playwright() as p:
                 assert css_response.status == 200
                 assert sha256(css_response.body()).hexdigest()[:12] == version
                 brand = page.locator('.platform-brand img').bounding_box()
+                page.locator('.platform-brand img').evaluate('(e)=>e.decode()')
                 assert brand['width'] <= (154 if width <= 720 else 230) + 1, (name, brand)
                 logout = page.locator('.platform-logout')
                 assert logout.inner_text() == '' and logout.is_visible()
@@ -80,6 +81,12 @@ with sync_playwright() as p:
                 assert banner.evaluate('(e)=>Math.abs(e.getBoundingClientRect().width/e.getBoundingClientRect().height-e.naturalWidth/e.naturalHeight)<0.01')
                 assert banner.bounding_box()['width'] <= width + 1
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+                page.evaluate('()=>document.fonts.ready')
+                page.evaluate('()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+                page.wait_for_timeout(250)
+                if name == 'mapa' and width == 1468 and engine == 'firefox':
+                    page.locator('.platform-brand img').screenshot(path=str(OUTPUT / 'firefox-logo-desktop.png'))
+                    banner.screenshot(path=str(OUTPUT / 'firefox-banner-desktop.png'))
                 page.screenshot(path=str(OUTPUT / f'{engine}-{name}-{width}.png'))
                 print('OK produccion:', engine, name, width, 'CSS versionado, banner completo, salida solo icono', flush=True)
             context.close()
