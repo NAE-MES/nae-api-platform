@@ -30,6 +30,7 @@ from app.config import (
 from app.cuba_geo import CUBA_GEO
 from app.database import SessionLocal
 from app.entity_resolution import normalize_entity_name
+from app.ui_assets import STYLESHEET_URL
 from app.reporting import (
     build_daily_progress_report_pdf,
     build_support_entities_csv,
@@ -197,7 +198,7 @@ def _render_login_html(error: Optional[str] = None, next_url: str = "/analitica"
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Acceso | NAE Platform</title>
-  <link rel="stylesheet" href="/prototype-assets/styles.css" />
+  <link rel="stylesheet" href="{STYLESHEET_URL}" />
   <style>
     body {{ min-height: 100vh; display: grid; place-items: center; background: #eef4f8; padding: 24px; }}
     .login-panel {{ width: min(420px, 100%); background: #fff; border: 1px solid #d9e1e8; border-radius: 8px; box-shadow: 0 18px 45px rgba(24, 54, 84, .16); padding: 28px; }}
@@ -256,7 +257,7 @@ def _private_nav_links(is_authenticated: bool, can_review: bool = False) -> str:
 def _render_prototype_page(filename: str, active_path: str, request: Optional[Request] = None) -> HTMLResponse:
     html = (PROJECT_ROOT / "prototype" / filename).read_text(encoding="utf-8")
     replacements = {
-        'href="styles.css"': 'href="/prototype-assets/styles.css"',
+        'href="styles.css"': f'href="{STYLESHEET_URL}"',
         'src="../images/header.png"': 'src="/images/banner-mapeo.jpeg"',
         'src="../images/banner-mapeo.jpeg"': 'src="/images/banner-mapeo.jpeg"',
         'href="index.html"': 'href="/"',

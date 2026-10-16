@@ -20,7 +20,7 @@
 .platform-primary a, .platform-dropdown a { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:0 12px; color:var(--nae-navy); font-size:13px; font-weight:700; border-radius:6px; }
 .platform-primary a[aria-current], .platform-dropdown a[aria-current] { background:var(--soft-blue); }
 .platform-primary a:hover, .platform-dropdown a:hover { background:var(--soft-blue); }
-.platform-logout { gap:6px; }
+.platform-primary .platform-logout { width:40px; padding:0; }
 .platform-logout img { width:20px; height:20px; }
 .platform-more { display:none; position:relative; }
 .platform-banner, .platform-banner img { display:block; width:100%; height:auto; }
@@ -30,7 +30,7 @@
   .platform-brand img { width:154px; max-width:100%; }
   .platform-primary { gap:4px; }
   .platform-primary a { min-height:40px; padding:0 10px; }
-  .platform-primary .platform-admin, .platform-logout span { display:none; }
+  .platform-primary .platform-admin { display:none; }
   .platform-primary .platform-logout { width:40px; padding:0; }
   .platform-more { display:block; }
   .platform-nav .platform-more > summary { display:flex; align-items:center; justify-content:center; width:40px; min-height:40px; padding:0; border:0; background:transparent; cursor:pointer; list-style:none; }

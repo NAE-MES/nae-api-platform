@@ -31,7 +31,7 @@ with sync_playwright() as p:
     for engine in ['chromium', 'firefox']:
         browser = getattr(p, engine).launch()
         for name, html in pages.items():
-            for width, height in [(320, 740), (390, 844), (1440, 1000)]:
+            for width, height in [(320, 740), (390, 844), (441, 758), (1440, 1000)]:
                 page = browser.new_page(viewport=dict(width=width, height=height))
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
@@ -60,10 +60,18 @@ with sync_playwright() as p:
                     assert page.locator('.platform-primary a[href="/"]').is_visible()
                     assert page.locator('.platform-primary a[href="/analitica"]').is_visible()
                     assert page.locator('.platform-logout').is_visible()
+                    assert page.locator('.platform-logout').inner_text() == ''
+                    brand = page.locator('.platform-brand img').bounding_box()
+                    assert brand['width'] <= (154 if width <= 720 else 230) + 1, brand
+                    assert page.locator('.platform-primary a').first.evaluate('(e)=>getComputedStyle(e).fontSize') == '13px'
+                    if width > 720:
+                        assert not page.locator('.platform-more').is_visible()
                     if name != 'mapa' and name != 'lector':
                         banner = page.locator('.platform-banner img')
                         assert banner.evaluate('(e)=>e.complete && e.naturalWidth > 0')
                         assert banner.evaluate('(e)=>e.currentSrc.endsWith("banner_movil.webp")') == (width <= 720)
+                        assert banner.evaluate('(e)=>Math.abs(e.getBoundingClientRect().width/e.getBoundingClientRect().height-e.naturalWidth/e.naturalHeight)<0.01')
+                        assert banner.bounding_box()['width'] <= width + 1
                     if name == 'lector':
                         assert page.locator('a[href="/admin/administracion"]').count() == 0
                     elif width < 720:

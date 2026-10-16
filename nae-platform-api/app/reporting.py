@@ -19,6 +19,7 @@ from app.config import APP_TIMEZONE
 from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 from app.mapeo_survey import SERVICIOS_GRID_ROWS
+from app.ui_assets import MAP_POPUP_URL, STYLESHEET_URL
 
 
 def _platform_header(active: str, can_review: bool = False, authenticated: bool = True, include_banner: bool = True) -> str:
@@ -27,7 +28,7 @@ def _platform_header(active: str, can_review: bool = False, authenticated: bool 
         return f'<a href="{path}"{current}>{label}</a>'
 
     admin = link('/admin/administracion', 'Administración', 'admin') if authenticated and can_review else ""
-    logout = '''<a href="/logout" class="platform-logout" title="Cerrar sesión" aria-label="Cerrar sesión"><img src="/prototype-assets/icons/navigation/log-out.svg" alt="" /><span>Cerrar sesión</span></a>''' if authenticated else ""
+    logout = '''<a href="/logout" class="platform-logout" title="Cerrar sesión" aria-label="Cerrar sesión"><img src="/prototype-assets/icons/navigation/log-out.svg" alt="" /></a>''' if authenticated else ""
     more = f'''<details class="platform-more"><summary class="mobile-menu-toggle" title="Más opciones" aria-label="Más opciones"><img src="/prototype-assets/icons/navigation/ellipsis-vertical.svg" alt="" /></summary><div class="platform-dropdown">{admin}</div></details>''' if admin else ""
     header = f'''<nav class="site-nav platform-nav">
       <div class="nav-inner platform-nav-inner">
@@ -1032,7 +1033,7 @@ def render_response_detail_html(data: Dict[str, Any]) -> str:
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>NAE Platform - Respuesta {escape(str(data.get('respuesta_id')))}</title>
-      <link rel="stylesheet" href="/prototype-assets/styles.css" />
+      <link rel="stylesheet" href="{STYLESHEET_URL}" />
       <style>
         :root {{
           --bg: #f5f7fb;
@@ -3129,7 +3130,7 @@ def render_admin_review_html(data: Dict[str, Any]) -> str:
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NAE - Administración de datos</title>
-    <link rel="stylesheet" href="/prototype-assets/styles.css" />
+    <link rel="stylesheet" href="{STYLESHEET_URL}" />
     <style>
       .review-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }}
       .review-stack {{ display: grid; gap: 12px; }}
@@ -3507,7 +3508,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NAE Platform - Mapa</title>
     <link rel="stylesheet" href="/prototype-assets/vendor/leaflet/leaflet.css" />
-    <link rel="stylesheet" href="/prototype-assets/styles.css" />
+    <link rel="stylesheet" href="{STYLESHEET_URL}" />
     <style>
       .support-filters {{ margin-bottom: 18px; }}
       .map-page {{ max-width: min(1600px, calc(100vw - 32px)); }}
@@ -3653,7 +3654,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
       </nav>
     </main>
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
-    <script src="/prototype-assets/map-popup.js"></script>
+    <script src="{MAP_POPUP_URL}"></script>
     <script>
       const supportEntities = {map_entities_json};
       const serviceLegend = {service_legend_json};
@@ -4712,7 +4713,7 @@ def render_dashboard_html(data: Dict[str, Any], can_review: bool = True) -> str:
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>NAE Platform - Analítica</title>
-      <link rel="stylesheet" href="/prototype-assets/styles.css" />
+      <link rel="stylesheet" href="{STYLESHEET_URL}" />
       <style>
         :root {{
           --bg: #f4f6f9; --panel: #ffffff; --panel-soft: #f8fafc; --line: #d8dee8; --line-strong: #b8c2d1;
