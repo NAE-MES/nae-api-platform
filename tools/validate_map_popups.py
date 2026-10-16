@@ -124,8 +124,7 @@ with sync_playwright() as p:
                 page.locator('.leaflet-popup-close-button').click()
                 page.locator('.leaflet-popup').wait_for(state='detached')
             if version == 'online' and width < 720:
-                page.locator('.mobile-menu-toggle').click()
-                assert page.locator('.platform-dropdown').is_visible()
+                assert not page.locator('.platform-admin').is_visible()
             assert not errors, errors
             print(f'OK {browser_name} {version} {width}px: 3 long cards visible, stable and closable')
             page.close()

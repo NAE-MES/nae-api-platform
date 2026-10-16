@@ -17,27 +17,20 @@
 .platform-nav .platform-nav-inner { position:relative; align-items:center; }
 .platform-brand img { display:block; width:230px; max-width:32vw; height:auto; }
 .platform-primary { display:flex; align-items:center; gap:6px; }
-.platform-primary a, .platform-dropdown a { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:0 12px; color:var(--nae-navy); font-size:13px; font-weight:700; border-radius:6px; }
-.platform-primary a[aria-current], .platform-dropdown a[aria-current] { background:var(--soft-blue); }
-.platform-primary a:hover, .platform-dropdown a:hover { background:var(--soft-blue); }
+.platform-primary a { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:0 12px; color:var(--nae-navy); font-size:13px; font-weight:700; border-radius:6px; }
+.platform-primary a[aria-current] { background:var(--soft-blue); }
+.platform-primary a:hover { background:var(--soft-blue); }
 .platform-primary .platform-logout { width:40px; padding:0; }
 .platform-logout img { width:20px; height:20px; }
-.platform-more { display:none; position:relative; }
 .platform-banner, .platform-banner img { display:block; width:100%; height:auto; }
 @media (max-width:720px) {
-  .platform-nav .platform-nav-inner { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 8px; padding:8px 14px; }
+  .platform-nav .platform-nav-inner { display:grid; grid-template-columns:minmax(0,1fr); gap:4px; padding:8px 14px; }
   .platform-brand { grid-column:1 / -1; }
   .platform-brand img { width:154px; max-width:100%; }
   .platform-primary { gap:4px; }
   .platform-primary a { min-height:40px; padding:0 10px; }
   .platform-primary .platform-admin { display:none; }
   .platform-primary .platform-logout { width:40px; padding:0; }
-  .platform-more { display:block; }
-  .platform-nav .platform-more > summary { display:flex; align-items:center; justify-content:center; width:40px; min-height:40px; padding:0; border:0; background:transparent; cursor:pointer; list-style:none; }
-  .platform-more > summary::-webkit-details-marker { display:none; }
-  .platform-more > summary img { width:22px; height:22px; }
-  .platform-dropdown { position:absolute; top:100%; right:0; min-width:180px; padding:6px; background:#fff; border:1px solid var(--line); border-radius:6px; box-shadow:var(--shadow); }
-  .platform-dropdown a { width:100%; }
 }
 
 * {

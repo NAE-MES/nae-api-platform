@@ -75,9 +75,8 @@ with sync_playwright() as p:
                     if name == 'lector':
                         assert page.locator('a[href="/admin/administracion"]').count() == 0
                     elif width < 720:
-                        page.locator('.platform-more summary').click()
-                        assert page.locator('.platform-dropdown a').is_visible()
-                        page.locator('.platform-more summary').click()
+                        assert not page.locator('.platform-more').is_visible()
+                        assert not page.locator('.platform-admin').is_visible()
                     if name == 'mapa' and width == 1440:
                         boxes = page.locator('.support-filters select,.support-filters input,.support-filters button[type=submit],.support-filters .actions a').evaluate_all('(els)=>els.map(e=>e.getBoundingClientRect().bottom)')
                         assert max(boxes) - min(boxes) <= 1, boxes

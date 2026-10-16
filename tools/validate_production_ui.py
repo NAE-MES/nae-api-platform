@@ -73,9 +73,8 @@ with sync_playwright() as p:
                 if width > 720:
                     assert not page.locator('.platform-more').is_visible()
                 else:
-                    page.locator('.platform-more summary').click()
-                    assert page.locator('.platform-dropdown a').is_visible()
-                    page.locator('.platform-more summary').click()
+                    assert not page.locator('.platform-more').is_visible()
+                    assert not page.locator('.platform-admin').is_visible()
                 banner = page.locator('.map-banner' if name == 'mapa' else '.platform-banner img')
                 banner.evaluate('(e)=>e.decode()')
                 assert banner.evaluate('(e)=>Math.abs(e.getBoundingClientRect().width/e.getBoundingClientRect().height-e.naturalWidth/e.naturalHeight)<0.01')
@@ -89,5 +88,15 @@ with sync_playwright() as p:
                     banner.screenshot(path=str(OUTPUT / 'firefox-banner-desktop.png'))
                 page.screenshot(path=str(OUTPUT / f'{engine}-{name}-{width}.png'))
                 print('OK produccion:', engine, name, width, 'CSS versionado, banner completo, salida solo icono', flush=True)
+                if name == 'mapa' and width == 1468:
+                    for next_width, next_height in [(441,758),(390,844),(844,390),(1468,900)]:
+                        page.set_viewport_size({'width':next_width,'height':next_height})
+                        page.wait_for_timeout(600)
+                        assert page.evaluate('map.getBounds().contains(cubaBounds)'), (engine,next_width,'resize without reload')
+                        assert page.locator('#reset-map').is_disabled()
+                        if next_width < 720:
+                            assert not page.locator('.platform-admin').is_visible()
+                            assert not page.locator('.platform-more').is_visible()
+                    print('OK produccion sin recargar:',engine,'escritorio/movil/rotacion/escritorio',flush=True)
             context.close()
         browser.close()

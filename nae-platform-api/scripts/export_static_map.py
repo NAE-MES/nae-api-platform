@@ -426,6 +426,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         map.setMaxBounds(null);
         map.stop();
         map.invalidateSize({{ pan: false }});
+        map.options.minZoom = 4;
         // Avoid a second animated zoom while restoring the view after a resize.
         map.options.minZoom = map.getBoundsZoom(cubaBounds, false, [40, 40]);
         map.fitBounds(cubaBounds, {{ padding: [20, 20], animate: false }});

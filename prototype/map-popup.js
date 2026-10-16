@@ -89,7 +89,7 @@ function configureSupportMapPopups(map, resetView, homeBounds) {
   const options = { autoPan: false, keepInView: false, maxWidth: 470 };
   function fitPopup(popup) {
     const element = popup.getElement();
-    if (!element) return;
+    if (!element || !popup.isOpen()) return;
     const content = element.querySelector('.leaflet-popup-content');
     const size = map.getSize();
     content.style.setProperty('width', Math.min(470, size.x - 72) + 'px', 'important');
@@ -114,6 +114,7 @@ function configureSupportMapPopups(map, resetView, homeBounds) {
     map.setMaxBounds(null);
     if (map.zoomControl) map.zoomControl.getContainer().style.visibility = 'hidden';
     fitPopup(event.popup);
+    requestAnimationFrame(() => fitPopup(event.popup));
     event.popup.getElement().querySelectorAll('img').forEach((image) => {
       if (!image.complete) image.addEventListener('load', () => fitPopup(event.popup), { once: true });
     });
@@ -124,11 +125,23 @@ function configureSupportMapPopups(map, resetView, homeBounds) {
   });
   map.on('resize', () => {
     requestAnimationFrame(() => {
-      if (map.getZoom() <= map.getMinZoom() + 0.01) resetView();
+      const atOverview = map.getZoom() <= map.getMinZoom() + 0.01;
+      if (atOverview) resetView();
+      else {
+        map.options.minZoom = 4;
+        map.options.minZoom = map.getBoundsZoom(homeBounds, false, [40, 40]);
+        if (map.getZoom() < map.getMinZoom()) map.setZoom(map.getMinZoom(), { animate: false });
+        syncResetState();
+      }
     });
     map.eachLayer((layer) => {
       if (layer instanceof L.Popup && layer.isOpen()) fitPopup(layer);
     });
+  });
+  const touchPointer = window.matchMedia('(pointer: coarse)');
+  touchPointer.addEventListener('change', () => {
+    map.scrollWheelZoom[touchPointer.matches ? 'disable' : 'enable']();
+    map.doubleClickZoom[touchPointer.matches ? 'disable' : 'enable']();
   });
   return {
     options,

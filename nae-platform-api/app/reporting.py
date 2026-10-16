@@ -29,7 +29,6 @@ def _platform_header(active: str, can_review: bool = False, authenticated: bool 
 
     admin = link('/admin/administracion', 'Administración', 'admin') if authenticated and can_review else ""
     logout = '''<a href="/logout" class="platform-logout" title="Cerrar sesión" aria-label="Cerrar sesión"><img src="/prototype-assets/icons/navigation/log-out.svg" alt="" /></a>''' if authenticated else ""
-    more = f'''<details class="platform-more"><summary class="mobile-menu-toggle" title="Más opciones" aria-label="Más opciones"><img src="/prototype-assets/icons/navigation/ellipsis-vertical.svg" alt="" /></summary><div class="platform-dropdown">{admin}</div></details>''' if admin else ""
     header = f'''<nav class="site-nav platform-nav">
       <div class="nav-inner platform-nav-inner">
         <a class="platform-brand" href="/" aria-label="Mapeo de Entidades de Apoyo NAE">
@@ -39,7 +38,7 @@ def _platform_header(active: str, can_review: bool = False, authenticated: bool 
           {link('/', 'Mapa', 'mapa')}
           {link('/analitica', 'Analítica', 'analitica')}
           <span class="platform-admin">{admin}</span>{logout}
-        </div>{more}
+        </div>
       </div>
     </nav>'''
     banner = '''<picture class="platform-banner">
@@ -3760,6 +3759,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         map.setMaxBounds(null);
         map.stop();
         map.invalidateSize({{ pan: false }});
+        map.options.minZoom = 4;
         // Avoid a second animated zoom while restoring the view after a resize.
         map.options.minZoom = map.getBoundsZoom(cubaBounds, false, [40, 40]);
         map.fitBounds(cubaBounds, {{ padding: [20, 20], animate: false }});
