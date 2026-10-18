@@ -21,7 +21,7 @@ sys.path.insert(0, str(API_DIR))
 load_dotenv(API_DIR / ".env")
 
 from app.mapeo_survey import SERVICIOS_GRID_ROWS  # noqa: E402
-from app.reporting import SERVICE_ICON_FILES, _service_icon_key, _support_service_details, get_support_entities  # noqa: E402
+from app.reporting import SERVICE_ICON_FILES, _service_icon_key, _support_service_details, _support_territory_point, get_support_entities  # noqa: E402
 
 
 DEFAULT_OUTPUT = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_entidades_apoyo.html"
@@ -53,6 +53,7 @@ def _normalize_entities(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
         services = _clean_text(row.get("servicios"), "Sin servicios registrados")
         service_details = _support_service_details(row)
+        territory = _support_territory_point(row.get('provincia'), row.get('municipio')) or {}
         service_list = [item["name"] for item in service_details if not item.get("is_other")]
         other_services = [item["name"] for item in service_details if item.get("is_other")]
         if not service_list and not other_services and services != "Sin servicios registrados":
@@ -77,6 +78,8 @@ def _normalize_entities(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "address": _clean_text(row.get("direccion_fisica")),
                 "lat": float(lat),
                 "lng": float(lng),
+                "territoryLat": territory.get('lat'),
+                "territoryLng": territory.get('lng'),
                 "source": _clean_text(row.get("coordinate_source"), "municipio"),
                 "status": _clean_text(row.get("coordinate_status"), "estimada"),
             }
@@ -112,6 +115,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
     leaflet_css = LEAFLET_CSS.read_text(encoding="utf-8")
     leaflet_js = LEAFLET_JS.read_text(encoding="utf-8")
     popup_js = (PROJECT_ROOT / "prototype" / "map-popup.js").read_text(encoding="utf-8")
+    territories_js = (PROJECT_ROOT / "prototype" / "map-territories.js").read_text(encoding="utf-8")
     basemap_js = (PROJECT_ROOT / "prototype" / "offline-basemap.js").read_text(encoding="utf-8")
     maps_dir = PROJECT_ROOT / "prototype" / "maps"
     cartography = {
@@ -315,6 +319,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
     <script>
 {leaflet_js}
 {popup_js}
+{territories_js}
 {basemap_js}
 {inflate_js}
     </script>
@@ -347,6 +352,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
       {streets_loader}
       const offlineBasemap = addOfflineBasemap(map, offlineCartography);
       const markerLayer = L.layerGroup().addTo(map);
+      const territoryController = configureTerritoryMarkers(map, markerLayer, popupController);
       const markerIcon = L.divIcon({{ className: '', html: '<span class="nae-marker"></span>', iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -24] }});
 
       const els = {{
@@ -417,6 +423,7 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
       function focusEntity(id) {{
         const marker = markers.get(String(id));
         if (!marker) return;
+        territoryController.reveal(marker);
         popupController.focus(marker, Math.max(map.getZoom(), 12));
         window.scrollTo({{ top: document.getElementById('map').getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }});
       }}
@@ -433,13 +440,14 @@ def build_static_map_html(data: Dict[str, Any], streets_sample: bool = False, na
         map.setMaxBounds(navigationBounds);
       }}
       function renderMarkers() {{
-        markerLayer.clearLayers();
         markers = new Map();
+        const territoryEntries = [];
         filtered.forEach((entity) => {{
           const marker = L.marker([entity.lat, entity.lng], {{ icon: markerIcon }}).bindPopup(popupHtml(entity), popupController.options);
-          marker.addTo(markerLayer);
+          territoryEntries.push({{ ...entity, marker }});
           markers.set(String(entity.id), marker);
         }});
+        territoryController.setEntries(territoryEntries);
         if (filtered.length && filtered.length < payload.entities.length) {{
           const bounds = L.latLngBounds(filtered.map((entity) => [entity.lat, entity.lng]));
           map.fitBounds(bounds.pad(0.14), {{ maxZoom: 9 }});

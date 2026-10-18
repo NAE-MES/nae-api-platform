@@ -92,8 +92,9 @@ function configureSupportMapPopups(map, resetView, homeBounds) {
     if (!element || !popup.isOpen()) return;
     const content = element.querySelector('.leaflet-popup-content');
     const size = map.getSize();
-    content.style.setProperty('width', Math.min(470, size.x - 72) + 'px', 'important');
-    content.style.setProperty('max-width', Math.min(470, size.x - 72) + 'px', 'important');
+    const maxWidth = Math.min(popup.options.maxWidth || 470, size.x - 72);
+    content.style.setProperty('width', maxWidth + 'px', 'important');
+    content.style.setProperty('max-width', maxWidth + 'px', 'important');
     content.style.setProperty('max-height', Math.max(80, size.y - 148) + 'px', 'important');
     content.style.overflowY = 'auto';
     content.style.overflowWrap = 'anywhere';

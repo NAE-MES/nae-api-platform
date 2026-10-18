@@ -19,7 +19,7 @@ from app.config import APP_TIMEZONE
 from app.cuba_geo import CUBA_GEO, get_coordinates
 from app.database import SessionLocal
 from app.mapeo_survey import SERVICIOS_GRID_ROWS
-from app.ui_assets import MAP_POPUP_URL, STYLESHEET_URL
+from app.ui_assets import MAP_POPUP_URL, MAP_TERRITORY_URL, STYLESHEET_URL
 
 
 def _platform_header(active: str, can_review: bool = False, authenticated: bool = True, include_banner: bool = True) -> str:
@@ -156,6 +156,13 @@ def _entity_sort_key(row: Dict[str, Any]) -> tuple[tuple[int, str], str, str]:
         _sort_text(row.get("municipio")),
         _sort_text(row.get("entidad_nombre") or row.get("nombre_canonico")),
     )
+
+
+def _support_territory_point(province: Optional[str], municipality: Optional[str]) -> Optional[Dict[str, float]]:
+    if _sort_text(province) == 'la habana':
+        points = CUBA_GEO['La Habana']
+        return {axis: sum(point[axis] for point in points) / len(points) for axis in ('lat', 'lng')}
+    return get_coordinates(province, municipality)
 
 
 def _coverage_summary_from_territories(
@@ -3449,6 +3456,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         if lat is None or lng is None:
             continue
         visible_services = str(row.get("servicios") or "").strip() or "Sin servicios registrados"
+        territory = _support_territory_point(row.get('provincia'), row.get('municipio')) or {}
         map_entities.append({
             "id": row.get("entidad_apoyo_id") or row.get("operational_respuesta_id"),
             "name": row.get("entidad_nombre") or "Sin nombre",
@@ -3464,6 +3472,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             "address": row.get("direccion_fisica") or "Sin dato",
             "lat": float(lat),
             "lng": float(lng),
+            "territoryLat": territory.get('lat'),
+            "territoryLng": territory.get('lng'),
             "source": row.get("coordinate_source") or "municipio",
             "status": row.get("coordinate_status") or "estimada",
             "confidence": str(row.get("coordinate_confidence") or ""),
@@ -3654,6 +3664,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
     </main>
     <script src="/prototype-assets/vendor/leaflet/leaflet.js"></script>
     <script src="{MAP_POPUP_URL}"></script>
+    <script src="{MAP_TERRITORY_URL}"></script>
     <script>
       const supportEntities = {map_entities_json};
       const serviceLegend = {service_legend_json};
@@ -3708,6 +3719,8 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
 
       const bounds = [];
       const markerLayer = L.layerGroup().addTo(map);
+      const territoryController = configureTerritoryMarkers(map, markerLayer, popupController);
+      const territoryEntries = [];
       const markersByEntityId = new Map();
       const markerIcon = (isFallback) => L.divIcon({{
         className: '',
@@ -3746,12 +3759,14 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
             ${{otherLabel}}
           </div>
         `, popupController.options);
-        marker.addTo(markerLayer);
+        territoryEntries.push({{ ...entity, marker }});
         if (entity.id !== undefined && entity.id !== null) {{
           markersByEntityId.set(String(entity.id), marker);
         }}
         bounds.push([entity.lat, entity.lng]);
       }});
+
+      territoryController.setEntries(territoryEntries);
 
       const resetMapView = () => {{
         map.closePopup();
@@ -3805,6 +3820,7 @@ def render_support_entities_html(data: Dict[str, Any], authenticated: bool = Fal
         button.addEventListener('click', () => {{
           const marker = markersByEntityId.get(String(button.dataset.entityId || ''));
           if (!marker) return;
+          territoryController.reveal(marker);
           popupController.focus(marker, Math.max(map.getZoom(), 10));
           document.getElementById('support-map').scrollIntoView({{ behavior: 'smooth', block: 'center' }});
         }});

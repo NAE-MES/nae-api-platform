@@ -12,3 +12,4 @@ def _asset_url(name: str) -> str:
 
 STYLESHEET_URL = _asset_url("styles.css")
 MAP_POPUP_URL = _asset_url("map-popup.js")
+MAP_TERRITORY_URL = _asset_url("map-territories.js")
