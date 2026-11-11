@@ -496,7 +496,8 @@ def entidades_apoyo_pdf(
 
 @app.get("/directorio.pdf")
 def directorio_editorial_pdf(request: Request):
-    _require_analytics_access(request, None)
+    if not _has_map_access(request):
+        return _redirect_to_login(request)
     return FileResponse(
         PROJECT_ROOT / "docs" / "directorio_final.pdf",
         media_type="application/pdf",
