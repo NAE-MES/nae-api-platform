@@ -89,6 +89,8 @@ ANALYTICS_PASSWORD=tu_password_panel
 # Cuentas adicionales para jefes/responsables, separadas por punto y coma.
 # Ejemplo: jefe1:clave_larga_1;jefe2:clave_larga_2
 ANALYTICS_USERS=
+# Usuarios con acceso únicamente al mapa (formato usuario:clave;usuario:clave).
+MAP_USERS=mapa1:clave_larga
 # Solo estos usuarios adicionales pueden entrar a Revisión. El ANALYTICS_USERNAME principal siempre puede revisar.
 # Puede usarse solo usuario si ya está en ANALYTICS_USERS, o usuario:clave si debe autenticar desde aquí.
 ANALYTICS_REVIEW_USERS=jefe1:clave_larga_1;jefe2:clave_larga_2

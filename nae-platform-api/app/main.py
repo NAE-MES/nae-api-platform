@@ -22,6 +22,7 @@ from app.config import (
     ANALYTICS_REVIEW_USERS,
     ANALYTICS_USERNAME,
     ANALYTICS_USERS,
+    MAP_USERS,
     API_TOKEN,
     SESSION_COOKIE_SECURE,
     SESSION_MAX_AGE_SECONDS,
@@ -112,6 +113,7 @@ def _configured_analytics_users() -> Dict[str, str]:
     users = {ANALYTICS_USERNAME: ANALYTICS_PASSWORD}
     users.update(_parse_user_password_entries(ANALYTICS_USERS))
     users.update(_parse_user_password_entries(ANALYTICS_REVIEW_USERS))
+    users.update(_parse_user_password_entries(MAP_USERS))
     return users
 
 
@@ -174,7 +176,12 @@ def _session_username(request: Request) -> Optional[str]:
 def _has_analytics_access(request: Request, authorization: Optional[str] = None) -> bool:
     if authorization == f"Bearer {API_TOKEN}":
         return True
-    return _is_valid_session_cookie(request.cookies.get(AUTH_COOKIE_NAME))
+    username = _session_username(request)
+    return bool(username and username not in _parse_user_password_entries(MAP_USERS))
+
+
+def _has_map_access(request: Request) -> bool:
+    return _session_username(request) is not None
 
 
 def _require_analytics_access(request: Request, authorization: Optional[str] = None) -> None:
@@ -359,6 +366,9 @@ async def login_submit(request: Request):
     if not _valid_analytics_credentials(username, password):
         return _render_login_html(error="Usuario o contraseña incorrectos.", next_url=next_url)
 
+    if username in _parse_user_password_entries(MAP_USERS):
+        next_url = "/mapa-apoyo"
+
     response = RedirectResponse(url=next_url, status_code=303)
     response.set_cookie(
         AUTH_COOKIE_NAME,
@@ -496,7 +506,7 @@ def directorio_editorial_pdf(request: Request):
 
 @app.get("/mapa-offline.html")
 def mapa_offline_html(request: Request):
-    if not _has_analytics_access(request):
+    if not _has_map_access(request):
         return _redirect_to_login(request)
     offline_map = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_entidades_apoyo.html"
     if not offline_map.exists():
@@ -511,7 +521,7 @@ def mapa_offline_html(request: Request):
 
 @app.get("/mapa-offline-calles-muestra.html")
 def mapa_offline_calles_muestra(request: Request):
-    if not _has_analytics_access(request):
+    if not _has_map_access(request):
         return _redirect_to_login(request)
     sample = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_muestra_calles_habana.html"
     if not sample.exists():
@@ -521,7 +531,7 @@ def mapa_offline_calles_muestra(request: Request):
 
 @app.get("/mapa-offline-calles.html")
 def mapa_offline_calles(request: Request):
-    if not _has_analytics_access(request):
+    if not _has_map_access(request):
         return _redirect_to_login(request)
     national = PROJECT_ROOT / "reportes" / "mapa_exportable" / "mapa_calles_cuba.html"
     if not national.exists():
@@ -540,12 +550,15 @@ def mapa_apoyo(
     servicio: Optional[str] = None,
     q: Optional[str] = None,
 ):
-    if not _has_analytics_access(request):
+    if not _has_map_access(request):
         return _redirect_to_login(request)
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="El límite debe estar entre 1 y 1000")
     data = get_support_entities(limit=limit, provincia=provincia, municipio=municipio, tipo=tipo, servicio=servicio, q=q)
-    return render_support_entities_html(data, authenticated=_has_analytics_access(request), can_review=_has_review_access(request))
+    html = render_support_entities_html(data, authenticated=_has_map_access(request), can_review=_has_review_access(request))
+    if not _has_analytics_access(request):
+        html = html.replace('<a href="/analitica">Analítica</a>', "")
+    return html
 
 @app.get("/api/v1/respuestas/{respuesta_id}")
 def detalle_respuesta_api(

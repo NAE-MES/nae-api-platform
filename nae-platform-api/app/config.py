@@ -45,6 +45,7 @@ ANALYTICS_USERNAME = os.getenv("ANALYTICS_USERNAME", "admin").strip() or "admin"
 ANALYTICS_PASSWORD = os.getenv("ANALYTICS_PASSWORD", API_TOKEN).strip() or API_TOKEN
 ANALYTICS_USERS = os.getenv("ANALYTICS_USERS", "").strip()
 ANALYTICS_REVIEW_USERS = os.getenv("ANALYTICS_REVIEW_USERS", "").strip()
+MAP_USERS = os.getenv("MAP_USERS", "").strip()
 SESSION_SECRET = os.getenv("SESSION_SECRET", API_TOKEN).strip() or API_TOKEN
 SESSION_MAX_AGE_SECONDS = _require_int_env("SESSION_MAX_AGE_SECONDS", 8 * 60 * 60)
 SESSION_COOKIE_SECURE = _require_bool_env("SESSION_COOKIE_SECURE", False)
